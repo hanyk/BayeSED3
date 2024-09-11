@@ -1,9 +1,9 @@
 ## BayeSED 安装说明
 1. openmpi
- https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.4.tar.bz2
+https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
 ```
-tar xjvf openmpi-4.0.4.tar.bz2
-cd openmpi-4.0.4
+tar xjvf openmpi-4.1.6.tar.bz2
+cd openmpi-4.1.6
 ./configure # --prefix /opt/local
 make
 make install

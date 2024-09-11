@@ -1,0 +1,9 @@
+numpy
+requests
+tqdm
+astropy
+matplotlib
+GetDist
+specutils
+sfdmap2
+PyAstronomy
