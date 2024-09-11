@@ -1,0 +1,16 @@
+#name                iprior_type  is_age  min   max    nbin
+log(M_BH/M_sun)      1            0       0     10     40
+log(M_dot/Mdot_edd)  1            0       -10   2      40
+astar                1            0       0     0.998  40
+cos_inc              1            0       0.09  0.998  40
+kTe_hot              1            0       100   100    40
+kTe_warm             1            0       0.2   0.2    40
+gamma_hot            1            0       1.7   1.7    40
+gamma_warm           1            0       2.7   2.7    40
+r_hot                1            0       10    10     40
+r_warm               1            0       20    20     40
+log_rout             1            0       -1    -1     40
+fcol                 1            0       1     1      40
+hmax                 1            0       10    10     40
+f                    1            0       0     1      40
+log(norm)            1            0       0     0      40

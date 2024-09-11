@@ -1,0 +1,5 @@
+#name iprior_type is_age min max nbin
+phi 1 0 17 22 40
+nH 1 0 9 14 40
+m 1 0 0 100 40
+f 1 0 0 1 40

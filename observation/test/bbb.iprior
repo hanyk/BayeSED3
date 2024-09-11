@@ -1,0 +1,7 @@
+#name iprior_type is_age min max nbin
+log(L^{AGN}_{5100}) 1 0 38 50 40
+uvslope 1 0 0 0 40
+plslope 1 0 -2.7 -1 40
+plbendloc 1 0 0.05 0.15 40
+plbendwidth 1 0 0.1 10 40
+f 1 0 0 1 40

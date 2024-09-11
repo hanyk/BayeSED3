@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+platform="$1" #linux mac ;x86_64 only, arm is not supported
+obj="$2" #gal qso
+output_dir="$3"
+input_dir="observation/test"
+
+mpirun="time mpirun --use-hwthread-cpus"
+bayesed="./bin/$platform/bayesed_mn_1"
+#bayesed="/Users/hanyk/workplace/bayesed/bayesed_mn_1"
+#bayesed="./bin/$platform/bayesed_mn_n"
+
+input="-i 0,$input_dir/$obj.txt"
+outdir="--outdir $output_dir"
+save="--save_bestfit 0" #Save the best fitting result (0:fits 1:hdf5 2:both)
+save+=" --save_sample_par" #Save the posterior sample of parameters
+
+#galaxy model: simple stellar population (SSP), star formation history (SFH), and dust attenuation law (DAL) 
+model="--ssp 0,0,bc2003_hr_stelib_chab_neb_2000r,1,1,1,1,0,1,0,0 --sfh 0,2,0,0 --dal 0,2,8 --rename 0,1,Stellar+Nebular"
+
+if [[ "$obj" == "qso" ]]; then
+    #phenomenological AGN accretion disk model
+    model+=" -bbb 1,1,bbb,1,0.1,10,1000 --dal 1,2,7"
+    #physical AGN accretion disk model
+    #model+=" -AGN 1,1,fagnsed,0,2,0.01,10,1000 --dal 1,2,7"
+    #AGN BLR
+    lines="-ls1 2,2,BLR,1,observation/test/lines_BLR.txt,300,2,3" #Set a series of emission line with name, wavelength/A and ratio in the given file as one SED model
+    #AGN FeII
+    lines+=" -k 3,3,FeII,1,1,1,0,0,1,1,1 --kin 3,10,2,0" # -k igroup,id,name,iscalable,k,f_run,eps,iRad,iprep,Nstep,alpha Select aknn model by name; --kin set the velscale, number(0,2,..,n) of Gauss–Hermites for the LOSVD of continuum and emission lines for the model with given id
+    #AGN NLR
+    lines+=" -ls1 4,4,NLR,1,observation/test/lines_NLR.txt,2000,2,2"
+fi
+
+iverbose_multinest=2
+iverbose_bayesed="-v 2"
+nlive=40
+multinest="--multinest 1,0,1,$nlive,0.05,0.5,100,-1e90,1,$iverbose_multinest,0,0,-1e90,100000,0.01" # see README_multinest.txt for more
+#filters="--filters $input_dir/filters.txt --filters_selected  $input_dir/filters_selected_$obj.txt"
+#redshift="--z 3,0,0.01,0.5,40" #set the prior for the redshift z e.g. --z iprior_type,is_age,min,max,nbin... (default:1,0,z_min,z_max,100 with z_min and z_max given in $input_dir/$obj.txt)
+SYS_ERR="--sys_err_obs 1,0,0.0,0.2,40" #set the prior for the fractional systematic error of obs
+$mpirun $bayesed $input $model $lines $save $iverbose_bayesed $multinest $outdir $SNRmin $Ntest $filters $IGM $redshift $NNLM $SYS_ERR $DAL
+
+#for i in $output_dir/$obj/*/*.fits;do (python3 plot/plot_bestfit.py $i);done
