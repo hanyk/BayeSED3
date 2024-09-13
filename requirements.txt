@@ -1,9 +1,10 @@
 numpy
-requests
-tqdm
+h5py
 astropy
 matplotlib
 GetDist
+requests
+tqdm
 specutils
 sfdmap2
 PyAstronomy

@@ -1,6 +1,5 @@
 import subprocess
 import sys
-import shlex
 import platform
 import multiprocessing
 import os
