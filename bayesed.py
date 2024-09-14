@@ -95,7 +95,7 @@ class BayeSEDInterface:
         # Set TMPDIR environment variable
         os.environ['TMPDIR'] = '/tmp'
 
-        cmd = self.mpi_cmd + ['-np', str(self.num_processes), self.executable_path] + args
+        cmd = self.mpi_cmd + ['--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
         print(f"Executing command: {' '.join(cmd)}")
         
         try:

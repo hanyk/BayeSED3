@@ -1,0 +1,8 @@
+#name iprior_type is_age min max nbin
+N0 1 0 1 15 40
+Y 1 0 5 100 40
+i 1 0 0 90 40
+q 1 0 0 3 40
+sig 1 0 15 70 40
+tv 1 0 10 300 40
+f 1 0 0 1 40

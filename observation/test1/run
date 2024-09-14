@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+bayesed="$1" #e.g. ./bin/linux/bayesed_n|./bin/linux/bayesed_1|./bin/mac/bayesed_n|./bin/mac/bayesed_1
+mpirun="$2" # e.g. mpirun|/opt/local/bin/mpirun
+nlive=50
+efr=0.1
+tol=0.5
+seed=1
+verbose=0
+multinest="--multinest 1,0,0,$nlive,$efr,$tol,1000,-1e90,$seed,$verbose,0,0,-1e90,100000,0.01"
+
+for survey in CSST #CSST_Euclid COSMOS
+do
+    for obs in observation/test1/test_inoise1.txt # observation/test1/test_inoise0.txt
+    do
+        time $mpirun $bayesed $multinest -i 1,$obs  --filters observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt --filters_selected observation/test1/filters_"$survey"_seleted.txt --ssp 0,0,bc2003_lr_BaSeL_chab,1,1,1,1,0,0,0,0 --sfh 0,2,0,0  --dal 0,2,8  --z 1,0,0,4,40 --outdir test1 --suffix _$survey --no_spectra_fit --save_sample_par --save_bestfit 2
+    done
+done
