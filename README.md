@@ -35,11 +35,14 @@ BayeSED is a general tool for the full Bayesian interpretation of the spectral e
 1. Run examples
 
    ```
+   #Spectroscopic SED analysis
    python run_test.py gal
    python run_test.py qso
-   ```
 
-   This will run examples for galaxies (gal) and quasars (qso) respectively.
+   #Photometric SED analysis
+   python run_test.py test1
+   python run_test.py test2
+   ```
 
 2. Custom runs
 
