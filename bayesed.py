@@ -8,7 +8,7 @@ import platform
 import subprocess
 import multiprocessing
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 @dataclass
@@ -57,7 +57,7 @@ class BigBlueBumpParams:
     """
     igroup: int
     id: int
-    bbb: str
+    name: str
     iscalable: int
     w_min: float
     w_max: float
@@ -70,8 +70,9 @@ class GreybodyParams:
     """
     igroup: int
     id: int
-    gb: str
+    name: str
     iscalable: int
+    ithick: int
     w_min: float
     w_max: float
     Nw: int
@@ -85,10 +86,13 @@ class AKNNParams:
     id: int
     name: str
     iscalable: int
-    param5: int
-    param6: int
-    param7: int
-    param8: int
+    k: int
+    f_run: int
+    eps: float
+    iRad: int
+    iprep: int
+    Nstep: int
+    alpha: float
 
 @dataclass
 class LineParams:
@@ -118,10 +122,10 @@ class NPSFHParams:
     """
     Set the prior type(0-7), interpolation method (0-3), number of bins and regul for the nonparametric SFH.
     """
-    prior_type: int
-    interpolation_method: int
-    num_bins: int
-    regul: float
+    prior_type: int = 5
+    interpolation_method: int = 0
+    num_bins: int = 10
+    regul: float = 100.0
 
 @dataclass
 class PolynomialParams:
@@ -221,22 +225,22 @@ class NNLMParams:
     """
     The method, Niter1, tol1, Niter2, tol2, p1, p2 for the determination of nonnegative scale using NNLM.
     """
-    method: int  # 0=eazy, 1=scd, 2=lee_ls, 3=scd_kl, 4=lee_kl
-    Niter1: int
-    tol1: float
-    Niter2: int
-    tol2: float
-    p1: float
-    p2: float
+    method: int = 0  # 0=eazy, 1=scd, 2=lee_ls, 3=scd_kl, 4=lee_kl
+    Niter1: int = 10000
+    tol1: float = 0.0
+    Niter2: int = 10
+    tol2: float = 0.01
+    p1: float = 0.05
+    p2: float = 0.95
 
 @dataclass
 class NdumperParams:
     """
     Set the max number, iconverged_min and Xmin^2/Nd for the dumper of multinest.
     """
-    max_number: int
-    iconverged_min: int
-    Xmin_squared_Nd: float
+    max_number: int = 1
+    iconverged_min: int = 0
+    Xmin_squared_Nd: float = -1.0
 
 @dataclass
 class OutputSFHParams:
@@ -251,54 +255,55 @@ class MultiNestParams:
     """
     Parameters for MultiNest.
     """
-    is_: bool
-    mmodal: bool
-    ceff: bool
-    nlive: int
-    efr: float
-    tol: float
-    updInt: int
-    Ztol: float
-    seed: int
-    fb: int
-    resume: bool
-    outfile: bool
-    logZero: float
-    maxiter: int
-    acpt: float
+    is_: bool = True
+    mmodal: bool = False
+    ceff: bool = False
+    nlive: int = 100
+    efr: float = 0.1
+    tol: float = 0.5
+    updInt: int = 1000
+    Ztol: float = -1e90
+    seed: int = 1
+    fb: int = 0
+    resume: bool = False
+    outfile: bool = False
+    logZero: float = -1e90
+    maxiter: int = 100000
+    acpt: float = 0.01
 
 @dataclass
 class SFROverParams:
-    past_Myr1: float
-    past_Myr2: float
+    past_Myr1: float = 10.0
+    past_Myr2: float = 100.0
 
 @dataclass
 class SNRmin1Params:
-    phot: float
-    spec: float
+    phot: float = 0.0
+    spec: float = 0.0
 
 @dataclass
 class SNRmin2Params:
-    phot: float
-    spec: float
+    phot: float = 0.0
+    spec: float = 0.0
 
 @dataclass
 class GSLIntegrationQAGParams:
-    epsabs: float
-    epsrel: float
-    limit: int
-    key: int
+    epsabs: float = 0.0
+    epsrel: float = 0.1
+    limit: int = 1000
+    key: int = 1
 
 @dataclass
 class GSLMultifitRobustParams:
-    type: str
-    tune: float
+    type: str = "ols"
+    tune: float = 1.0
 
 @dataclass
 class KinParams:
-    velscale: int
-    num_gauss_hermites_continuum: int
-    num_gauss_hermites_emission: int
+    id: int = -1
+    velscale: int = 10
+    num_gauss_hermites_continuum: int = 0
+    num_gauss_hermites_emission: int = 0
 
 @dataclass
 class LineListParams:
@@ -362,7 +367,7 @@ class BayeSEDParams:
     aknn: Optional[AKNNParams] = None
     line: Optional[LineParams] = None
     lines: Optional[LineParams] = None
-    lines1: Optional[LineParams] = None
+    lines1: List[LineParams] = field(default_factory=list)
     luminosity: Optional[LuminosityParams] = None
     np_sfh: Optional[NPSFHParams] = None
     polynomial: Optional[PolynomialParams] = None
@@ -544,7 +549,7 @@ class BayeSEDInterface:
             # Capture and print any errors
             if process.stderr:
                 for error_line in process.stderr:
-                    print(f"Error: {error_line}", end='', file=sys.stderr)
+                    print(error_line, end='', file=sys.stderr)
             
             # Wait for the process to finish
             return_code = process.wait()
@@ -600,10 +605,11 @@ class BayeSEDInterface:
             args.extend(['-l', self._format_line_params(params.line)])
         
         if params.lines:
-            args.extend(['-L', self._format_line_params(params.lines)])
+            args.extend(['-ls', self._format_line_params(params.lines)])
         
         if params.lines1:
-            args.extend(['-L1', self._format_line_params(params.lines1)])
+            for line_params in params.lines1:
+                args.extend(['-ls1', self._format_line_params(line_params)])
         
         if params.luminosity:
             args.extend(['--luminosity', self._format_luminosity_params(params.luminosity)])
@@ -821,16 +827,16 @@ class BayeSEDInterface:
         return f"{blackbody_params.igroup},{blackbody_params.id},{blackbody_params.name},{blackbody_params.iscalable}"
 
     def _format_big_blue_bump_params(self, big_blue_bump_params):
-        return f"{big_blue_bump_params.igroup},{big_blue_bump_params.id},{big_blue_bump_params.name},{big_blue_bump_params.iscalable}"
+        return f"{big_blue_bump_params.igroup},{big_blue_bump_params.id},{big_blue_bump_params.name},{big_blue_bump_params.iscalable},{big_blue_bump_params.w_min},{big_blue_bump_params.w_max},{big_blue_bump_params.Nw}"
 
     def _format_greybody_params(self, greybody_params):
         return f"{greybody_params.igroup},{greybody_params.id},{greybody_params.name},{greybody_params.iscalable}"
 
     def _format_aknn_params(self, aknn_params):
-        return f"{aknn_params.igroup},{aknn_params.id},{aknn_params.name},{aknn_params.iscalable}"
+        return f"{aknn_params.igroup},{aknn_params.id},{aknn_params.name},{aknn_params.iscalable},{aknn_params.k},{aknn_params.f_run},{aknn_params.eps},{aknn_params.iRad},{aknn_params.iprep},{aknn_params.Nstep},{aknn_params.alpha}"
 
     def _format_line_params(self, line_params):
-        return f"{line_params.igroup},{line_params.id},{line_params.name},{line_params.iscalable}"
+        return f"{line_params.igroup},{line_params.id},{line_params.name},{line_params.iscalable},{line_params.file},{line_params.R},{line_params.Nsample},{line_params.Nkin}"
 
     def _format_luminosity_params(self, luminosity_params):
         return f"{luminosity_params.igroup},{luminosity_params.id},{luminosity_params.name},{luminosity_params.iscalable}"
@@ -889,8 +895,8 @@ class BayeSEDInterface:
     def _format_gsl_multifit_robust_params(self, gsl_multifit_robust_params):
         return f"{gsl_multifit_robust_params.type},{gsl_multifit_robust_params.tune}"
 
-    def _format_kin_params(self, kin_params):
-        return f"{kin_params.velscale},{kin_params.num_gauss_hermites_continuum},{kin_params.num_gauss_hermites_emission},{int(kin_params.save_sample_obs)}"
+    def _format_kin_params(self, KinParams):
+        return f"{KinParams.id},{KinParams.velscale},{KinParams.num_gauss_hermites_continuum},{KinParams.num_gauss_hermites_emission}"
 
     def _format_LineList_params(self, LineList_params):
         return f"{LineList_params.file},{LineList_params.type}"

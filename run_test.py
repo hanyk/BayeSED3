@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams
+from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams
 import os
 import sys
 
@@ -10,24 +10,113 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
         outdir=output_dir,
         save_bestfit=0,
         save_sample_par=True,
-        ssp=SSPParams(0, 0, 'bc2003_hr_stelib_chab_neb_2000r', 1, 1, 1, 1, 0, 1, 0, 0),
-        sfh=SFHParams(0, 2, 0, 0),
-        dal=DALParams(0, 2, 8),
+        ssp=SSPParams(
+            igroup=0, 
+            id=0, 
+            name='bc2003_hr_stelib_chab_neb_2000r', 
+            iscalable=1, 
+            k=1, 
+            f_run=1, 
+            Nstep=1, 
+            i0=0, 
+            i1=1, 
+            i2=0, 
+            i3=0
+        ),
+        sfh=SFHParams(
+            id=0,
+            itype_sfh=2,
+            itruncated=0,
+            itype_ceh=0
+        ),
+        dal=DALParams(
+            id=0,
+            con_eml_tot=2,
+            ilaw=8
+        ),
         rename='0,1,Stellar+Nebular',
-        multinest=MultiNestParams(True, False, True, 40, 0.05, 0.5, 100, -1e90, 1, 2, False, False, -1e90, 100000, 0.01),
-        sys_err_obs=SysErrParams(1, 0, 0.0, 0.2, 40),
+        multinest=MultiNestParams(
+            is_=True,
+            mmodal=False,
+            ceff=True,
+            nlive=40,
+            efr=0.05,
+            tol=0.5,
+            updInt=100,
+            Ztol=-1e90,
+            seed=1,
+            fb=2,
+            resume=False,
+            outfile=False,
+            logZero=-1e90,
+            maxiter=100000,
+            acpt=0.01
+        ),
+        sys_err_obs=SysErrParams(
+            iprior_type=1,
+            is_age=0,
+            min=0.0,
+            max=0.2,
+            nbin=40
+        ),
         verbose=2
     )
 
     if obj == 'qso':
-        params.big_blue_bump = BigBlueBumpParams(1, 1, 'bbb', 1, 0.1, 10, 1000)
-        params.dal = DALParams(1, 2, 7)
-        params.lines1 = [
-            LineParams(2, 2, 'BLR', 1, 'observation/test/lines_BLR.txt', 300, 2, 3),
-            LineParams(4, 4, 'NLR', 1, 'observation/test/lines_NLR.txt', 2000, 2, 2)
-        ]
-        params.aknn = AKNNParams(3, 3, 'FeII', 1, 1, 1, 0, 0)
-        params.kin = [3, 10, 2, 0]
+        params.big_blue_bump = BigBlueBumpParams(
+            igroup=1,
+            id=1,
+            name='bbb',
+            iscalable=1,
+            w_min=0.1,
+            w_max=10,
+            Nw=1000
+        )
+        params.dal = DALParams(
+            id=1,
+            con_eml_tot=2,
+            ilaw=7
+        )
+        params.lines1 = []
+        params.lines1.append(LineParams(
+            igroup=2,
+            id=2,
+            name='BLR',
+            iscalable=1,
+            file='observation/test/lines_BLR.txt',
+            R=300,
+            Nsample=2,
+            Nkin=3
+        ))
+        params.lines1.append(LineParams(
+            igroup=4,
+            id=4,
+            name='NLR',
+            iscalable=1,
+            file='observation/test/lines_NLR.txt',
+            R=2000,
+            Nsample=2,
+            Nkin=2
+        ))
+        params.aknn = AKNNParams(
+            igroup=3,
+            id=3,
+            name='FeII',
+            iscalable=1,
+            k=1,
+            f_run=1,
+            eps=0,
+            iRad=0,
+            iprep=0,
+            Nstep=1,
+            alpha=0
+        )
+        params.kin = KinParams(
+            id=3,
+            velscale=10,
+            num_gauss_hermites_continuum=2,
+            num_gauss_hermites_emission=0
+        )
 
     print(f"Running BayeSED for {obj} object...")
     bayesed.run(params)
