@@ -68,14 +68,14 @@ class GreybodyParams:
     """
     Parameters for greybody model.
     """
-    igroup: int
+    igroup: int 
     id: int
     name: str
     iscalable: int
-    ithick: int
-    w_min: float
-    w_max: float
-    Nw: int
+    ithick: int =2
+    w_min: float =1
+    w_max: float =1000
+    Nw: int=200
 
 @dataclass
 class AKNNParams:
@@ -86,13 +86,13 @@ class AKNNParams:
     id: int
     name: str
     iscalable: int
-    k: int
-    f_run: int
-    eps: float
-    iRad: int
-    iprep: int
-    Nstep: int
-    alpha: float
+    k: int =1
+    f_run: int =1
+    eps: float =0
+    iRad: int =0
+    iprep: int =0
+    Nstep: int =1
+    alpha: float =0
 
 @dataclass
 class LineParams:
@@ -102,11 +102,11 @@ class LineParams:
     igroup: int
     id: int
     name: str
-    iscalable: int
     file: str
     R: float
-    Nsample: int
     Nkin: int
+    iscalable: int
+    Nsample: int =2
 
 @dataclass
 class LuminosityParams:
@@ -162,27 +162,27 @@ class SFHParams:
     """
     Parameters for Star Formation History.
     """
-    id: int
     itype_sfh: int
-    itruncated: int
-    itype_ceh: int
+    id: int
+    itruncated: int = 0
+    itype_ceh: int = 0
 
 @dataclass
 class SSPParams:
     """
     Parameters for SSP (Simple Stellar Population) model.
     """
+    name: str
     igroup: int
     id: int
-    name: str
     iscalable: int
-    k: int
-    f_run: int
-    Nstep: int
-    i0: int
-    i1: int
-    i2: int
-    i3: int
+    k: int = 1
+    f_run: int = 1
+    Nstep: int = 1
+    i0: int = 0
+    i1: int = 0
+    i2: int = 0
+    i3: int = 0
 
 @dataclass
 class SEDLibParams:
@@ -203,22 +203,22 @@ class SysErrParams:
     """
     Set the prior for the fractional systematic error of model or observation.
     """
-    iprior_type: int
-    is_age: int
-    min: float
-    max: float
-    nbin: int
+    iprior_type: int = 1
+    is_age: int = 0
+    min: float=0
+    max: float=0.2
+    nbin: int =40
 
 @dataclass
 class ZParams:
     """
     Set the prior for the redshift z.
     """
-    iprior_type: int
-    is_age: int
-    min: float
-    max: float
-    nbin: int
+    iprior_type: int=1
+    is_age: int=0
+    min: float=0.0
+    max: float=1.0
+    nbin: int=40
 
 @dataclass
 class NNLMParams:
@@ -300,7 +300,7 @@ class GSLMultifitRobustParams:
 
 @dataclass
 class KinParams:
-    id: int = -1
+    id: int
     velscale: int = 10
     num_gauss_hermites_continuum: int = 0
     num_gauss_hermites_emission: int = 0
@@ -334,9 +334,9 @@ class CosmologyParams:
 
 @dataclass
 class DALParams:
-    id: int
-    con_eml_tot: int
     ilaw: int
+    id: int
+    con_eml_tot: int = 2
 
 @dataclass
 class RDFParams:
@@ -359,32 +359,32 @@ class BayeSEDParams:
     help: bool = False
 
     # Model related parameters
-    fann: Optional[FANNParams] = None
-    AGN: Optional[AGNParams] = None
-    blackbody: Optional[BlackbodyParams] = None
-    big_blue_bump: Optional[BigBlueBumpParams] = None
-    greybody: Optional[GreybodyParams] = None
-    aknn: Optional[AKNNParams] = None
-    line: Optional[LineParams] = None
-    lines: Optional[LineParams] = None
+    fann: List[FANNParams] = field(default_factory=list)
+    AGN: List[AGNParams] = field(default_factory=list)
+    blackbody: List[BlackbodyParams] = field(default_factory=list)
+    big_blue_bump: List[BigBlueBumpParams] = field(default_factory=list)
+    greybody: List[GreybodyParams] = field(default_factory=list)
+    aknn: List[AKNNParams] = field(default_factory=list)
+    line: List[LineParams] = field(default_factory=list)
+    lines: List[LineParams] = field(default_factory=list)
     lines1: List[LineParams] = field(default_factory=list)
     luminosity: Optional[LuminosityParams] = None
     np_sfh: Optional[NPSFHParams] = None
     polynomial: Optional[PolynomialParams] = None
-    powerlaw: Optional[PowerlawParams] = None
-    rbf: Optional[RBFParams] = None
-    sfh: Optional[SFHParams] = None
-    ssp: Optional[SSPParams] = None
-    sedlib: Optional[SEDLibParams] = None
+    powerlaw: List[PowerlawParams] = field(default_factory=list)
+    rbf: List[RBFParams] = field(default_factory=list)
+    sfh: List[SFHParams] = field(default_factory=list)
+    ssp: List[SSPParams] = field(default_factory=list)
+    sedlib: List[SEDLibParams] = field(default_factory=list)
     sys_err_mod: Optional[SysErrParams] = None
     sys_err_obs: Optional[SysErrParams] = None
     z: Optional[ZParams] = None
-    inn: Optional[SEDLibParams] = None
-    cloudy: Optional[CloudyParams] = None
+    inn: List[SEDLibParams] = field(default_factory=list)
+    cloudy: List[CloudyParams] = field(default_factory=list)
     cosmology: Optional[CosmologyParams] = None
-    dal: Optional[DALParams] = None
+    dal: List[DALParams] = field(default_factory=list)
     rdf: Optional[RDFParams] = None
-    template: Optional[TemplateParams] = None
+    template: List[TemplateParams] = field(default_factory=list)
 
     # Output control parameters
     save_bestfit: int = 0
@@ -584,28 +584,36 @@ class BayeSEDInterface:
         
         # Add other command line arguments of bayesed
         if params.fann:
-            args.extend(['-a', self._format_fann_params(params.fann)])
+            for fann_params in params.fann:
+                args.extend(['-a', self._format_fann_params(fann_params)])
         
         if params.AGN:
-            args.extend(['-AGN', self._format_AGN_params(params.AGN)])
+            for AGN_params in params.AGN:
+                args.extend(['-AGN', self._format_AGN_params(AGN_params)])
         
         if params.blackbody:
-            args.extend(['-bb', self._format_blackbody_params(params.blackbody)])
+            for blackbody_params in params.blackbody:
+                args.extend(['-bb', self._format_blackbody_params(blackbody_params)])
         
         if params.big_blue_bump:
-            args.extend(['-bbb', self._format_big_blue_bump_params(params.big_blue_bump)])
+            for big_blue_bump_params in params.big_blue_bump:
+                args.extend(['-bbb', self._format_big_blue_bump_params(big_blue_bump_params)])
         
         if params.greybody:
-            args.extend(['-gb', self._format_greybody_params(params.greybody)])
+            for greybody_params in params.greybody:
+                args.extend(['-gb', self._format_greybody_params(greybody_params)])
         
         if params.aknn:
-            args.extend(['-k', self._format_aknn_params(params.aknn)])
+            for aknn_params in params.aknn:
+                args.extend(['-k', self._format_aknn_params(aknn_params)])
         
         if params.line:
-            args.extend(['-l', self._format_line_params(params.line)])
+            for line_params in params.line:
+                args.extend(['-l', self._format_line_params(line_params)])
         
         if params.lines:
-            args.extend(['-ls', self._format_line_params(params.lines)])
+            for lines_params in params.lines:
+                args.extend(['-ls', self._format_line_params(lines_params)])
         
         if params.lines1:
             for line_params in params.lines1:
@@ -621,19 +629,24 @@ class BayeSEDInterface:
             args.extend(['--polynomial', self._format_polynomial_params(params.polynomial)])
         
         if params.powerlaw:
-            args.extend(['-pw', self._format_powerlaw_params(params.powerlaw)])
+            for powerlaw_params in params.powerlaw:
+                args.extend(['-pw', self._format_powerlaw_params(powerlaw_params)])
         
         if params.rbf:
-            args.extend(['-rbf', self._format_rbf_params(params.rbf)])
+            for rbf_params in params.rbf:
+                args.extend(['-rbf', self._format_rbf_params(rbf_params)])
         
         if params.sfh:
-            args.extend(['--sfh', self._format_sfh_params(params.sfh)])
+            for sfh_params in params.sfh:
+                args.extend(['--sfh', self._format_sfh_params(sfh_params)])
         
         if params.ssp:
-            args.extend(['-ssp', self._format_ssp_params(params.ssp)])
+            for ssp_params in params.ssp:
+                args.extend(['-ssp', self._format_ssp_params(ssp_params)])
         
         if params.sedlib:
-            args.extend(['-sedlib', self._format_sedlib_params(params.sedlib)])
+            for sedlib_params in params.sedlib:
+                args.extend(['-sedlib', self._format_sedlib_params(sedlib_params)])
         
         if params.sys_err_mod:
             args.extend(['--sys_err_mod', self._format_sys_err_params(params.sys_err_mod)])
@@ -721,7 +734,8 @@ class BayeSEDInterface:
                 args.extend(['--import', import_file])
         
         if params.inn:
-            args.extend(['--inn', self._format_sedlib_params(params.inn)])
+            for inn_params in params.inn:
+                args.extend(['--inn', self._format_sedlib_params(inn_params)])
         
         if params.IGM:
             args.extend(['--IGM', str(params.IGM)])
@@ -748,13 +762,15 @@ class BayeSEDInterface:
             args.append('--no_photometry_fit')
         
         if params.cloudy:
-            args.extend(['--cloudy', self._format_cloudy_params(params.cloudy)])
+            for cloudy_params in params.cloudy:
+                args.extend(['--cloudy', self._format_cloudy_params(cloudy_params)])
         
         if params.cosmology:
             args.extend(['--cosmology', self._format_cosmology_params(params.cosmology)])
         
         if params.dal:
-            args.extend(['--dal', self._format_dal_params(params.dal)])
+            for dal_params in params.dal:
+                args.extend(['--dal', self._format_dal_params(dal_params)])
         
         if params.export:
             args.extend(['--export', params.export])
@@ -779,7 +795,8 @@ class BayeSEDInterface:
             args.extend(['--rdf', self._format_rdf_params(params.rdf)])
         
         if params.template:
-            args.extend(['-t', self._format_template_params(params.template)])
+            for template_params in params.template:
+                args.extend(['-t', self._format_template_params(template_params)])
         
         if params.build_sedlib is not None:
             args.extend(['--build_sedlib', str(params.build_sedlib)])
@@ -799,7 +816,8 @@ class BayeSEDInterface:
             for import_file in params.import_files:
                 args.extend(['--import', import_file])
         if params.inn:
-            args.extend(['--inn', self._format_sedlib_params(params.inn)])
+            for inn_params in params.inn:
+                args.extend(['--inn', self._format_sedlib_params(inn_params)])
         if params.IGM is not None:
             args.extend(['--IGM', str(params.IGM)])
         if params.kin:
@@ -830,7 +848,7 @@ class BayeSEDInterface:
         return f"{big_blue_bump_params.igroup},{big_blue_bump_params.id},{big_blue_bump_params.name},{big_blue_bump_params.iscalable},{big_blue_bump_params.w_min},{big_blue_bump_params.w_max},{big_blue_bump_params.Nw}"
 
     def _format_greybody_params(self, greybody_params):
-        return f"{greybody_params.igroup},{greybody_params.id},{greybody_params.name},{greybody_params.iscalable}"
+        return f"{greybody_params.igroup},{greybody_params.id},{greybody_params.name},{greybody_params.iscalable},{greybody_params.ithick},{greybody_params.w_min},{greybody_params.w_max},{greybody_params.Nw}"
 
     def _format_aknn_params(self, aknn_params):
         return f"{aknn_params.igroup},{aknn_params.id},{aknn_params.name},{aknn_params.iscalable},{aknn_params.k},{aknn_params.f_run},{aknn_params.eps},{aknn_params.iRad},{aknn_params.iprep},{aknn_params.Nstep},{aknn_params.alpha}"

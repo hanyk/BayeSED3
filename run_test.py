@@ -10,60 +10,36 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
         outdir=output_dir,
         save_bestfit=0,
         save_sample_par=True,
-        ssp=SSPParams(
+        ssp=[SSPParams(
             igroup=0, 
             id=0, 
             name='bc2003_hr_stelib_chab_neb_2000r', 
             iscalable=1, 
-            k=1, 
-            f_run=1, 
-            Nstep=1, 
-            i0=0, 
-            i1=1, 
-            i2=0, 
-            i3=0
-        ),
-        sfh=SFHParams(
+            i1=1
+        )],
+        sfh=[SFHParams(
             id=0,
-            itype_sfh=2,
-            itruncated=0,
-            itype_ceh=0
-        ),
-        dal=DALParams(
+            itype_sfh=2
+        )],
+        dal=[DALParams(
             id=0,
-            con_eml_tot=2,
             ilaw=8
-        ),
+        )],
         rename='0,1,Stellar+Nebular',
         multinest=MultiNestParams(
-            is_=True,
-            mmodal=False,
-            ceff=True,
             nlive=40,
             efr=0.05,
-            tol=0.5,
             updInt=100,
-            Ztol=-1e90,
-            seed=1,
-            fb=2,
-            resume=False,
-            outfile=False,
-            logZero=-1e90,
-            maxiter=100000,
-            acpt=0.01
+            fb=2
         ),
         sys_err_obs=SysErrParams(
-            iprior_type=1,
-            is_age=0,
             min=0.0,
             max=0.2,
-            nbin=40
-        ),
-        verbose=2
+        )
     )
 
     if obj == 'qso':
-        params.big_blue_bump = BigBlueBumpParams(
+        params.big_blue_bump = [BigBlueBumpParams(
             igroup=1,
             id=1,
             name='bbb',
@@ -71,46 +47,37 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
             w_min=0.1,
             w_max=10,
             Nw=1000
-        )
-        params.dal = DALParams(
+        )]
+        params.dal = [DALParams(
             id=1,
-            con_eml_tot=2,
             ilaw=7
-        )
-        params.lines1 = []
-        params.lines1.append(LineParams(
-            igroup=2,
-            id=2,
-            name='BLR',
-            iscalable=1,
-            file='observation/test/lines_BLR.txt',
-            R=300,
-            Nsample=2,
-            Nkin=3
-        ))
-        params.lines1.append(LineParams(
-            igroup=4,
-            id=4,
-            name='NLR',
-            iscalable=1,
-            file='observation/test/lines_NLR.txt',
-            R=2000,
-            Nsample=2,
-            Nkin=2
-        ))
-        params.aknn = AKNNParams(
+        )]
+        params.lines1 = [
+            LineParams(
+                igroup=2,
+                id=2,
+                name='BLR',
+                iscalable=1,
+                file='observation/test/lines_BLR.txt',
+                R=300,
+                Nkin=3
+            ),
+            LineParams(
+                igroup=4,
+                id=4,
+                name='NLR',
+                iscalable=1,
+                file='observation/test/lines_NLR.txt',
+                R=2000,
+                Nkin=2
+            )
+        ]
+        params.aknn = [AKNNParams(
             igroup=3,
             id=3,
             name='FeII',
-            iscalable=1,
-            k=1,
-            f_run=1,
-            eps=0,
-            iRad=0,
-            iprep=0,
-            Nstep=1,
-            alpha=0
-        )
+            iscalable=1
+        )]
         params.kin = KinParams(
             id=3,
             velscale=10,
@@ -130,13 +97,31 @@ def run_bayesed_test1(survey, obs_file):
         outdir='test1',
         save_bestfit=2,
         save_sample_par=True,
-        multinest=MultiNestParams(True, False, False, 50, 0.1, 0.5, 1000, -1e90, 1, 0, False, False, -1e90, 100000, 0.01),
+        multinest=MultiNestParams(
+            nlive=50,
+            efr=0.1,
+            updInt=1000
+        ),
         filters='observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt',
         filters_selected=f'observation/test1/filters_{survey}_seleted.txt',
-        ssp=SSPParams(0, 0, 'bc2003_lr_BaSeL_chab', 1, 1, 1, 1, 0, 0, 0, 0),
-        sfh=SFHParams(0, 2, 0, 0),
-        dal=DALParams(0, 2, 8),
-        z=ZParams(1, 0, 0, 4, 40),
+        ssp=[SSPParams(
+            igroup=0, 
+            id=0, 
+            name='bc2003_lr_BaSeL_chab',
+            iscalable=1, 
+        )],
+        sfh=[SFHParams(
+            id=0,
+            itype_sfh=2
+        )],
+        dal=[DALParams(
+            id=0,
+            ilaw=8
+        )],
+        z=ZParams(
+            min=0,
+            max=4
+        ),
         suffix=f'_{survey}',
         no_spectra_fit=True
     )
@@ -153,14 +138,40 @@ def run_bayesed_test2():
         outdir='test2',
         save_bestfit=0,
         save_sample_par=True,
-        multinest=MultiNestParams(True, False, False, 400, 0.1, 0.5, 1000, -1e90, 1, 2, False, False, -1e90, 100000, 0.01),
+        multinest=MultiNestParams(
+            nlive=400,
+            efr=0.1,
+            updInt=1000,
+            fb=2
+        ),
         filters='observation/test2/filters.txt',
         filters_selected='observation/test2/filters_selected.txt',
-        ssp=SSPParams(0, 0, 'bc2003_lr_BaSeL_chab', 1, 3, 1, 0, 0, 0, 0, 0),
-        sfh=SFHParams(0, 2, 0, 0),
-        dal=DALParams(0, 2, 7),
-        greybody=GreybodyParams(0, 1, 'gb', -2, 1, 1, 1000, 200),
-        fann=FANNParams(1, 2, 'clumpy201410tor', 1)
+        ssp=[SSPParams(
+	    igroup=0,
+            id=0,
+            name='bc2003_lr_BaSeL_chab',
+            iscalable=1
+        )],
+        sfh=[SFHParams(
+            id=0,
+            itype_sfh=2
+        )],
+        dal=[DALParams(
+            id=0,
+            ilaw=7
+        )],
+        greybody=[GreybodyParams(
+	    igroup=0,
+            id=1,
+            name='gb',
+            iscalable=-2
+        )],
+        fann=[FANNParams(
+            igroup=1,
+            id=2,
+            name='clumpy201410tor',
+            iscalable=1
+        )]
     )
 
     print("Running BayeSED for test2...")
