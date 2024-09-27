@@ -351,6 +351,12 @@ class TemplateParams:
     iscalable: int
 
 @dataclass
+class RenameParams:
+    id: int
+    ireplace: int
+    name: str
+
+@dataclass
 class BayeSEDParams:
     # Basic Parameters
     input_file: str
@@ -410,7 +416,7 @@ class BayeSEDParams:
     kin: Optional[KinParams] = None
 
     # Other parameters
-    rename: Optional[str] = None
+    rename: List[RenameParams] = field(default_factory=list)
     rename_all: Optional[str] = None
     SFR_over: Optional[SFROverParams] = None
     SNRmin1: Optional[SNRmin1Params] = None
@@ -537,19 +543,12 @@ class BayeSEDInterface:
         print(f"Executing command: {' '.join(cmd)}")
         
         try:
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, bufsize=1)
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
             
             # Read and print output in real-time
             if process.stdout:
                 for outline in process.stdout:
                     print(outline, end='')  # Print each line of output directly
-            else:
-                print("Warning: Unable to capture stdout")
-            
-            # Capture and print any errors
-            if process.stderr:
-                for error_line in process.stderr:
-                    print(error_line, end='', file=sys.stderr)
             
             # Wait for the process to finish
             return_code = process.wait()
@@ -658,7 +657,8 @@ class BayeSEDInterface:
             args.extend(['-z', self._format_z_params(params.z)])
         
         if params.rename:
-            args.extend(['--rename', params.rename])
+            for rename_params in params.rename:
+                args.extend(['--rename', f"{rename_params.id},{rename_params.ireplace},{rename_params.name}"])
         
         if params.rename_all:
             args.extend(['--rename_all', params.rename_all])

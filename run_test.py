@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams
+from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams, RenameParams
 import os
 import sys
 
@@ -11,10 +11,10 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
         save_bestfit=0,
         save_sample_par=True,
         ssp=[SSPParams(
-            igroup=0, 
-            id=0, 
-            name='bc2003_hr_stelib_chab_neb_2000r', 
-            iscalable=1, 
+            igroup=0,
+            id=0,
+            name='bc2003_hr_stelib_chab_neb_2000r',
+            iscalable=1,
             i1=1
         )],
         sfh=[SFHParams(
@@ -25,7 +25,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
             id=0,
             ilaw=8
         )],
-        rename='0,1,Stellar+Nebular',
+        rename=[RenameParams(id=0, ireplace=1, name='Stellar+Nebular')],
         multinest=MultiNestParams(
             nlive=40,
             efr=0.05,
@@ -48,10 +48,10 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
             w_max=10,
             Nw=1000
         )]
-        params.dal = [DALParams(
+        params.dal.append(DALParams(
             id=1,
             ilaw=7
-        )]
+        ))
         params.lines1 = [
             LineParams(
                 igroup=2,
