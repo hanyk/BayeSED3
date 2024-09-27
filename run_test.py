@@ -3,7 +3,7 @@ import os
 import sys
 
 def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
-    bayesed = BayeSEDInterface(executable_type='mn_1')
+    bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
         input_file=f'0,{input_dir}/{obj}.txt',
@@ -90,7 +90,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
     print(f"BayeSED run completed for {obj} object.")
 
 def run_bayesed_test1(survey, obs_file):
-    bayesed = BayeSEDInterface(executable_type='mn_1')
+    bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
         input_file=f'1,{obs_file}',
@@ -131,7 +131,7 @@ def run_bayesed_test1(survey, obs_file):
     print(f"BayeSED run completed for survey: {survey}, observation file: {obs_file}")
 
 def run_bayesed_test2():
-    bayesed = BayeSEDInterface(executable_type='mn_1')
+    bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
         input_file='0,observation/test2/test.txt',

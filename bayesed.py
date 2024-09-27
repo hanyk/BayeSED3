@@ -444,8 +444,8 @@ class BayeSEDParams:
     export: Optional[str] = None
 
 class BayeSEDInterface:
-    def __init__(self, executable_type='mn_1', openmpi_mirror=None):
-        self.executable_type = executable_type
+    def __init__(self, mpi_mode='1', openmpi_mirror=None):
+        self.mpi_mode = f"mn_{mpi_mode}"
         self.openmpi_mirror = openmpi_mirror
         self._get_system_info()
         self.mpi_cmd = self._setup_openmpi()
@@ -509,7 +509,7 @@ class BayeSEDInterface:
 
     def _get_executable(self):
         base_path = "./bin"
-        executable = f"bayesed_{self.executable_type}"
+        executable = f"bayesed_{self.mpi_mode}"
         if self.os == "linux" or (self.os == "windows" and "microsoft" in platform.uname().release.lower()):
             platform_dir = "linux"
         elif self.os == "darwin":
@@ -941,7 +941,7 @@ def main():
     # Add parameter parsing
     parser = argparse.ArgumentParser(description='BayeSED interface', add_help=False)
     parser.add_argument('-h', '--help', action='store_true', help='Show this help message and exit')
-    parser.add_argument('--exe', type=str, default='mn_1', help='Executable type')
+    parser.add_argument('--mpi', type=str, default='1', help='MPI mode: 1 for bayesed_mn_1, n for bayesed_mn_n')
     parser.add_argument('--np', type=int, default=1, help='Number of processes')
     parser.add_argument('-i', '--input_file', type=str, help='Input file')
     parser.add_argument('--outdir', type=str, default='result', help='Output directory')
@@ -951,7 +951,12 @@ def main():
 
     args, unknown = parser.parse_known_args()
 
-    bayesed = BayeSEDInterface(executable_type=args.exe)
+    mpi_mode = args.mpi
+    if mpi_mode not in ['1', 'n']:
+        print("Invalid MPI mode. Using default '1'.")
+        mpi_mode = '1'
+
+    bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
     bayesed.num_processes = args.np
 
     if args.help:
@@ -970,10 +975,10 @@ def main():
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python bayesed.py [--np <num_processes>] [--exe <executable_type>] [-h] [BayeSED arguments...]")
+        print("Usage: python bayesed.py [--np <num_processes>] [--mpi <mpi_mode>] [-h] [BayeSED arguments...]")
         sys.exit(1)
 
-    executable_type = 'mn_1'  # Default to bayesed_mn_1
+    mpi_mode = '1'  # Default to bayesed_mn_1
     bayesed_args = []
     i = 1
     num_processes = 1
@@ -981,14 +986,17 @@ if __name__ == "__main__":
         if sys.argv[i] == "--np":
             num_processes = int(sys.argv[i+1])
             i += 2
-        elif sys.argv[i] == "--exe":
-            executable_type = sys.argv[i+1]
+        elif sys.argv[i] == "--mpi":
+            mpi_mode = sys.argv[i+1]
+            if mpi_mode not in ['1', 'n']:
+                print("Invalid MPI mode. Using default '1'.")
+                mpi_mode = '1'
             i += 2
         else:
             bayesed_args.append(sys.argv[i])
             i += 1
 
-    bayesed = BayeSEDInterface(executable_type=executable_type)
+    bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
     
     if '--help' in bayesed_args:
         num_processes = 1
