@@ -1,6 +1,7 @@
 from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams, RenameParams
 import os
 import sys
+import subprocess
 
 def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
     bayesed = BayeSEDInterface(mpi_mode='1')
@@ -10,6 +11,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
         outdir=output_dir,
         save_bestfit=0,
         save_sample_par=True,
+        # Galaxy model: simple stellar population (SSP), star formation history (SFH), and dust attenuation law (DAL)
         ssp=[SSPParams(
             igroup=0,
             id=0,
@@ -39,6 +41,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
     )
 
     if obj == 'qso':
+        # Phenomenological AGN accretion disk model
         params.big_blue_bump = [BigBlueBumpParams(
             igroup=1,
             id=1,
@@ -52,6 +55,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
             id=1,
             ilaw=7
         ))
+        # AGN BLR
         params.lines1 = [
             LineParams(
                 igroup=2,
@@ -62,6 +66,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
                 R=300,
                 Nkin=3
             ),
+            # AGN NLR
             LineParams(
                 igroup=4,
                 id=4,
@@ -72,6 +77,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
                 Nkin=2
             )
         ]
+        # AGN FeII
         params.aknn = [AKNNParams(
             igroup=3,
             id=3,
@@ -87,7 +93,6 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
 
     print(f"Running BayeSED for {obj} object...")
     bayesed.run(params)
-    print(f"BayeSED run completed for {obj} object.")
 
 def run_bayesed_test1(survey, obs_file):
     bayesed = BayeSEDInterface(mpi_mode='1')
@@ -128,7 +133,6 @@ def run_bayesed_test1(survey, obs_file):
 
     print(f"Running BayeSED for survey: {survey}, observation file: {obs_file}")
     bayesed.run(params)
-    print(f"BayeSED run completed for survey: {survey}, observation file: {obs_file}")
 
 def run_bayesed_test2():
     bayesed = BayeSEDInterface(mpi_mode='1')
@@ -176,7 +180,27 @@ def run_bayesed_test2():
 
     print("Running BayeSED for test2...")
     bayesed.run(params)
-    print("BayeSED run completed for test2.")
+
+def plot_results(obj, output_dir):
+    if obj in ['gal', 'qso']:
+        plot_script = 'observation/test/plot_bestfit.py'
+        search_dir = os.path.join(output_dir, obj)
+    elif obj == 'test1':
+        plot_script = 'observation/test1/plot_bestfit.py'
+        search_dir = 'test1'
+    elif obj == 'test2':
+        plot_script = 'observation/test2/plot_bestfit.py'
+        search_dir = 'test2'
+    else:
+        print(f"Cannot find appropriate plotting script for object {obj}")
+        return
+
+    for root, dirs, files in os.walk(search_dir):
+        for file in files:
+            if file.endswith('.fits'):
+                fits_file = os.path.join(root, file)
+                cmd = ['python', plot_script, fits_file]
+                subprocess.run(cmd)
 
 if __name__ == "__main__":
     # Ensure output directory exists
@@ -189,9 +213,9 @@ if __name__ == "__main__":
         sys.exit(1)
 
     obj = sys.argv[1]
-    if obj not in ['gal', 'qso', 'test1', 'test2']:
-        print("Error: obj must be 'gal', 'qso', 'test1', or 'test2'")
-        sys.exit(1)
+    plot = False
+    if len(sys.argv) > 2 and sys.argv[2] == 'plot':
+        plot = True
 
     if obj == 'test1':
         surveys = ['CSST']
@@ -205,4 +229,5 @@ if __name__ == "__main__":
         # Run BayeSED example
         run_bayesed_example(obj)
 
-    print("Example run completed.")
+    if plot:
+        plot_results(obj, 'output')
