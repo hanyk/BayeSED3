@@ -7,10 +7,11 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
     bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
-        input_file=f'0,{input_dir}/{obj}.txt',
+        input_type=0,  # 0: Input file contains observed photometric SEDs with flux in uJy
+        input_file=f'{input_dir}/{obj}.txt',
         outdir=output_dir,
-        save_bestfit=0,
-        save_sample_par=True,
+        save_bestfit=0,  # 0: Save the best fitting result in fits format
+        save_sample_par=True,  # Save the posterior sample of parameters
         # Galaxy model: simple stellar population (SSP), star formation history (SFH), and dust attenuation law (DAL)
         ssp=[SSPParams(
             igroup=0,
@@ -21,22 +22,22 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
         )],
         sfh=[SFHParams(
             id=0,
-            itype_sfh=2
+            itype_sfh=2  # 2: Exponentially declining SFH
         )],
         dal=[DALParams(
             id=0,
-            ilaw=8
+            ilaw=8  # 8: Starburst (Calzetti2000, hyperz)
         )],
         rename=[RenameParams(id=0, ireplace=1, name='Stellar+Nebular')],
         multinest=MultiNestParams(
-            nlive=40,
-            efr=0.05,
-            updInt=100,
-            fb=2
+            nlive=40,  # Number of live points
+            efr=0.05,  # Sampling efficiency
+            updInt=100,  # Update interval for output files
+            fb=2  # Feedback level
         ),
         sys_err_obs=SysErrParams(
             min=0.0,
-            max=0.2,
+            max=0.2,  # Maximum fractional systematic error of observations
         )
     )
 
@@ -98,9 +99,10 @@ def run_bayesed_test1(survey, obs_file):
     bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
-        input_file=f'1,{obs_file}',
+        input_type=1,  # 1: Input file contains observed photometric SEDs with AB magnitude
+        input_file=obs_file,
         outdir='test1',
-        save_bestfit=2,
+        save_bestfit=2,  # 2: Save the best fitting result in both fits and hdf5 formats
         save_sample_par=True,
         multinest=MultiNestParams(
             nlive=50,
@@ -138,9 +140,10 @@ def run_bayesed_test2():
     bayesed = BayeSEDInterface(mpi_mode='1')
 
     params = BayeSEDParams(
-        input_file='0,observation/test2/test.txt',
+        input_type=0,
+        input_file='observation/test2/test.txt',
         outdir='test2',
-        save_bestfit=0,
+        save_bestfit=0,  # 0: Save the best fitting result in fits format
         save_sample_par=True,
         multinest=MultiNestParams(
             nlive=400,
@@ -151,7 +154,7 @@ def run_bayesed_test2():
         filters='observation/test2/filters.txt',
         filters_selected='observation/test2/filters_selected.txt',
         ssp=[SSPParams(
-	    igroup=0,
+            igroup=0,
             id=0,
             name='bc2003_lr_BaSeL_chab',
             iscalable=1
@@ -165,7 +168,7 @@ def run_bayesed_test2():
             ilaw=7
         )],
         greybody=[GreybodyParams(
-	    igroup=0,
+            igroup=0,
             id=1,
             name='gb',
             iscalable=-2

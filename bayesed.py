@@ -359,6 +359,7 @@ class RenameParams:
 @dataclass
 class BayeSEDParams:
     # Basic Parameters
+    input_type: int
     input_file: str
     outdir: str = "result"
     verbose: int = 2
@@ -575,7 +576,7 @@ class BayeSEDInterface:
             return args
         
         args.extend([
-            '-i', f"{params.input_file}",
+            '-i', f"{params.input_type},{params.input_file}",
             '--outdir', params.outdir,
             '--save_bestfit', str(params.save_bestfit),
             '-v', str(params.verbose)
@@ -943,7 +944,7 @@ def main():
     parser.add_argument('-h', '--help', action='store_true', help='Show this help message and exit')
     parser.add_argument('--mpi', type=str, default='1', help='MPI mode: 1 for bayesed_mn_1, n for bayesed_mn_n')
     parser.add_argument('--np', type=int, default=1, help='Number of processes')
-    parser.add_argument('-i', '--input_file', type=str, help='Input file')
+    parser.add_argument('-i', '--input', type=str, help='Input type (int) and file, separated by comma')
     parser.add_argument('--outdir', type=str, default='result', help='Output directory')
     parser.add_argument('--save_bestfit', type=int, default=0, help='Save best fit')
     parser.add_argument('-v', '--verbose', type=int, default=2, help='Verbosity level')
@@ -961,14 +962,18 @@ def main():
 
     if args.help:
         # If user requests help, we will call BayeSED's help
-        bayesed.run(BayeSEDParams(input_file="", outdir="", help=True))
+        bayesed.run(BayeSEDParams(input_type=0, input_file="", outdir="", help=True))
         return
 
-    if not args.input_file:
-        parser.error("the following arguments are required: -i/--input_file")
+    if not args.input:
+        parser.error("the following arguments are required: -i/--input")
 
+    input_type, input_file = args.input.split(',')
+    
     # Only pass the parameters defined in BayeSEDParams
     params_dict = {k: v for k, v in vars(args).items() if k in BayeSEDParams.__dataclass_fields__}
+    params_dict['input_type'] = int(input_type)
+    params_dict['input_file'] = input_file
     params = BayeSEDParams(**params_dict)
     
     bayesed.run(params)
@@ -998,7 +1003,7 @@ if __name__ == "__main__":
 
     bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
     
-    if '--help' in bayesed_args:
+    if '-h' in bayesed_args or '--help' in bayesed_args:
         num_processes = 1
     
     bayesed.num_processes = num_processes
