@@ -467,6 +467,22 @@ class BayeSEDInterface:
         openmpi_file = f"{openmpi_dir}.tar.gz"
         install_dir = os.path.abspath("openmpi")
         
+        # Check if the correct version of OpenMPI is already installed on the system
+        system_mpirun = shutil.which("mpirun")
+        if system_mpirun:
+            try:
+                result = subprocess.run([system_mpirun, "--version"], capture_output=True, text=True)
+                installed_version = result.stdout.split()[3]
+                if installed_version == openmpi_version:
+                    print(f"Using system-installed OpenMPI {installed_version}")
+                    return system_mpirun
+                else:
+                    if not os.path.exists(install_dir):
+                        print(f"System has OpenMPI {installed_version}, but we need {openmpi_version}")
+            except Exception as e:
+                print(f"Error checking OpenMPI version: {e}")
+        
+        # If the correct version of OpenMPI is not found, proceed with the installation
         if not os.path.exists(install_dir):
             print(f"Downloading OpenMPI {openmpi_version}...")
             response = requests.get(openmpi_url, stream=True)
