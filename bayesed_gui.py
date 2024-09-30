@@ -11,12 +11,14 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         self.galaxy_count = -1  # Start from -1, so the first instance will be 0
         
+        # Initialize instances lists
+        self.galaxy_instances = []
+        self.agn_instances = []
+        
         # Create and set the icon
         self.create_icon()
         
         self.create_widgets()
-        
-        self.agn_instances = []
 
     def create_icon(self):
         try:
@@ -83,19 +85,37 @@ class BayeSEDGUI:
         ttk.Button(self.galaxy_frame, text="Add Galaxy Instance", command=self.add_galaxy_instance).pack(pady=5)
 
     def add_galaxy_instance(self):
-        # Use the current number of instances as the new instance number
-        instance_number = len(self.galaxy_instances)
-        instance_frame = ttk.LabelFrame(self.galaxy_frame, text=f"CSP {instance_number}")
+        # Find the next available igroup and id
+        used_ids = set()
+        for instance in self.galaxy_instances:
+            used_ids.add(instance['ssp'][0].get())  # igroup
+            used_ids.add(instance['ssp'][1].get())  # id
+        for instance in self.agn_instances:
+            used_ids.add(instance['igroup'].get())
+            used_ids.add(instance['id'].get())
+        
+        new_id = 0
+        while str(new_id) in used_ids:
+            new_id += 1
+        
+        instance_frame = ttk.LabelFrame(self.galaxy_frame, text=f"CSP {new_id}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
-    
+
+        def update_ids(event):
+            new_id = ssp_id_widget.get()
+            sfh_id_widget.delete(0, tk.END)
+            sfh_id_widget.insert(0, new_id)
+            dal_id_widget.delete(0, tk.END)
+            dal_id_widget.insert(0, new_id)
+
         # SSP settings
         ssp_frame = ttk.Frame(instance_frame)
         ssp_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Label(ssp_frame, text="SSP:").grid(row=0, column=0, sticky=tk.W)
         
         ssp_params = [
-            ("igroup", str(instance_number), 5),
-            ("id", str(instance_number), 5),
+            ("igroup", str(new_id), 5),
+            ("id", str(new_id), 5),
             ("name", "bc2003_hr_stelib_chab_neb_2000r", 30),
             ("iscalable", "1", 5),
             ("k", "1", 5),
@@ -118,14 +138,17 @@ class BayeSEDGUI:
                 widget.insert(0, default)
             widget.grid(row=0, column=2*i+2, padx=2)
             ssp_widgets.append(widget)
-    
+            if param == 'id':
+                ssp_id_widget = widget
+                widget.bind('<KeyRelease>', update_ids)
+
         # SFH settings
         sfh_frame = ttk.Frame(instance_frame)
         sfh_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Label(sfh_frame, text="SFH:").grid(row=0, column=0, sticky=tk.W)
         
         sfh_params = [
-            ("id", str(instance_number), 5),
+            ("id", str(new_id), 5),
             ("itype_sfh", "2", 5, [
                 "0: Instantaneous burst",
                 "1: Constant",
@@ -156,14 +179,16 @@ class BayeSEDGUI:
                 widget.insert(0, default)
             widget.grid(row=0, column=2*i+2, padx=2)
             sfh_widgets.append(widget)
-    
+            if param == 'id':
+                sfh_id_widget = widget
+
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
         dal_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Label(dal_frame, text="DAL:").grid(row=0, column=0, sticky=tk.W)
         
         dal_params = [
-            ("id", str(instance_number), 5),
+            ("id", str(new_id), 5),
             ("con_eml_tot", "2", 5, [
                 "0: Continuum",
                 "1: Emission lines",
@@ -197,11 +222,13 @@ class BayeSEDGUI:
                 widget.insert(0, default)
             widget.grid(row=0, column=2*i+2, padx=2)
             dal_widgets.append(widget)
-    
+            if param == 'id':
+                dal_id_widget = widget
+
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_galaxy_instance(cf))
         delete_button.pack(side=tk.RIGHT, padx=5, pady=5)
-    
+
         self.galaxy_instances.append({
             'frame': instance_frame,
             'ssp': ssp_widgets,
@@ -216,24 +243,7 @@ class BayeSEDGUI:
                 break
         frame.destroy()
         
-        # Re-number all existing Galaxy instances
-        for idx, instance in enumerate(self.galaxy_instances):
-            # Update frame title
-            instance['frame'].config(text=f"CSP {idx}")
-            
-            # Update SSP 'igroup' and 'id'
-            instance['ssp'][0].delete(0, tk.END)
-            instance['ssp'][0].insert(0, str(idx))
-            instance['ssp'][1].delete(0, tk.END)
-            instance['ssp'][1].insert(0, str(idx))
-            
-            # Update SFH 'id'
-            instance['sfh'][0].delete(0, tk.END)
-            instance['sfh'][0].insert(0, str(idx))
-            
-            # Update DAL 'id'
-            instance['dal'][0].delete(0, tk.END)
-            instance['dal'][0].insert(0, str(idx))
+        # No need to renumber instances, as each instance now has a unique id
 
     def create_output_tab(self):
         output_frame = ttk.Frame(self.notebook)
@@ -401,7 +411,7 @@ class BayeSEDGUI:
 
     def create_AGN_tab(self):
         agn_frame = ttk.Frame(self.notebook)
-        self.notebook.add(agn_frame, text="AGN")  # Change tab name to "AGN"
+        self.notebook.add(agn_frame, text="AGN")
 
         # Container for AGN instances
         self.agn_instances_frame = ttk.Frame(agn_frame)
@@ -411,9 +421,20 @@ class BayeSEDGUI:
         ttk.Button(agn_frame, text="Add AGN Instance", command=self.add_AGN_instance).pack(pady=5)
 
     def add_AGN_instance(self):
-        # Use the current number of instances as the new instance number
-        instance_number = len(self.agn_instances)
-        instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {instance_number}")
+        # Find the next available id
+        used_ids = set()
+        for instance in self.agn_instances:
+            used_ids.add(int(instance['igroup'].get()))
+            used_ids.add(int(instance['id'].get()))
+        for instance in self.galaxy_instances:
+            used_ids.add(int(instance['ssp'][0].get()))  # igroup
+            used_ids.add(int(instance['ssp'][1].get()))  # id
+        
+        new_id = 0
+        while new_id in used_ids:
+            new_id += 1
+        
+        instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {new_id}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
     
         # Arrange sub-parameters horizontally with 5 parameters per row
@@ -421,13 +442,13 @@ class BayeSEDGUI:
         ttk.Label(instance_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         agn_igroup = ttk.Entry(instance_frame, width=8)
         agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        agn_igroup.insert(0, str(instance_number))
+        agn_igroup.insert(0, str(new_id))
         CreateToolTip(agn_igroup, "Group ID")
     
         ttk.Label(instance_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         agn_id = ttk.Entry(instance_frame, width=8)
         agn_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
-        agn_id.insert(0, str(instance_number))
+        agn_id.insert(0, str(new_id))
         CreateToolTip(agn_id, "Model ID")
     
         ttk.Label(instance_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
@@ -481,7 +502,7 @@ class BayeSEDGUI:
     
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_AGN_instance(cf))
-        delete_button.grid(row=0, column=10, rowspan=2, padx=5, pady=5, sticky=tk.N)
+        delete_button.grid(row=1, column=10, rowspan=2, padx=5, pady=5, sticky=tk.N)
     
         # Add the instance to the list
         self.agn_instances.append({
@@ -505,18 +526,7 @@ class BayeSEDGUI:
                 break
         frame.destroy()
         
-        # Re-number all existing AGN instances
-        for idx, instance in enumerate(self.agn_instances):
-            # Update frame title
-            instance['frame'].config(text=f"AGN {idx}")
-            
-            # Update igroup and id
-            instance['igroup'].delete(0, tk.END)
-            instance['igroup'].insert(0, str(idx))
-            instance['id'].delete(0, tk.END)
-            instance['id'].insert(0, str(idx))
-            
-            # Other parameters remain unchanged or can be updated as needed
+        # No need to renumber instances or reset self.next_agn_id
 
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
