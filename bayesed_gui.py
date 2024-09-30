@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog, scrolledtext, messagebox
+from tkinter import ttk, filedialog, scrolledtext, messagebox, Toplevel
 import subprocess
 import threading
 from PIL import Image, ImageDraw, ImageTk, ImageFont
@@ -220,10 +220,38 @@ class BayeSEDGUI:
         advanced_frame = ttk.Frame(self.notebook)
         self.notebook.add(advanced_frame, text="Advanced Settings")
 
-        ttk.Label(advanced_frame, text="MultiNest Settings:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-        self.multinest_settings = ttk.Entry(advanced_frame, width=50)
-        self.multinest_settings.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
-        self.multinest_settings.insert(0, "1,0,0,100,0.1,0.5,1000,-1e90,1,0,0,0,-1e90,100000,0.01")
+        ttk.Label(advanced_frame, text="MultiNest Settings:").grid(row=0, column=0, columnspan=10, sticky=tk.W, padx=5, pady=5)
+
+        multinest_params = [
+            ("IS", "Importance Nested Sampling flag"),
+            ("mmodal", "Multimodal flag"),
+            ("ceff", "Constant efficiency mode flag"),
+            ("nlive", "Number of live points"),
+            ("efr", "Sampling efficiency"),
+            ("tol", "Tolerance"),
+            ("updInt", "Update interval"),
+            ("Ztol", "Evidence tolerance"),
+            ("seed", "Random seed"),
+            ("fb", "Feedback level"),
+            ("resume", "Resume from a previous run"),
+            ("outfile", "Write output files"),
+            ("logZero", "Log of Zero"),
+            ("maxiter", "Maximum number of iterations"),
+            ("acpt", "Acceptance rate")
+        ]
+
+        default_values = "1,0,0,100,0.1,0.5,1000,-1e90,1,0,0,0,-1e90,100000,0.01".split(',')
+        self.multinest_widgets = {}
+
+        for i, (param, tooltip) in enumerate(multinest_params):
+            row = i // 5 + 1
+            col = (i % 5) * 2
+            ttk.Label(advanced_frame, text=f"{param}:").grid(row=row, column=col, sticky=tk.W, padx=5, pady=2)
+            widget = ttk.Entry(advanced_frame, width=8)
+            widget.insert(0, default_values[i] if i < len(default_values) else "")
+            widget.grid(row=row, column=col+1, sticky=tk.W, padx=5, pady=2)
+            self.multinest_widgets[param] = widget
+            CreateToolTip(widget, tooltip)
 
     def create_output_frame(self):
         output_frame = ttk.LabelFrame(self.master, text="Output")
@@ -234,7 +262,7 @@ class BayeSEDGUI:
 
     def create_control_frame(self):
         control_frame = ttk.Frame(self.master)
-        control_frame.pack(padx=10, pady=10, fill=tk.X)
+        control_frame.pack(side=tk.BOTTOM, padx=10, pady=10, fill=tk.X)
 
         self.run_button = ttk.Button(control_frame, text="Run", command=self.run_bayesed)
         self.run_button.pack(side=tk.LEFT, padx=5)
@@ -283,7 +311,8 @@ class BayeSEDGUI:
             command.append("--save_sample_obs")
         
         # Advanced settings
-        command.extend(["--multinest", self.multinest_settings.get()])
+        multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
+        command.extend(["--multinest", ",".join(multinest_values)])
         
         return command
 
@@ -317,7 +346,7 @@ class BayeSEDGUI:
         self.output_text.see(tk.END)
         self.output_text.config(state=tk.DISABLED)
 
-# Add the following tooltip class
+# Add the following tooltip class if not already present
 class CreateToolTip(object):
     def __init__(self, widget, text='widget info'):
         self.widget = widget

@@ -255,7 +255,7 @@ class MultiNestParams:
     """
     Parameters for MultiNest.
     """
-    is_: bool = True  # Importance Nested Sampling flag
+    INS: bool = True  # Importance Nested Sampling flag
     mmodal: bool = False  # Multimodal flag
     ceff: bool = False  # Constant efficiency mode flag
     nlive: int = 100  # Number of live points
@@ -922,7 +922,7 @@ class BayeSEDInterface:
         return f"{output_SFH_params.ntimes},{output_SFH_params.ilog}"
 
     def _format_multinest_params(self, multinest_params):
-        return f"{int(multinest_params.is_)},{int(multinest_params.mmodal)},{int(multinest_params.ceff)},{multinest_params.nlive},{multinest_params.efr},{multinest_params.tol},{multinest_params.updInt},{multinest_params.Ztol},{multinest_params.seed},{multinest_params.fb},{int(multinest_params.resume)},{int(multinest_params.outfile)},{multinest_params.logZero},{multinest_params.maxiter},{multinest_params.acpt}"
+        return f"{int(multinest_params.INS)},{int(multinest_params.mmodal)},{int(multinest_params.ceff)},{multinest_params.nlive},{multinest_params.efr},{multinest_params.tol},{multinest_params.updInt},{multinest_params.Ztol},{multinest_params.seed},{multinest_params.fb},{int(multinest_params.resume)},{int(multinest_params.outfile)},{multinest_params.logZero},{multinest_params.maxiter},{multinest_params.acpt}"
 
     def _format_gsl_integration_qag_params(self, gsl_integration_qag_params):
         return f"{gsl_integration_qag_params.epsabs},{gsl_integration_qag_params.epsrel},{gsl_integration_qag_params.limit},{gsl_integration_qag_params.key}"
