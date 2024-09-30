@@ -107,6 +107,8 @@ class BayeSEDGUI:
             sfh_id_widget.insert(0, new_id)
             dal_id_widget.delete(0, tk.END)
             dal_id_widget.insert(0, new_id)
+            dem_id_widget.delete(0, tk.END)
+            dem_id_widget.insert(0, new_id)
 
         # SSP settings
         ssp_frame = ttk.Frame(instance_frame)
@@ -225,20 +227,136 @@ class BayeSEDGUI:
             if param == 'id':
                 dal_id_widget = widget
 
+        # DEM settings
+        dem_frame = ttk.Frame(instance_frame)
+        dem_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(dem_frame, text="DEM:").grid(row=0, column=0, sticky=tk.W)
+
+        dem_params = [
+            ("id", str(new_id), 3),
+            ("imodel", "0", 3, [
+                "0: Greybody",
+                "1: Blackbody",
+                "2: FANN",
+                "3: AKNN"
+            ]),
+            ("iscalable", "-2", 3),
+        ]
+
+        dem_widgets = []
+        for i, param_info in enumerate(dem_params):
+            param, default, width = param_info[:3]
+            ttk.Label(dem_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.E)
+            if len(param_info) > 3:  # If there are options
+                widget = ttk.Combobox(dem_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
+                widget.set(default)
+                tooltip = "\n".join(param_info[3])
+                CreateToolTip(widget, tooltip)
+                if param == "imodel":
+                    widget.bind("<<ComboboxSelected>>", lambda event, f=dem_frame: self.update_dem_params(event, f))
+            else:
+                widget = ttk.Entry(dem_frame, width=width)
+                widget.insert(0, default)
+            widget.grid(row=0, column=i*2+2, sticky=tk.W)
+            dem_widgets.append(widget)
+            if param == 'id':
+                dem_id_widget = widget
+
+        # Create a frame for extra DEM parameters
+        extra_dem_frame = ttk.Frame(dem_frame)
+        extra_dem_frame.grid(row=0, column=7, columnspan=10, sticky=tk.W)
+
+        # Create the instance dictionary
+        new_instance = {
+            'frame': instance_frame,
+            'ssp': ssp_widgets,
+            'sfh': sfh_widgets,
+            'dal': dal_widgets,
+            'dem': dem_widgets,
+            'dem_extra': [],
+            'dem_extra_frame': extra_dem_frame
+        }
+
+        # Append the new instance to the list
+        self.galaxy_instances.append(new_instance)
+
+        # Now trigger the update_dem_params to show the initial extra parameters
+        self.update_dem_params(type('Event', (), {'widget': dem_widgets[1]})(), dem_frame)
+
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_galaxy_instance(cf))
         delete_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
-        self.galaxy_instances.append({
-            'frame': instance_frame,
-            'ssp': ssp_widgets,
-            'sfh': sfh_widgets,
-            'dal': dal_widgets
-        })
+    def update_dem_params(self, event, frame):
+        imodel = event.widget.get()
+        
+        # Find the correct instance
+        instance = next((inst for inst in self.galaxy_instances if inst['frame'] == frame.master), None)
+        if not instance:
+            return  # If we can't find the instance, just return
+
+        extra_frame = instance['dem_extra_frame']
+
+        # Clear all existing widgets in extra_frame
+        for widget in extra_frame.winfo_children():
+            widget.destroy()
+
+        instance['dem_extra'] = []
+
+        extra_params = []
+        if imodel == "0":  # Greybody
+            extra_params = [
+                ("name", "greybody", 15),
+                ("ithick", "0", 3),
+                ("w_min", "1", 3),
+                ("w_max", "1000", 5),
+                ("Nw", "200", 3)
+            ]
+        elif imodel == "1":  # Blackbody
+            extra_params = [
+                ("name", "blackbody", 15),
+                ("w_min", "1", 3),
+                ("w_max", "1000", 5),
+                ("Nw", "200", 3)
+            ]
+        elif imodel == "2":  # FANN
+            extra_params = [
+                ("name", "FANN", 15)
+            ]
+        elif imodel == "3":  # AKNN
+            extra_params = [
+                ("name", "AKNN", 15),
+                ("k", "1", 3),
+                ("f_run", "1", 3),
+                ("eps", "0", 3),
+                ("iRad", "0", 3),
+                ("iprep", "0", 3),
+                ("Nstep", "1", 3),
+                ("alpha", "0", 3)
+            ]
+
+        new_extra_widgets = []
+
+        for i, (param, default, width) in enumerate(extra_params):
+            label = ttk.Label(extra_frame, text=f"{param}:")
+            label.grid(row=0, column=i*2, sticky=tk.E, padx=(0, 2))
+            widget = ttk.Entry(extra_frame, width=width)
+            widget.insert(0, default)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=(0, 5))
+            new_extra_widgets.append(widget)
+
+        # Update the instance with new extra widgets
+        instance['dem_extra'] = new_extra_widgets
+
+        # Force the frame to update its layout
+        extra_frame.update_idletasks()
 
     def delete_galaxy_instance(self, frame):
         for instance in self.galaxy_instances:
             if instance['frame'] == frame:
+                # Remove the extra frame if it exists
+                if 'dem_extra_frame' in instance:
+                    instance['dem_extra_frame'].destroy()
                 self.galaxy_instances.remove(instance)
                 break
         frame.destroy()
@@ -337,7 +455,9 @@ class BayeSEDGUI:
             ssp_values = [widget.get() for widget in instance['ssp']]
             sfh_values = [widget.get() for widget in instance['sfh']]
             dal_values = [widget.get() for widget in instance['dal']]
-                
+            dem_values = [widget.get() for widget in instance['dem']]
+            dem_extra_values = [widget.get() for widget in instance['dem_extra']]
+            
             if all(ssp_values):
                 command.extend(["-ssp", ",".join(ssp_values)])
                 
@@ -346,6 +466,18 @@ class BayeSEDGUI:
                 
             if all(dal_values):
                 command.extend(["--dal", ",".join(dal_values)])
+            
+            if all(dem_values):
+                imodel = dem_values[1]  # The imodel value
+                igroup = ssp_values[0]  # Use SSP's igroup for DEM
+                if imodel == "0":  # Greybody
+                    command.extend(["--greybody", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]},{dem_extra_values[4]}"])
+                elif imodel == "1":  # Blackbody
+                    command.extend(["--blackbody", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]}"])
+                elif imodel == "2":  # FANN
+                    command.extend(["-a", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]}"])
+                elif imodel == "3":  # AKNN
+                    command.extend(["-k", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]},{dem_extra_values[4]},{dem_extra_values[5]},{dem_extra_values[6]},{dem_extra_values[7]}"])
         
         # AGN settings
         for agn in self.agn_instances:
