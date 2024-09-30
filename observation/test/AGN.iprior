@@ -1,7 +1,7 @@
-#name             iprior_type  is_age  min   max    nbin
-log(M_BH/M_sun)   1            0       5     10     40
-log(M_dot/M_Edd)  1            0       -1.65   0.39      40
-astar             1            0       0     0.998  40
-cos_inc           1            0       0.09  0.998  40
-f                 1            0       0     1      40
-log(norm)         1            0       0     0      40
+#name                iprior_type  is_age  min    max    nbin
+log(M_BH/M_sun)      1            0       5      10     40
+log(M_dot/Mdot_edd)  1            0       -1.65  0.39   40
+astar                1            0       0      0.998  40
+cos_inc              1            0       0.09   0.998  40
+f                    1            0       0      1      40
+log(norm)            1            0       0      0      40
