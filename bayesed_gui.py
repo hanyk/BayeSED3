@@ -5,6 +5,7 @@ import threading
 import queue
 import sys
 from PIL import Image, ImageDraw, ImageTk, ImageFont
+import pyperclip
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -437,7 +438,7 @@ class BayeSEDGUI:
         ttk.Button(control_frame, text="Export Settings", command=self.export_settings).pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Import Settings", command=self.import_settings).pack(side=tk.LEFT, padx=5)
 
-        # 输出框架
+        # Output frame
         output_frame = ttk.LabelFrame(bottom_frame, text="Output")
         output_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -449,9 +450,12 @@ class BayeSEDGUI:
         self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=10)
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Add bindings to allow copy but prevent editing
-        self.output_text.config(state=tk.DISABLED)  # Make it read-only
-        self.output_text.bind("<1>", lambda event: self.output_text.focus_set())  # Allow focus
+        # Configure the output_text widget to allow copying but prevent editing
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.bind("<Button-1>", lambda e: self.output_text.focus_set())
+        self.output_text.bind("<Control-c>", self.copy_selection)
+        self.output_text.bind("<Control-x>", self.copy_selection)
+        self.output_text.bind("<Key>", lambda e: "break")
 
         # Configure grid weights
         basic_frame.grid_columnconfigure(0, weight=1)
@@ -1018,10 +1022,11 @@ class BayeSEDGUI:
     def clear_output(self):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.delete(1.0, tk.END)
-        self.output_text.config(state=tk.DISABLED)
+        self.output_text.config(state=tk.NORMAL)
 
     def generate_command(self):
-        command = ["python3", "-u", "bayesed.py"]  # Added '-u' for unbuffered output
+        # Use sys.executable to get the path of the current Python interpreter
+        command = [sys.executable, "-u", "bayesed.py"]  # Added '-u' for unbuffered output
         
         # Basic settings
         input_type = self.input_type.get().split()[0]
@@ -1225,7 +1230,14 @@ class BayeSEDGUI:
 
     def execute_command(self, command):
         try:
-            self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+            # Use subprocess.STARTUPINFO to hide console window on Windows
+            startupinfo = None
+            if sys.platform.startswith('win'):
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            
+            self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                             universal_newlines=True, bufsize=1, startupinfo=startupinfo)
             
             for line in iter(self.process.stdout.readline, ''):
                 if self.stop_output_thread.is_set():
@@ -1259,7 +1271,7 @@ class BayeSEDGUI:
         self.output_text.config(state=tk.NORMAL)
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
-        self.output_text.config(state=tk.DISABLED)
+        self.output_text.config(state=tk.NORMAL)  # Keep it in normal state
         self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
@@ -1426,6 +1438,14 @@ class BayeSEDGUI:
         if hasattr(self, 'process') and self.process:
             self.process.terminate()
         self.stop_output_thread.set()
+
+    def copy_selection(self, event):
+        try:
+            selected_text = self.output_text.get(tk.SEL_FIRST, tk.SEL_LAST)
+            pyperclip.copy(selected_text)
+        except tk.TclError:
+            pass  # No selection
+        return "break"
 
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
