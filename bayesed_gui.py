@@ -1119,10 +1119,11 @@ class BayeSEDGUI:
 
         self.use_igm = tk.BooleanVar(value=False)
         ttk.Checkbutton(igm_frame, text="Use IGM Model", variable=self.use_igm, 
-                        command=lambda: self.toggle_widgets([self.igm_model], self.use_igm.get()),
+                        command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()),
                         style='Large.TCheckbutton').grid(row=0, column=0, columnspan=3, sticky="w", padx=5, pady=5)
 
         self.igm_model = tk.StringVar(value="1")
+        self.igm_radiobuttons = []
         igm_options = [
             ("0", "None"),
             ("1", "Madau (1995) model"),
@@ -1133,7 +1134,9 @@ class BayeSEDGUI:
         ]
 
         for i, (value, text) in enumerate(igm_options):
-            ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value).grid(row=i//3+1, column=i%3, sticky=tk.W, padx=5, pady=2)
+            radiobutton = ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value)
+            radiobutton.grid(row=i//3+1, column=i%3, sticky=tk.W, padx=5, pady=2)
+            self.igm_radiobuttons.append(radiobutton)
 
         # Redshift parameters
         redshift_frame = ttk.LabelFrame(cosmology_frame, text="Redshift Parameters (Optional)")
@@ -1240,7 +1243,15 @@ class BayeSEDGUI:
 
     def toggle_widgets(self, widgets, state):
         for widget in widgets:
-            widget.config(state="normal" if state else "disabled")
+            if isinstance(widget, tk.StringVar):
+                # For StringVar, we need to update the associated widget
+                for child in self.master.winfo_children():
+                    if hasattr(child, 'cget') and child.cget('textvariable') == widget:
+                        child.config(state="normal" if state else "disabled")
+                        break
+            elif hasattr(widget, 'config'):
+                # For regular widgets
+                widget.config(state="normal" if state else "disabled")
 
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
