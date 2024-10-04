@@ -43,6 +43,10 @@ class BayeSEDGUI:
         self.no_spectra_fit = tk.BooleanVar(value=False)
         self.unweighted_samples = tk.BooleanVar(value=False)
         self.priors_only = tk.BooleanVar(value=False)
+        self.use_luminosity = tk.BooleanVar(value=False)
+        self.use_output_sfh = tk.BooleanVar(value=False)
+        self.use_sys_err = tk.BooleanVar(value=False)
+        self.sys_err_widgets = []
         
         # Initialize other necessary variables
         self.redshift_widgets = []
@@ -198,6 +202,51 @@ class BayeSEDGUI:
         # Initialize the SNR widgets to be disabled and grey
         self.toggle_widgets([self.snrmin1, self.snrmin2], False)
 
+        # Systematic Error
+        sys_err_frame = ttk.Frame(input_frame)
+        sys_err_frame.grid(row=10, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Checkbutton(sys_err_frame, variable=self.use_sys_err, 
+                        command=lambda: self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get()),
+                        style='Large.TCheckbutton', text="Systematic Error").pack(side=tk.LEFT)
+        CreateToolTip(sys_err_frame.winfo_children()[-1], "Set priors for systematic errors of model and observation")
+
+        sys_err_content = ttk.Frame(sys_err_frame)
+        sys_err_content.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        self.sys_err_widgets = []
+        for i, label in enumerate(["Model", "Obs"]):
+            ttk.Label(sys_err_content, text=f"{label}:").grid(row=i, column=0, sticky=tk.W, padx=(5, 2))
+            widgets = []
+            for j, param in enumerate(["iprior_type", "is_age", "min", "max", "nbin"]):
+                widget = ttk.Entry(sys_err_content, width=5)
+                widget.grid(row=i, column=j+1, padx=2)
+                widgets.append(widget)
+                if j == 0:
+                    widget.insert(0, "1")
+                elif j == 1:
+                    widget.insert(0, "0")
+                elif j in [2, 3]:
+                    widget.insert(0, "0")
+                else:
+                    widget.insert(0, "40")
+            self.sys_err_widgets.extend(widgets)
+
+        # Add tooltips for each parameter
+        param_tooltips = [
+            "Prior type (0-7)",
+            "Age-dependent flag (0 or 1)",
+            "Minimum systematic error",
+            "Maximum systematic error",
+            "Number of bins"
+        ]
+
+        for i, widget in enumerate(self.sys_err_widgets):
+            CreateToolTip(widget, param_tooltips[i % 5])
+
+        # Initialize the Systematic Error widgets to be disabled and grey
+        self.toggle_widgets(self.sys_err_widgets, False)
+
         # Configure column weights for input_frame
         input_frame.columnconfigure(1, weight=1)
 
@@ -335,10 +384,31 @@ class BayeSEDGUI:
         # Initialize the SFR widgets to be disabled and grey
         self.toggle_widgets([self.sfr_myr_entry], False)
 
+        # Output SFH
+        sfh_frame = ttk.Frame(output_frame)
+        sfh_frame.grid(row=7, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Checkbutton(sfh_frame, variable=self.use_output_sfh, 
+                        command=lambda: self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get()),
+                        style='Large.TCheckbutton', text="Output SFH").pack(side=tk.LEFT)
+        CreateToolTip(sfh_frame.winfo_children()[-1], "Output the SFH over the past tage year")
+
+        ttk.Label(sfh_frame, text="ntimes:").pack(side=tk.LEFT, padx=(5, 2))
+        self.output_sfh_ntimes = ttk.Entry(sfh_frame, width=5)
+        self.output_sfh_ntimes.pack(side=tk.LEFT)
+        self.output_sfh_ntimes.insert(0, "10")
+        CreateToolTip(self.output_sfh_ntimes, "Number of time points")
+
+        ttk.Label(sfh_frame, text="ilog:").pack(side=tk.LEFT, padx=(5, 2))
+        self.output_sfh_ilog = ttk.Combobox(sfh_frame, values=["0", "1"], width=3)
+        self.output_sfh_ilog.pack(side=tk.LEFT)
+        self.output_sfh_ilog.set("0")
+        CreateToolTip(self.output_sfh_ilog, "0 for linear scale, 1 for log scale")
+
         # Suffix
-        ttk.Label(output_frame, text="Suffix:").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(output_frame, text="Suffix:").grid(row=8, column=0, sticky=tk.W, padx=5, pady=2)
         self.suffix = ttk.Entry(output_frame, width=30)
-        self.suffix.grid(row=7, column=1, sticky=tk.EW, padx=5, pady=2)
+        self.suffix.grid(row=8, column=1, sticky=tk.EW, padx=5, pady=2)
         CreateToolTip(self.suffix, "Add suffix to the name of output file")
 
         # Configure column weights for output_frame
@@ -1099,7 +1169,7 @@ class BayeSEDGUI:
         if self.use_redshift.get():
             redshift_values = [widget.get() for widget in self.redshift_widgets]
             if all(redshift_values):
-                command.extend(["-z", ",".join(redshift_values)])
+                command.extend(["--z", ",".join(redshift_values)])
 
         # Boolean options
         if self.no_photometry_fit.get():
@@ -1127,6 +1197,18 @@ class BayeSEDGUI:
         
         if self.priors_only.get():
             command.append("--priors_only")
+
+        # Output SFH
+        if self.use_output_sfh.get():
+            command.extend(["--output_SFH", f"{self.output_sfh_ntimes.get()},{self.output_sfh_ilog.get()}"])
+
+        # Systematic Error
+        if self.use_sys_err.get():
+            mod_values = ",".join([widget.get() for widget in self.sys_err_widgets[:5]])
+            obs_values = ",".join([widget.get() for widget in self.sys_err_widgets[5:]])
+            command.extend(["--sys_err_mod", mod_values])
+            command.extend(["--sys_err_obs", obs_values])
+
         return command
 
     def run_bayesed(self):
