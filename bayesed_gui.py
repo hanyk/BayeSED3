@@ -61,6 +61,9 @@ class BayeSEDGUI:
         self.create_widgets()
 
         self.output_queue = queue.Queue()
+        self.process = None
+
+        # Add the stop_output_thread attribute
         self.stop_output_thread = threading.Event()
 
     def create_icon(self):
@@ -1018,7 +1021,7 @@ class BayeSEDGUI:
         self.output_text.config(state=tk.DISABLED)
 
     def generate_command(self):
-        command = ["python3", "bayesed.py"]
+        command = ["python3", "-u", "bayesed.py"]  # Added '-u' for unbuffered output
         
         # Basic settings
         input_type = self.input_type.get().split()[0]
@@ -1216,46 +1219,48 @@ class BayeSEDGUI:
         
         self.update_output("Executing command: " + " ".join(command) + "\n")
         
-        self.stop_output_thread.clear()
-        threading.Thread(target=self.execute_command, args=(command,)).start()
+        self.output_queue = queue.Queue()
+        threading.Thread(target=self.execute_command, args=(command,), daemon=True).start()
         self.master.after(100, self.check_output_queue)
 
     def execute_command(self, command):
         try:
-            process = subprocess.Popen([sys.executable, "-c", 
-                                        "import subprocess; process = subprocess.Popen(" + repr(command) + ", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1); [print(line, end='', flush=True) for line in process.stdout]; exit(process.wait())"],
-                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+            self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
             
-            for line in process.stdout:
-                self.output_queue.put(line)
+            for line in iter(self.process.stdout.readline, ''):
                 if self.stop_output_thread.is_set():
-                    process.terminate()
                     break
+                self.output_queue.put(line)
             
-            process.wait()
+            self.process.wait()
             
-            if process.returncode == 0:
+            if self.process.returncode == 0:
                 self.output_queue.put("BayeSED execution completed\n")
             else:
-                self.output_queue.put(f"BayeSED execution failed, return code: {process.returncode}\n")
+                self.output_queue.put(f"BayeSED execution failed, return code: {self.process.returncode}\n")
         
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
+        
+        finally:
+            self.output_queue.put(None)  # Signal that the process has finished
 
     def check_output_queue(self):
         try:
             while True:
                 line = self.output_queue.get_nowait()
+                if line is None:  # Process has finished
+                    return
                 self.update_output(line)
         except queue.Empty:
-            if not self.stop_output_thread.is_set():
-                self.master.after(100, self.check_output_queue)
+            self.master.after(100, self.check_output_queue)
 
     def update_output(self, text):
         self.output_text.config(state=tk.NORMAL)
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
         self.output_text.config(state=tk.DISABLED)
+        self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
         filename = filedialog.askopenfilename()
@@ -1417,6 +1422,11 @@ class BayeSEDGUI:
                 break
         frame.destroy()
 
+    def stop_execution(self):
+        if hasattr(self, 'process') and self.process:
+            self.process.terminate()
+        self.stop_output_thread.set()
+
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
     def __init__(self, widget, text='widget info'):
@@ -1448,6 +1458,6 @@ class CreateToolTip(object):
 if __name__ == "__main__":
     root = tk.Tk()
     gui = BayeSEDGUI(root)
-    root.protocol("WM_DELETE_WINDOW", lambda: (gui.stop_output_thread.set(), root.destroy()))
+    root.protocol("WM_DELETE_WINDOW", lambda: (gui.stop_execution(), root.destroy()))
     root.mainloop()
 

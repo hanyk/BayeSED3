@@ -560,26 +560,20 @@ class BayeSEDInterface:
         print(f"Executing command: {' '.join(cmd)}")
         
         try:
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+            self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
             
-            # Read and print output in real-time
-            if process.stdout:
-                for outline in process.stdout:
-                    print(outline, end='')  # Print each line of output directly
+            for line in iter(self.process.stdout.readline, ''):
+                print(line, end='', flush=True)  # Added 'flush=True' to ensure immediate output
             
-            # Wait for the process to finish
-            return_code = process.wait()
+            self.process.wait()
             
-            # Check the return code
-            if return_code != 0:
-                print(f"BayeSED execution failed, return code: {return_code}")
-                return False
+            if self.process.returncode == 0:
+                print("BayeSED execution completed\n", flush=True)  # Added 'flush=True'
             else:
-                print("BayeSED execution completed successfully")
-                return True
+                print(f"BayeSED execution failed, return code: {self.process.returncode}\n", flush=True)  # Added 'flush=True'
+        
         except Exception as e:
-            print(f"Error occurred while executing BayeSED: {str(e)}")
-            return False
+            print(f"Error: {str(e)}\n", flush=True)  # Added 'flush=True'
 
     def _params_to_args(self, params):
         if isinstance(params, list):
