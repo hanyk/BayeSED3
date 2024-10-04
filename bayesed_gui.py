@@ -11,6 +11,10 @@ class BayeSEDGUI:
         self.master = master
         master.title("BayeSED GUI")
         master.geometry("1400x800")
+        
+        # Define a standard font
+        self.standard_font = ('Helvetica', 10)
+        
         self.galaxy_count = -1  # Start from -1, so the first instance will be 0
         
         # Initialize instances lists
@@ -18,13 +22,13 @@ class BayeSEDGUI:
         self.agn_instances = []
         self.cosmology_params = {}
         self.igm_model = tk.StringVar()
+        self.redshift_widgets = []
         self.redshift_params = {}
         
         # Initialize BooleanVar for checkboxes
         self.use_cosmology = tk.BooleanVar(value=False)
         self.use_igm = tk.BooleanVar(value=False)
         self.use_redshift = tk.BooleanVar(value=False)
-        self.use_cl = tk.BooleanVar(value=False)
         
         # Initialize BooleanVar for Advanced Settings checkboxes
         self.use_multinest = tk.BooleanVar(value=False)
@@ -48,7 +52,7 @@ class BayeSEDGUI:
 
         # Configure style for larger checkbuttons
         style = ttk.Style()
-        style.configure('Large.TCheckbutton', font=('Helvetica', 12))
+        style.configure('Large.TCheckbutton', font=('Helvetica', 10))
         
         self.create_widgets()
 
@@ -92,53 +96,117 @@ class BayeSEDGUI:
         basic_frame = ttk.Frame(self.notebook)
         self.notebook.add(basic_frame, text="Basic Settings")
 
-        # 创建左侧框架用于输入设置
+        # Create left and right frames
         left_frame = ttk.Frame(basic_frame)
         left_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-        # Input File
-        ttk.Label(left_frame, text="Input File:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.input_file = ttk.Entry(left_frame, width=50)
-        self.input_file.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
-        ttk.Button(left_frame, text="Browse", command=self.browse_input_file).grid(row=0, column=2, padx=5, pady=2)
-
-        # Input Type
-        ttk.Label(left_frame, text="Input Type:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.input_type = ttk.Combobox(left_frame, values=["0 (flux in uJy)", "1 (AB magnitude)"])
-        self.input_type.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=2)
-        self.input_type.set("0 (flux in uJy)")
-
-        # Output Directory
-        ttk.Label(left_frame, text="Output Directory:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        self.outdir = ttk.Entry(left_frame, width=50)
-        self.outdir.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
-        self.outdir.insert(0, "result")
-        ttk.Button(left_frame, text="Browse", command=self.browse_outdir).grid(row=2, column=2, padx=5, pady=2)
-
-        # Verbosity
-        ttk.Label(left_frame, text="Verbosity:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
-        self.verbose = ttk.Combobox(left_frame, values=["0", "1", "2", "3"])
-        self.verbose.grid(row=3, column=1, sticky=tk.EW, padx=5, pady=2)
-        self.verbose.set("2")
-
-        # Filters
-        ttk.Label(left_frame, text="Filters:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
-        self.filters = ttk.Entry(left_frame, width=50)
-        self.filters.grid(row=4, column=1, sticky=tk.EW, padx=5, pady=2)
-        ttk.Button(left_frame, text="Browse", command=self.browse_filters).grid(row=4, column=2, padx=5, pady=2)
-
-        # Filters Selected
-        ttk.Label(left_frame, text="Filters Selected:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
-        self.filters_selected = ttk.Entry(left_frame, width=50)
-        self.filters_selected.grid(row=5, column=1, sticky=tk.EW, padx=5, pady=2)
-        ttk.Button(left_frame, text="Browse", command=self.browse_filters_selected).grid(row=5, column=2, padx=5, pady=2)
-
-        # 创建右侧框架用于保存和输出选项
         right_frame = ttk.Frame(basic_frame)
         right_frame.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
 
+        # Input settings (left frame)
+        input_frame = ttk.LabelFrame(left_frame, text="Input Settings")
+        input_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Apply the standard font to all widgets
+        for widget in [ttk.Label, ttk.Entry, ttk.Button, ttk.Checkbutton, ttk.Combobox]:
+            style = ttk.Style()
+            style.configure(f'{widget.__name__}.TLabel', font=self.standard_font)
+            style.configure(f'{widget.__name__}.TEntry', font=self.standard_font)
+            style.configure(f'{widget.__name__}.TButton', font=self.standard_font)
+            style.configure(f'{widget.__name__}.TCheckbutton', font=self.standard_font)
+            style.configure(f'{widget.__name__}.TCombobox', font=self.standard_font)
+
+        # Input File
+        ttk.Label(input_frame, text="Input File:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.input_file = ttk.Entry(input_frame, width=40)
+        self.input_file.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(input_frame, text="Browse", command=self.browse_input_file).grid(row=0, column=2, padx=5, pady=2)
+        CreateToolTip(self.input_file, "Input file containing observed photometric SEDs")
+
+        # Input Type
+        ttk.Label(input_frame, text="Input Type:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.input_type = ttk.Combobox(input_frame, values=["0 (flux in uJy)", "1 (AB magnitude)"], width=15)
+        self.input_type.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        self.input_type.set("0 (flux in uJy)")
+        CreateToolTip(self.input_type, "0: flux in uJy, 1: AB magnitude")
+
+        # Output Directory
+        ttk.Label(input_frame, text="Output Directory:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.outdir = ttk.Entry(input_frame, width=40)
+        self.outdir.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
+        self.outdir.insert(0, "result")
+        ttk.Button(input_frame, text="Browse", command=self.browse_outdir).grid(row=2, column=2, padx=5, pady=2)
+        CreateToolTip(self.outdir, "Output directory for all results")
+
+        # Verbosity
+        ttk.Label(input_frame, text="Verbosity:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+        self.verbose = ttk.Combobox(input_frame, values=["0", "1", "2", "3"], width=5)
+        self.verbose.grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+        self.verbose.set("2")
+        CreateToolTip(self.verbose, "Verbose level (0-3)")
+
+        # Filters
+        ttk.Label(input_frame, text="Filters:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        self.filters = ttk.Entry(input_frame, width=40)
+        self.filters.grid(row=4, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(input_frame, text="Browse", command=self.browse_filters).grid(row=4, column=2, padx=5, pady=2)
+        CreateToolTip(self.filters, "File containing the definition of filters")
+
+        # Filters Selected
+        ttk.Label(input_frame, text="Filters Selected:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
+        self.filters_selected = ttk.Entry(input_frame, width=40)
+        self.filters_selected.grid(row=5, column=1, sticky=tk.EW, padx=5, pady=2)
+        ttk.Button(input_frame, text="Browse", command=self.browse_filters_selected).grid(row=5, column=2, padx=5, pady=2)
+        CreateToolTip(self.filters_selected, "File containing all used filters in the observation and select those needed")
+
+        # Priors Only
+        ttk.Checkbutton(input_frame, text="Priors Only", variable=self.priors_only, style='Large.TCheckbutton').grid(row=6, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(input_frame.winfo_children()[-1], "Test priors by setting the loglike for observational data to be zero")
+
+        # No photometry fit
+        ttk.Checkbutton(input_frame, text="No photometry fit", variable=self.no_photometry_fit, style='Large.TCheckbutton').grid(row=7, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(input_frame.winfo_children()[-1], "Do not fit photometric data even if it is presented")
+
+        # No spectra fit
+        ttk.Checkbutton(input_frame, text="No spectra fit", variable=self.no_spectra_fit, style='Large.TCheckbutton').grid(row=8, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(input_frame.winfo_children()[-1], "Do not fit spectra data even if it is presented")
+
+        # SNR Settings
+        snr_frame = ttk.Frame(input_frame)
+        snr_frame.grid(row=9, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        
+        ttk.Checkbutton(snr_frame, variable=self.use_snr, 
+                        command=lambda: self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get()),
+                        style='Large.TCheckbutton', text="SNR Settings").pack(side=tk.LEFT, padx=5)
+        CreateToolTip(snr_frame.winfo_children()[-1], "Enable/disable SNR settings")
+
+        snr_content = ttk.Frame(snr_frame)
+        snr_content.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        ttk.Label(snr_content, text="SNRmin1 (phot,spec):").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.snrmin1 = ttk.Entry(snr_content, width=10)
+        self.snrmin1.insert(0, "0,0")
+        self.snrmin1.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(self.snrmin1, "The minimal SNR of data (phot,spec) to be used for determining scaling")
+        
+        ttk.Label(snr_content, text="SNRmin2 (phot,spec):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.snrmin2 = ttk.Entry(snr_content, width=10)
+        self.snrmin2.insert(0, "0,0")
+        self.snrmin2.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(self.snrmin2, "The minimal SNR of data (phot,spec) to be used for likelihood evaluation")
+
+        # Initialize the SNR widgets to be disabled and grey
+        self.toggle_widgets([self.snrmin1, self.snrmin2], False)
+
+        # Configure column weights for input_frame
+        input_frame.columnconfigure(1, weight=1)
+
+        # Save and Output options (right frame)
+        save_output_frame = ttk.Frame(right_frame)
+        save_output_frame.pack(fill=tk.BOTH, expand=True)
+
         # Save Options
-        save_frame = ttk.LabelFrame(right_frame, text="Save Options")
+        save_frame = ttk.LabelFrame(save_output_frame, text="Save Options")
         save_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Save Best Fit
@@ -200,7 +268,7 @@ class BayeSEDGUI:
         CreateToolTip(save_frame.winfo_children()[-1], "Save the summary file")
 
         # Output Options
-        output_frame = ttk.LabelFrame(right_frame, text="Output Options")
+        output_frame = ttk.LabelFrame(save_output_frame, text="Output Options")
         output_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Output mock photometry
@@ -211,7 +279,7 @@ class BayeSEDGUI:
         self.output_mock_photometry_type = ttk.Combobox(output_frame, values=["0 (flux in uJy)", "1 (AB magnitude)"], width=15, state="disabled")
         self.output_mock_photometry_type.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         self.output_mock_photometry_type.set("0 (flux in uJy)")
-        CreateToolTip(self.output_mock_photometry_type, "Type of mock photometry output")
+        CreateToolTip(self.output_mock_photometry_type, "Type of mock photometry output (0: flux in uJy, 1: AB magnitude)")
 
         # Enable/disable the combobox based on the checkbox
         self.output_mock_photometry.trace("w", lambda *args: self.output_mock_photometry_type.config(state="readonly" if self.output_mock_photometry.get() else "disabled"))
@@ -231,15 +299,58 @@ class BayeSEDGUI:
         ttk.Checkbutton(output_frame, text="Output Posterior Observables", variable=self.output_pos_obs).grid(row=3, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(output_frame.winfo_children()[-1], "Output posterior estimation of observables")
 
+        # Build SED Library
+        build_sed_frame = ttk.Frame(output_frame)
+        build_sed_frame.grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Checkbutton(build_sed_frame, variable=self.use_build_sedlib, 
+                        command=lambda: self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get()),
+                        style='Large.TCheckbutton', text="Build SED Library").pack(side=tk.LEFT)
+        CreateToolTip(build_sed_frame.winfo_children()[-1], "Build a SED library using the employed models")
+
+        self.build_sedlib = ttk.Combobox(build_sed_frame, values=["0 (Rest)", "1 (Observed)"], width=15, state="disabled")
+        self.build_sedlib.set("0 (Rest)")
+        self.build_sedlib.pack(side=tk.LEFT, padx=5)
+        CreateToolTip(self.build_sedlib, "0: Rest frame, 1: Observed frame")
+
+        # Use unweighted samples
+        ttk.Checkbutton(output_frame, text="Use unweighted samples", variable=self.unweighted_samples, style='Large.TCheckbutton').grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        CreateToolTip(output_frame.winfo_children()[-1], "Use unweighted posterior samples")
+
+        # SFR Settings
+        sfr_frame = ttk.Frame(output_frame)
+        sfr_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Checkbutton(sfr_frame, variable=self.use_sfr, 
+                        command=lambda: self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get()),
+                        style='Large.TCheckbutton', text="Output SFR over").pack(side=tk.LEFT)
+        CreateToolTip(sfr_frame.winfo_children()[-1], "Compute average SFR over the past given Myrs")
+
+        ttk.Label(sfr_frame, text="Myr values:").pack(side=tk.LEFT, padx=(5, 2))
+        self.sfr_myr_entry = ttk.Entry(sfr_frame, width=15)
+        self.sfr_myr_entry.pack(side=tk.LEFT)
+        self.sfr_myr_entry.insert(0, "10,100")
+        CreateToolTip(self.sfr_myr_entry, "Comma-separated Myr values for SFR computation (e.g., 10,100 or 10,100,1000)")
+
+        # Initialize the SFR widgets to be disabled and grey
+        self.toggle_widgets([self.sfr_myr_entry], False)
+
         # Suffix
-        ttk.Label(output_frame, text="Suffix:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
-        self.suffix = ttk.Entry(output_frame, width=20)
-        self.suffix.grid(row=4, column=1, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(output_frame, text="Suffix:").grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
+        self.suffix = ttk.Entry(output_frame, width=30)
+        self.suffix.grid(row=7, column=1, sticky=tk.EW, padx=5, pady=2)
         CreateToolTip(self.suffix, "Add suffix to the name of output file")
+
+        # Configure column weights for output_frame
+        output_frame.columnconfigure(1, weight=1)
+
+        # Configure grid weights for basic_frame
+        basic_frame.grid_columnconfigure(0, weight=1)
+        basic_frame.grid_columnconfigure(1, weight=1)
 
         # 创建底部框架用于运行按钮、导入/导出设置和输出
         bottom_frame = ttk.Frame(basic_frame)
-        bottom_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        bottom_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         # 控制按钮框架
         control_frame = ttk.Frame(bottom_frame)
@@ -273,7 +384,7 @@ class BayeSEDGUI:
         basic_frame.grid_columnconfigure(0, weight=1)
         basic_frame.grid_columnconfigure(1, weight=1)
         basic_frame.grid_rowconfigure(0, weight=1)
-        basic_frame.grid_rowconfigure(1, weight=1)
+        basic_frame.grid_rowconfigure(3, weight=1)
 
     def create_galaxy_tab(self):
         self.galaxy_frame = ttk.Frame(self.notebook)
@@ -536,19 +647,19 @@ class BayeSEDGUI:
         multinest_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         multinest_params = [
-            ("INS", "Importance Nested Sampling flag"),
-            ("mmodal", "Multimodal flag"),
-            ("ceff", "Constant efficiency mode flag"),
+            ("INS", "Importance Nested Sampling flag (0 or 1)"),
+            ("mmodal", "Multimodal flag (0 or 1)"),
+            ("ceff", "Constant efficiency mode flag (0 or 1)"),
             ("nlive", "Number of live points"),
             ("efr", "Sampling efficiency"),
-            ("tol", "Tolerance"),
-            ("updInt", "Update interval"),
+            ("tol", "Tolerance for termination"),
+            ("updInt", "Update interval for posterior output"),
             ("Ztol", "Evidence tolerance"),
-            ("seed", "Random seed"),
-            ("fb", "Feedback level"),
-            ("resume", "Resume from a previous run"),
-            ("outfile", "Write output files"),
-            ("logZero", "Log of Zero"),
+            ("seed", "Random seed (0 for system time)"),
+            ("fb", "Feedback level (0-3)"),
+            ("resume", "Resume from a previous run (0 or 1)"),
+            ("outfile", "Write output files (0 or 1)"),
+            ("logZero", "Log of Zero (points with loglike < logZero will be ignored)"),
             ("maxiter", "Maximum number of iterations"),
             ("acpt", "Acceptance rate")
         ]
@@ -583,8 +694,8 @@ class BayeSEDGUI:
             ("tol1", "Tolerance for first step", "0"),
             ("Niter2", "Number of iterations for second step", "10"),
             ("tol2", "Tolerance for second step", "0.01"),
-            ("p1", "Parameter p1", "0.05"),
-            ("p2", "Parameter p2", "0.95")
+            ("p1", "Parameter p1 for NNLM algorithm", "0.05"),
+            ("p2", "Parameter p2 for NNLM algorithm", "0.95")
         ]
         self.nnlm_widgets = {}
         for i, (param, tooltip, default) in enumerate(nnlm_params):
@@ -607,9 +718,9 @@ class BayeSEDGUI:
         ndumper_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         ndumper_params = [
-            ("max_number", "Maximum number", "1"),
+            ("max_number", "Maximum number of samples to dump", "1"),
             ("iconverged_min", "Minimum convergence flag", "0"),
-            ("Xmin_squared_Nd", "Xmin^2/Nd value", "-1")
+            ("Xmin_squared_Nd", "Xmin^2/Nd value (-1 for no constraint)", "-1")
         ]
         self.ndumper_widgets = {}
         for i, (param, tooltip, default) in enumerate(ndumper_params):
@@ -632,11 +743,11 @@ class BayeSEDGUI:
         gsl_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         gsl_params = [
-            ("integration_epsabs", "Integration absolute error", "0"),
-            ("integration_epsrel", "Integration relative error", "0.1"),
-            ("integration_limit", "Integration limit", "1000"),
+            ("integration_epsabs", "Absolute error for GSL integration", "0"),
+            ("integration_epsrel", "Relative error for GSL integration", "0.1"),
+            ("integration_limit", "Limit for GSL integration", "1000"),
             ("multifit_type", "Multifit type (ols or huber)", "ols"),
-            ("multifit_tune", "Multifit tuning parameter", "1.0")
+            ("multifit_tune", "Tuning parameter for robust fitting", "1.0")
         ]
         self.gsl_widgets = {}
         for i, (param, tooltip, default) in enumerate(gsl_params):
@@ -659,12 +770,13 @@ class BayeSEDGUI:
         misc_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         misc_params = [
-            ("NfilterPoints", "Number of filter points", "30"),
-            ("Nsample", "Number of samples", ""),
+            ("NfilterPoints", "Number of filter points for interpolation", "30"),
+            ("Nsample", "Number of samples for catalog creation or SED library building", ""),
             ("Ntest", "Number of objects for test run", ""),
             ("niteration", "Number of iterations", "0"),
-            ("logZero", "Log of Zero", "-1e90"),
-            ("lw_max", "Max line coverage in km/s", "10000")
+            ("logZero", "Log of Zero (points with loglike < logZero will be ignored)", "-1e90"),
+            ("lw_max", "Max line coverage in km/s for emission line model creation", "10000"),
+            ("cl", "Confidence levels for output estimates", "0.68,0.95")
         ]
         self.misc_widgets = {}
         for i, (param, tooltip, default) in enumerate(misc_params):
@@ -677,72 +789,6 @@ class BayeSEDGUI:
             self.misc_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
-        # SFR Settings
-        sfr_frame = ttk.Frame(advanced_frame)
-        sfr_frame.grid(row=5, column=0, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(sfr_frame, variable=self.use_sfr, 
-                        command=lambda: self.toggle_widgets([self.sfr_past_myr1, self.sfr_past_myr2], self.use_sfr.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
-        
-        sfr_content = ttk.LabelFrame(sfr_frame, text="SFR Settings")
-        sfr_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        ttk.Label(sfr_content, text="Past Myr1:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.sfr_past_myr1 = ttk.Entry(sfr_content, width=10)
-        self.sfr_past_myr1.insert(0, "10")
-        self.sfr_past_myr1.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(sfr_content, text="Past Myr2:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        self.sfr_past_myr2 = ttk.Entry(sfr_content, width=10)
-        self.sfr_past_myr2.insert(0, "100")
-        self.sfr_past_myr2.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # SNR Settings
-        snr_frame = ttk.Frame(advanced_frame)
-        snr_frame.grid(row=5, column=1, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(snr_frame, variable=self.use_snr, 
-                        command=lambda: self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
-        
-        snr_content = ttk.LabelFrame(snr_frame, text="SNR Settings")
-        snr_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        ttk.Label(snr_content, text="SNRmin1 (phot,spec):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.snrmin1 = ttk.Entry(snr_content, width=10)
-        self.snrmin1.insert(0, "0,0")
-        self.snrmin1.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(snr_content, text="SNRmin2 (phot,spec):").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        self.snrmin2 = ttk.Entry(snr_content, width=10)
-        self.snrmin2.insert(0, "0,0")
-        self.snrmin2.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # Build SED Library
-        build_sed_frame = ttk.Frame(advanced_frame)
-        build_sed_frame.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(build_sed_frame, variable=self.use_build_sedlib, 
-                        command=lambda: self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
-        
-        build_sed_content = ttk.LabelFrame(build_sed_frame, text="Build SED Library")
-        build_sed_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        self.build_sedlib = ttk.Combobox(build_sed_content, values=["0 (Rest)", "1 (Observed)"], width=15, state="disabled")
-        self.build_sedlib.set("0 (Rest)")
-        self.build_sedlib.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # Checkboxes for boolean options
-        boolean_frame = ttk.Frame(advanced_frame)
-        boolean_frame.grid(row=7, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-
-        ttk.Checkbutton(boolean_frame, text="No photometry fit", variable=self.no_photometry_fit, style='Large.TCheckbutton').grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Checkbutton(boolean_frame, text="No spectra fit", variable=self.no_spectra_fit, style='Large.TCheckbutton').grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        ttk.Checkbutton(boolean_frame, text="Use unweighted samples", variable=self.unweighted_samples, style='Large.TCheckbutton').grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Checkbutton(boolean_frame, text="Priors Only", variable=self.priors_only, style='Large.TCheckbutton').grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-
         # Configure grid weights
         advanced_frame.grid_columnconfigure(0, weight=1)
         advanced_frame.grid_columnconfigure(1, weight=1)
@@ -753,9 +799,6 @@ class BayeSEDGUI:
         self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get())
         self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get())
         self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get())
-        self.toggle_widgets([self.sfr_past_myr1, self.sfr_past_myr2], self.use_sfr.get())
-        self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get())
-        self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get())
 
     def toggle_widgets(self, widgets, state):
         for widget in widgets:
@@ -768,6 +811,15 @@ class BayeSEDGUI:
                 else:
                     widget.config(state="disabled")
                     widget.config(foreground="grey")
+            
+            # Handle the label associated with the widget
+            parent = widget.master
+            for child in parent.winfo_children():
+                if isinstance(child, ttk.Label) and child.grid_info()['row'] == widget.grid_info()['row']:
+                    if state:
+                        child.config(foreground="black")
+                    else:
+                        child.config(foreground="grey")
 
     def create_AGN_tab(self):
         agn_frame = ttk.Frame(self.notebook)
@@ -1045,13 +1097,9 @@ class BayeSEDGUI:
 
         # Add redshift parameters if enabled
         if self.use_redshift.get():
-            redshift_values = [widget.get() for widget in self.redshift_params.values()]
+            redshift_values = [widget.get() for widget in self.redshift_widgets]
             if all(redshift_values):
                 command.extend(["-z", ",".join(redshift_values)])
-
-        # Add confidence levels
-        if self.use_cl.get():
-            command.extend(["--cl", self.cl.get()])
 
         # Boolean options
         if self.no_photometry_fit.get():
@@ -1068,7 +1116,7 @@ class BayeSEDGUI:
             command.extend(["--filters_selected", self.filters_selected.get()])
         
         if self.use_sfr.get():
-            command.extend(["--SFR_over", f"{self.sfr_past_myr1.get()},{self.sfr_past_myr2.get()}"])
+            command.extend(["--SFR_over", self.sfr_myr_entry.get()])
         
         if self.use_snr.get():
             command.extend(["--SNRmin1", self.snrmin1.get()])
@@ -1148,7 +1196,7 @@ class BayeSEDGUI:
             frame = ttk.Frame(parent)
             frame.pack(fill=tk.X, padx=5, pady=5)
             ttk.Checkbutton(frame, variable=var, command=command, style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
-            ttk.Label(frame, text=title, font=('Helvetica', 12, 'bold')).pack(side=tk.LEFT, padx=5)
+            ttk.Label(frame, text=title, font=('Helvetica', 10, 'bold')).pack(side=tk.LEFT, padx=5)
             content_frame = ttk.Frame(frame)
             content_frame.pack(fill=tk.X, padx=20, pady=5)
             return content_frame
@@ -1215,22 +1263,16 @@ class BayeSEDGUI:
             CreateToolTip(widget, tooltip)
             self.redshift_widgets.append(widget)
 
-        # Confidence Levels
-        cl_frame = create_labeled_frame(cosmology_frame, "Confidence Levels", self.use_cl, 
-                                         lambda: self.toggle_widgets([self.cl], self.use_cl.get()))
-
-        ttk.Label(cl_frame, text="Levels:").pack(side=tk.LEFT, padx=5)
-        self.cl = ttk.Entry(cl_frame, width=15)
-        self.cl.insert(0, "0.68,0.95")
-        self.cl.pack(side=tk.LEFT, padx=5)
-        self.cl.config(state="disabled")  # Disabled by default
-
     def toggle_widgets(self, widgets, state):
         for widget in widgets:
             if isinstance(widget, ttk.Radiobutton):
                 widget.config(state="normal" if state else "disabled")
             elif hasattr(widget, 'config'):
                 widget.config(state="normal" if state else "disabled")
+                if state:
+                    widget.config(foreground="black")
+                else:
+                    widget.config(foreground="grey")
 
     def toggle_redshift_widgets(self):
         state = "normal" if self.use_redshift.get() else "disabled"
@@ -1293,18 +1335,6 @@ class BayeSEDGUI:
                 break
         frame.destroy()
 
-    def toggle_widgets(self, widgets, state):
-        for widget in widgets:
-            if isinstance(widget, tk.StringVar):
-                # For StringVar, we need to update the associated widget
-                for child in self.master.winfo_children():
-                    if hasattr(child, 'cget') and child.cget('textvariable') == widget:
-                        child.config(state="normal" if state else "disabled")
-                        break
-            elif hasattr(widget, 'config'):
-                # For regular widgets
-                widget.config(state="normal" if state else "disabled")
-
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
     def __init__(self, widget, text='widget info'):
@@ -1325,7 +1355,7 @@ class CreateToolTip(object):
         self.tooltip.wm_geometry(f"+{x}+{y}")
         label = tk.Label(self.tooltip, text=self.text, justify='left',
                          background='#FFFFDD', relief='solid', borderwidth=1,
-                         font=("Arial", "12", "bold"))
+                         font=("Arial", "10", "bold"))
         label.pack(ipadx=5, ipady=5)
 
     def hide_tooltip(self, event=None):
