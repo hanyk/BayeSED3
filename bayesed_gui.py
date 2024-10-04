@@ -447,8 +447,8 @@ class BayeSEDGUI:
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
         # Add bindings to allow copy but prevent editing
-        self.output_text.bind("<Key>", lambda e: "break")
-        self.output_text.bind("<Control-c>", lambda e: None)
+        self.output_text.config(state=tk.DISABLED)  # Make it read-only
+        self.output_text.bind("<1>", lambda event: self.output_text.focus_set())  # Allow focus
 
         # Configure grid weights
         basic_frame.grid_columnconfigure(0, weight=1)
