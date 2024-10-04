@@ -262,30 +262,34 @@ class BayeSEDGUI:
         self.add_galaxy_instance()
 
     def add_galaxy_instance(self):
-        # Find the next available igroup and id
-        used_ids = set()
+        # Find the maximum ID among existing galaxy and AGN instances
+        max_id = -1
         for instance in self.galaxy_instances:
-            used_ids.add(instance['ssp'][0].get())  # igroup
-            used_ids.add(instance['ssp'][1].get())  # id
+            max_id = 1+max(max_id, int(instance['ssp'][1].get()))  # id
         for instance in self.agn_instances:
-            used_ids.add(instance['igroup'].get())
-            used_ids.add(instance['id'].get())
+            max_id = max(max_id, int(instance['id'].get()))
         
-        new_id = 0
-        while str(new_id) in used_ids:
-            new_id += 1
+        new_id = max_id + 1
         
         instance_frame = ttk.LabelFrame(self.galaxy_instances_frame, text=f"CSP {new_id}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
         def update_ids(event):
             new_id = ssp_id_widget.get()
+            sfh_id_widget.config(state='normal')
             sfh_id_widget.delete(0, tk.END)
             sfh_id_widget.insert(0, new_id)
+            sfh_id_widget.config(state='readonly')
+
+            dal_id_widget.config(state='normal')
             dal_id_widget.delete(0, tk.END)
             dal_id_widget.insert(0, new_id)
+            dal_id_widget.config(state='readonly')
+
+            dem_id_widget.config(state='normal')
             dem_id_widget.delete(0, tk.END)
-            dem_id_widget.insert(0, new_id)
+            dem_id_widget.insert(0, str(int(new_id) + 1))  # Increment the ID by 1 for DEM
+            dem_id_widget.config(state='readonly')
 
         # SSP settings
         ssp_frame = ttk.Frame(instance_frame)
@@ -360,6 +364,7 @@ class BayeSEDGUI:
             sfh_widgets.append(widget)
             if param == 'id':
                 sfh_id_widget = widget
+                sfh_id_widget.config(state='readonly')
 
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
@@ -403,6 +408,7 @@ class BayeSEDGUI:
             dal_widgets.append(widget)
             if param == 'id':
                 dal_id_widget = widget
+                dal_id_widget.config(state='readonly')
 
         # DEM settings
         dem_frame = ttk.Frame(instance_frame)
@@ -410,7 +416,7 @@ class BayeSEDGUI:
         ttk.Label(dem_frame, text="DEM:").pack(side=tk.LEFT, padx=(0, 5))
 
         dem_params = [
-            ("id", str(new_id), 5),
+            ("id", str(new_id + 1), 5),  # Increment the ID by 1 for DEM
             ("imodel", "0", 5, ["0: Greybody", "1: Blackbody", "2: FANN", "3: AKNN"]),
             ("iscalable", "-2", 5),
             ("name", "", 15),
@@ -436,6 +442,7 @@ class BayeSEDGUI:
             dem_widgets.append(widget)
             if param == 'id':
                 dem_id_widget = widget
+                dem_id_widget.config(state='readonly')
 
         # Additional parameters for each model type
         self.additional_dem_params = {
@@ -469,7 +476,11 @@ class BayeSEDGUI:
             'ssp': ssp_widgets,
             'sfh': sfh_widgets,
             'dal': dal_widgets,
-            'dem': dem_widgets
+            'dem': dem_widgets,
+            'ssp_id': ssp_id_widget,
+            'sfh_id': sfh_id_widget,
+            'dal_id': dal_id_widget,
+            'dem_id': dem_id_widget
         }
 
         # Append the new instance to the list
@@ -713,22 +724,22 @@ class BayeSEDGUI:
         self.agn_instances = []
 
     def add_AGN_instance(self):
-        # Find the next available id
-        used_ids = set()
-        for instance in self.agn_instances:
-            used_ids.add(int(instance['igroup'].get()))
-            used_ids.add(int(instance['id'].get()))
+        # Find the maximum ID among existing galaxy instances (including DEM)
+        max_galaxy_id = -1
         for instance in self.galaxy_instances:
-            used_ids.add(int(instance['ssp'][0].get()))  # igroup
-            used_ids.add(int(instance['ssp'][1].get()))  # id
+            ssp_id = int(instance['ssp'][1].get())  # id of SSP (same as SFH and DAL)
+            dem_id = ssp_id + 1  # DEM id is always SSP id + 1
+            max_galaxy_id = max(max_galaxy_id, dem_id)
         
-        new_id = 0
-        while new_id in used_ids:
-            new_id += 1
+        # Find the maximum ID among existing AGN instances
+        max_agn_id = max([int(instance['id'].get()) for instance in self.agn_instances], default=-1)
+        
+        # New AGN ID should be the larger of (max_galaxy_id + 1) and (max_agn_id + 1)
+        new_id = max(max_galaxy_id, max_agn_id) + 1
         
         instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {new_id}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
-    
+
         # Arrange sub-parameters horizontally with 5 parameters per row
         # First row parameters: igroup, id, name, iscalable, imodel
         ttk.Label(instance_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
@@ -791,7 +802,7 @@ class BayeSEDGUI:
         agn_nw.grid(row=1, column=9, sticky=tk.W, padx=5, pady=2)
         agn_nw.insert(0, "200")
         CreateToolTip(agn_nw, "Number of Wavelength Points")
-    
+
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_AGN_instance(cf))
         delete_button.grid(row=1, column=10, rowspan=2, padx=5, pady=5, sticky=tk.N)
@@ -900,7 +911,7 @@ class BayeSEDGUI:
                             print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
                 except IndexError as e:
                     print(f"Error: Invalid number of DEM values for model {imodel}. {str(e)}")
-        
+
         # AGN settings
         for agn in self.agn_instances:
             agn_igroup = agn['igroup'].get()
@@ -1111,7 +1122,7 @@ class BayeSEDGUI:
         ttk.Checkbutton(redshift_frame, text="Set Redshift Parameters", variable=self.use_redshift, 
                         command=self.toggle_redshift_widgets,
                         style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
-
+        
         redshift_params = [
             ("iprior_type", "Prior type (0-7)", "1"),
             ("is_age", "Age-dependent flag (0 or 1)", "0"),
