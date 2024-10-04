@@ -20,6 +20,15 @@ class BayeSEDGUI:
         self.igm_model = tk.StringVar()
         self.redshift_params = {}
         
+        # Initialize BooleanVar for checkboxes
+        self.use_cosmology = tk.BooleanVar(value=False)
+        self.use_igm = tk.BooleanVar(value=False)
+        self.use_redshift = tk.BooleanVar(value=False)
+        self.use_cl = tk.BooleanVar(value=False)
+        
+        # Initialize other necessary variables
+        self.redshift_widgets = []
+        
         # Create and set the icon
         self.create_icon()
 
@@ -1090,63 +1099,58 @@ class BayeSEDGUI:
         cosmology_frame = ttk.Frame(self.notebook)
         self.notebook.add(cosmology_frame, text="Cosmology")
 
+        # Helper function to create labeled frames with checkbuttons
+        def create_labeled_frame(parent, title, var, command):
+            frame = ttk.Frame(parent)
+            frame.pack(fill=tk.X, padx=5, pady=5)
+            ttk.Checkbutton(frame, variable=var, command=command, style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+            ttk.Label(frame, text=title, font=('Helvetica', 12, 'bold')).pack(side=tk.LEFT, padx=5)
+            content_frame = ttk.Frame(frame)
+            content_frame.pack(fill=tk.X, padx=20, pady=5)
+            return content_frame
+
         # Cosmology parameters
-        cosmo_frame = ttk.LabelFrame(cosmology_frame, text="Cosmology Parameters")
-        cosmo_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        self.use_cosmology = tk.BooleanVar(value=False)
-        ttk.Checkbutton(cosmo_frame, text="Use Cosmology Parameters", variable=self.use_cosmology, 
-                        command=lambda: self.toggle_widgets(self.cosmology_params.values(), self.use_cosmology.get()),
-                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-
+        cosmo_frame = create_labeled_frame(cosmology_frame, "Cosmology Parameters", self.use_cosmology, 
+                                             lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get()))
+        
         cosmo_params = [
             ("H0", "Hubble constant (km/s/Mpc)", "70"),
             ("omigaA", "Omega Lambda", "0.7"),
             ("omigam", "Omega Matter", "0.3")
         ]
 
-        for i, (param, tooltip, default) in enumerate(cosmo_params):
-            ttk.Label(cosmo_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(cosmo_frame, width=10)
+        for param, tooltip, default in cosmo_params:
+            param_frame = ttk.Frame(cosmo_frame)
+            param_frame.pack(fill=tk.X, pady=2)
+            ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT, padx=5)
+            widget = ttk.Entry(param_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
+            widget.pack(side=tk.LEFT, padx=5)
+            widget.config(state="disabled")  # Disabled by default
             self.cosmology_params[param] = widget
             CreateToolTip(widget, tooltip)
 
         # IGM model
-        igm_frame = ttk.LabelFrame(cosmology_frame, text="IGM Model")
-        igm_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        self.use_igm = tk.BooleanVar(value=False)
-        ttk.Checkbutton(igm_frame, text="Use IGM Model", variable=self.use_igm, 
-                        command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()),
-                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=3, sticky="w", padx=5, pady=5)
+        igm_frame = create_labeled_frame(cosmology_frame, "IGM Model", self.use_igm, 
+                                         lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()))
 
         self.igm_model = tk.StringVar(value="1")
         self.igm_radiobuttons = []
         igm_options = [
-            ("0", "None"),
-            ("1", "Madau (1995) model"),
-            ("2", "Meiksin (2006) model"),
-            ("3", "hyperz"),
-            ("4", "FSPS"),
-            ("5", "Inoue+2014")
+            ("0", "None"), ("1", "Madau (1995)"), ("2", "Meiksin (2006)"),
+            ("3", "hyperz"), ("4", "FSPS"), ("5", "Inoue+2014")
         ]
 
-        for i, (value, text) in enumerate(igm_options):
+        for value, text in igm_options:
             radiobutton = ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value)
-            radiobutton.grid(row=i//3+1, column=i%3, sticky=tk.W, padx=5, pady=2)
+            radiobutton.pack(anchor="w", padx=5, pady=2)
+            radiobutton.config(state="disabled")  # Disabled by default
             self.igm_radiobuttons.append(radiobutton)
 
         # Redshift parameters
-        redshift_frame = ttk.LabelFrame(cosmology_frame, text="Redshift Parameters (Optional)")
-        redshift_frame.pack(fill=tk.X, padx=5, pady=5)
+        redshift_frame = create_labeled_frame(cosmology_frame, "Redshift Parameters", self.use_redshift, 
+                                              self.toggle_redshift_widgets)
 
-        self.use_redshift = tk.BooleanVar(value=False)
-        ttk.Checkbutton(redshift_frame, text="Set Redshift Parameters", variable=self.use_redshift, 
-                        command=self.toggle_redshift_widgets,
-                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
-        
         redshift_params = [
             ("iprior_type", "Prior type (0-7)", "1"),
             ("is_age", "Age-dependent flag (0 or 1)", "0"),
@@ -1155,30 +1159,34 @@ class BayeSEDGUI:
             ("nbin", "Number of bins", "100")
         ]
 
-        self.redshift_widgets = []
-        for i, (param, tooltip, default) in enumerate(redshift_params):
-            ttk.Label(redshift_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(redshift_frame, width=10)
+        for param, tooltip, default in redshift_params:
+            param_frame = ttk.Frame(redshift_frame)
+            param_frame.pack(fill=tk.X, pady=2)
+            ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT, padx=5)
+            widget = ttk.Entry(param_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
-            widget.config(state="disabled")
+            widget.pack(side=tk.LEFT, padx=5)
+            widget.config(state="disabled")  # Already disabled by default
             self.redshift_params[param] = widget
             CreateToolTip(widget, tooltip)
             self.redshift_widgets.append(widget)
 
         # Confidence Levels
-        cl_frame = ttk.LabelFrame(cosmology_frame, text="Confidence Levels")
-        cl_frame.pack(fill=tk.X, padx=5, pady=5)
+        cl_frame = create_labeled_frame(cosmology_frame, "Confidence Levels", self.use_cl, 
+                                         lambda: self.toggle_widgets([self.cl], self.use_cl.get()))
 
-        self.use_cl = tk.BooleanVar(value=False)
-        ttk.Checkbutton(cl_frame, text="Use Confidence Levels", variable=self.use_cl, 
-                        command=lambda: self.toggle_widgets([self.cl], self.use_cl.get()),
-                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-
-        ttk.Label(cl_frame, text="Confidence Levels:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(cl_frame, text="Levels:").pack(side=tk.LEFT, padx=5)
         self.cl = ttk.Entry(cl_frame, width=15)
         self.cl.insert(0, "0.68,0.95")
-        self.cl.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        self.cl.pack(side=tk.LEFT, padx=5)
+        self.cl.config(state="disabled")  # Disabled by default
+
+    def toggle_widgets(self, widgets, state):
+        for widget in widgets:
+            if isinstance(widget, ttk.Radiobutton):
+                widget.config(state="normal" if state else "disabled")
+            elif hasattr(widget, 'config'):
+                widget.config(state="normal" if state else "disabled")
 
     def toggle_redshift_widgets(self):
         state = "normal" if self.use_redshift.get() else "disabled"
