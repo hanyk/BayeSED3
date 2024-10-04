@@ -549,13 +549,7 @@ class BayeSEDInterface:
         # Set TMPDIR environment variable
         os.environ['TMPDIR'] = '/tmp'
         
-        # Check if there is a -h or --help parameter
-        if '-h' in args or '--help' in args:
-            # For help command, execute the executable file directly without using mpirun
-            cmd = [self.executable_path] + args
-        else:
-            # When executing normally, use mpirun with --use-hwthread-cpus
-            cmd = [self.mpi_cmd, '--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
+        cmd = [self.mpi_cmd, '--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
         
         print(f"Executing command: {' '.join(cmd)}")
         
@@ -953,7 +947,7 @@ def main():
     parser = argparse.ArgumentParser(description='BayeSED interface', add_help=False)
     parser.add_argument('-h', '--help', action='store_true', help='Show this help message and exit')
     parser.add_argument('--mpi', type=str, default='1', help='MPI mode: 1 for bayesed_mn_1, n for bayesed_mn_n')
-    parser.add_argument('--np', type=int, default=1, help='Number of processes')
+    parser.add_argument('--np', type=int, default=None, help='Number of processes (default: use all available cores)')
     parser.add_argument('-i', '--input', type=str, help='Input type (int) and file, separated by comma')
     parser.add_argument('--outdir', type=str, default='result', help='Output directory')
     parser.add_argument('--save_bestfit', type=int, default=0, help='Save best fit')
@@ -968,7 +962,12 @@ def main():
         mpi_mode = '1'
 
     bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
-    bayesed.num_processes = args.np
+    
+    # Use all available cores if --np is not specified
+    if args.np is None:
+        bayesed.num_processes = bayesed._get_max_threads()
+    else:
+        bayesed.num_processes = args.np
 
     if args.help:
         # If user requests help, we will call BayeSED's help
@@ -996,7 +995,7 @@ if __name__ == "__main__":
     mpi_mode = '1'  # Default to bayesed_mn_1
     bayesed_args = []
     i = 1
-    num_processes = 1
+    num_processes = None  # Default to None, which will use all available cores
     while i < len(sys.argv):
         if sys.argv[i] == "--np":
             num_processes = int(sys.argv[i+1])
@@ -1015,6 +1014,8 @@ if __name__ == "__main__":
     
     if '-h' in bayesed_args or '--help' in bayesed_args:
         num_processes = 1
+    elif num_processes is None:
+        num_processes = bayesed._get_max_threads()
     
     bayesed.num_processes = num_processes
 

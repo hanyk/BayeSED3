@@ -1246,10 +1246,10 @@ class BayeSEDGUI:
             
             self.process.wait()
             
-            if self.process.returncode == 0:
-                self.output_queue.put("BayeSED execution completed\n")
-            else:
-                self.output_queue.put(f"BayeSED execution failed, return code: {self.process.returncode}\n")
+            # if self.process.returncode == 0:
+            #     self.output_queue.put("BayeSED execution completed\n")
+            # else:
+            #     self.output_queue.put(f"BayeSED execution failed, return code: {self.process.returncode}\n")
         
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
