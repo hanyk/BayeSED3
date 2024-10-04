@@ -1165,9 +1165,10 @@ class BayeSEDGUI:
 
         # Add cosmology parameters
         if self.use_cosmology.get():
-            cosmo_values = [f"{param}={widget.get()}" for param, widget in self.cosmology_params.items()]
-            if cosmo_values:
-                command.extend(["--cosmology", ",".join(cosmo_values)])
+            h0 = self.cosmology_params['H0'].get()
+            omigaA = self.cosmology_params['omigaA'].get()
+            omigam = self.cosmology_params['omigam'].get()
+            command.extend(["--cosmology", f"{h0},{omigaA},{omigam}"])
 
         # Add IGM model
         if self.use_igm.get():
@@ -1290,20 +1291,17 @@ class BayeSEDGUI:
         cosmology_frame = ttk.Frame(self.notebook)
         self.notebook.add(cosmology_frame, text="Cosmology")
 
-        # Helper function to create labeled frames with checkbuttons
-        def create_labeled_frame(parent, title, var, command):
-            frame = ttk.Frame(parent)
-            frame.pack(fill=tk.X, padx=5, pady=5)
-            ttk.Checkbutton(frame, variable=var, command=command, style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
-            ttk.Label(frame, text=title, font=('Helvetica', 10, 'bold')).pack(side=tk.LEFT, padx=5)
-            content_frame = ttk.Frame(frame)
-            content_frame.pack(fill=tk.X, padx=20, pady=5)
-            return content_frame
-
         # Cosmology parameters
-        cosmo_frame = create_labeled_frame(cosmology_frame, "Cosmology Parameters", self.use_cosmology, 
-                                             lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get()))
-        
+        cosmo_frame = ttk.Frame(cosmology_frame)
+        cosmo_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Checkbutton(cosmo_frame, variable=self.use_cosmology, 
+                        command=lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get()),
+                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+
+        cosmo_content = ttk.LabelFrame(cosmo_frame, text="Cosmology Parameters")
+        cosmo_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+
         cosmo_params = [
             ("H0", "Hubble constant (km/s/Mpc)", "70"),
             ("omigaA", "Omega Lambda", "0.7"),
@@ -1311,19 +1309,25 @@ class BayeSEDGUI:
         ]
 
         for param, tooltip, default in cosmo_params:
-            param_frame = ttk.Frame(cosmo_frame)
+            param_frame = ttk.Frame(cosmo_content)
             param_frame.pack(fill=tk.X, pady=2)
             ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT, padx=5)
             widget = ttk.Entry(param_frame, width=10)
             widget.insert(0, default)
             widget.pack(side=tk.LEFT, padx=5)
-            widget.config(state="disabled")  # Disabled by default
             self.cosmology_params[param] = widget
             CreateToolTip(widget, tooltip)
 
         # IGM model
-        igm_frame = create_labeled_frame(cosmology_frame, "IGM Model", self.use_igm, 
-                                         lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()))
+        igm_frame = ttk.Frame(cosmology_frame)
+        igm_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Checkbutton(igm_frame, variable=self.use_igm, 
+                        command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()),
+                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+
+        igm_content = ttk.LabelFrame(igm_frame, text="IGM Model")
+        igm_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
         self.igm_model = tk.StringVar(value="1")
         self.igm_radiobuttons = []
@@ -1333,14 +1337,20 @@ class BayeSEDGUI:
         ]
 
         for value, text in igm_options:
-            radiobutton = ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value)
+            radiobutton = ttk.Radiobutton(igm_content, text=text, variable=self.igm_model, value=value)
             radiobutton.pack(anchor="w", padx=5, pady=2)
-            radiobutton.config(state="disabled")  # Disabled by default
             self.igm_radiobuttons.append(radiobutton)
 
         # Redshift parameters
-        redshift_frame = create_labeled_frame(cosmology_frame, "Redshift Parameters", self.use_redshift, 
-                                              self.toggle_redshift_widgets)
+        redshift_frame = ttk.Frame(cosmology_frame)
+        redshift_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Checkbutton(redshift_frame, variable=self.use_redshift, 
+                        command=self.toggle_redshift_widgets,
+                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+
+        redshift_content = ttk.LabelFrame(redshift_frame, text="Redshift Parameters")
+        redshift_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
         redshift_params = [
             ("iprior_type", "Prior type (0-7)", "1"),
@@ -1351,16 +1361,20 @@ class BayeSEDGUI:
         ]
 
         for param, tooltip, default in redshift_params:
-            param_frame = ttk.Frame(redshift_frame)
+            param_frame = ttk.Frame(redshift_content)
             param_frame.pack(fill=tk.X, pady=2)
             ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT, padx=5)
             widget = ttk.Entry(param_frame, width=10)
             widget.insert(0, default)
             widget.pack(side=tk.LEFT, padx=5)
-            widget.config(state="disabled")  # Already disabled by default
             self.redshift_params[param] = widget
             CreateToolTip(widget, tooltip)
             self.redshift_widgets.append(widget)
+
+        # Initialize widget states
+        self.toggle_widgets(list(self.cosmology_params.values()), False)
+        self.toggle_widgets(self.igm_radiobuttons, False)
+        self.toggle_redshift_widgets()
 
     def toggle_widgets(self, widgets, state):
         for widget in widgets:
@@ -1374,9 +1388,9 @@ class BayeSEDGUI:
                     widget.config(foreground="grey")
 
     def toggle_redshift_widgets(self):
-        state = "normal" if self.use_redshift.get() else "disabled"
+        state = self.use_redshift.get()
         for widget in self.redshift_widgets:
-            widget.config(state=state)
+            self.toggle_widgets([widget], state)
 
     def browse_filters(self):
         filename = filedialog.askopenfilename()
