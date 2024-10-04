@@ -6,6 +6,7 @@ import queue
 import sys
 from PIL import Image, ImageDraw, ImageTk, ImageFont
 import pyperclip
+import json
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -44,7 +45,6 @@ class BayeSEDGUI:
         self.no_spectra_fit = tk.BooleanVar(value=False)
         self.unweighted_samples = tk.BooleanVar(value=False)
         self.priors_only = tk.BooleanVar(value=False)
-        self.use_luminosity = tk.BooleanVar(value=False)
         self.use_output_sfh = tk.BooleanVar(value=False)
         self.use_sys_err = tk.BooleanVar(value=False)
         self.sys_err_widgets = []
@@ -1391,22 +1391,268 @@ class BayeSEDGUI:
             self.filters_selected.insert(0, filename)
 
     def export_settings(self):
-        filename = filedialog.asksaveasfilename(defaultextension=".txt")
+        filename = filedialog.asksaveasfilename(defaultextension=".json")
         if filename:
-            command = self.generate_command()
+            settings = self.get_all_settings()
             with open(filename, 'w') as f:
-                f.write(" ".join(command))
+                json.dump(settings, f, indent=4)
 
     def import_settings(self):
-        filename = filedialog.askopenfilename()
+        filename = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
         if filename:
             with open(filename, 'r') as f:
-                settings = f.read().split()
-            # Here you would need to parse the settings and update the GUI accordingly
-            # This is a complex task and would require a separate method to handle it
+                settings = json.load(f)
+            self.apply_all_settings(settings)
+
+    def get_all_settings(self):
+        settings = {
+            "basic": self.get_basic_settings(),
+            "galaxy": self.get_galaxy_settings(),
+            "agn": self.get_agn_settings(),
+            "cosmology": self.get_cosmology_settings(),
+            "advanced": self.get_advanced_settings()
+        }
+        return settings
+
+    def get_basic_settings(self):
+        return {
+            "input_file": self.input_file.get(),
+            "input_type": self.input_type.get(),
+            "outdir": self.outdir.get(),
+            "verbose": self.verbose.get(),
+            "filters": self.filters.get(),
+            "filters_selected": self.filters_selected.get(),
+            "priors_only": self.priors_only.get(),
+            "no_photometry_fit": self.no_photometry_fit.get(),
+            "no_spectra_fit": self.no_spectra_fit.get(),
+            "use_snr": self.use_snr.get(),
+            "snrmin1": self.snrmin1.get(),
+            "snrmin2": self.snrmin2.get(),
+            "use_sys_err": self.use_sys_err.get(),
+            "sys_err_mod": [widget.get() for widget in self.sys_err_widgets[:5]],
+            "sys_err_obs": [widget.get() for widget in self.sys_err_widgets[5:]],
+            "save_bestfit": self.save_bestfit.get(),
+            "save_bestfit_type": self.save_bestfit_type.get(),
+            "save_sample_par": self.save_sample_par.get(),
+            "save_sample_obs": self.save_sample_obs.get(),
+            "save_pos_sfh": self.save_pos_sfh.get(),
+            "save_pos_sfh_ngrid": self.save_pos_sfh_ngrid.get(),
+            "save_pos_sfh_ilog": self.save_pos_sfh_ilog.get(),
+            "save_pos_spec": self.save_pos_spec.get(),
+            "save_sample_spec": self.save_sample_spec.get(),
+            "save_summary": self.save_summary.get(),
+            "output_mock_photometry": self.output_mock_photometry.get(),
+            "output_mock_photometry_type": self.output_mock_photometry_type.get(),
+            "output_mock_spectra": self.output_mock_spectra.get(),
+            "output_model_absolute_magnitude": self.output_model_absolute_magnitude.get(),
+            "output_pos_obs": self.output_pos_obs.get(),
+            "use_build_sedlib": self.use_build_sedlib.get(),
+            "build_sedlib": self.build_sedlib.get(),
+            "unweighted_samples": self.unweighted_samples.get(),
+            "use_sfr": self.use_sfr.get(),
+            "sfr_myr": self.sfr_myr_entry.get(),
+            "use_output_sfh": self.use_output_sfh.get(),
+            "output_sfh_ntimes": self.output_sfh_ntimes.get(),
+            "output_sfh_ilog": self.output_sfh_ilog.get(),
+            "suffix": self.suffix.get()
+        }
+
+    def get_galaxy_settings(self):
+        return [
+            {
+                "ssp": [widget.get() for widget in instance['ssp']],
+                "sfh": [widget.get() for widget in instance['sfh']],
+                "dal": [widget.get() for widget in instance['dal']],
+                "dem": [widget.get() for widget in instance['dem']],
+                "dem_model": instance['dem'][1].get(),  # Add this line to save the DEM model selection
+                "dem_additional": [widget.get() for widget in self.additional_dem_widgets[instance['dem'][1].get()][1]],
+                "ssp_id": instance['ssp_id'].get(),
+                "sfh_id": instance['sfh_id'].get(),
+                "dal_id": instance['dal_id'].get(),
+                "dem_id": instance['dem_id'].get()
+            }
+            for instance in self.galaxy_instances
+        ]
+
+    def get_agn_settings(self):
+        return [
+            {key: widget.get() for key, widget in instance.items() if key != 'frame'}
+            for instance in self.agn_instances
+        ]
+
+    def get_cosmology_settings(self):
+        return {
+            "use_cosmology": self.use_cosmology.get(),
+            "cosmology_params": {param: widget.get() for param, widget in self.cosmology_params.items()},
+            "use_igm": self.use_igm.get(),
+            "igm_model": self.igm_model.get(),
+            "use_redshift": self.use_redshift.get(),
+            "redshift_params": {param: widget.get() for param, widget in self.redshift_params.items()}
+        }
+
+    def get_advanced_settings(self):
+        return {
+            "use_multinest": self.use_multinest.get(),
+            "multinest_params": {param: widget.get() for param, widget in self.multinest_widgets.items()},
+            "use_nnlm": self.use_nnlm.get(),
+            "nnlm_params": {param: widget.get() for param, widget in self.nnlm_widgets.items()},
+            "use_ndumper": self.use_ndumper.get(),
+            "ndumper_params": {param: widget.get() for param, widget in self.ndumper_widgets.items()},
+            "use_gsl": self.use_gsl.get(),
+            "gsl_params": {param: widget.get() for param, widget in self.gsl_widgets.items()},
+            "use_misc": self.use_misc.get(),
+            "misc_params": {param: widget.get() for param, widget in self.misc_widgets.items()}
+        }
+
+    def apply_all_settings(self, settings):
+        try:
+            self.apply_basic_settings(settings.get("basic", {}))
+            self.apply_galaxy_settings(settings.get("galaxy", []))
+            self.apply_agn_settings(settings.get("agn", []))
+            self.apply_cosmology_settings(settings.get("cosmology", {}))
+            self.apply_advanced_settings(settings.get("advanced", {}))
+            
+            # Update the state of widgets after applying all settings
+            self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get())
+            self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get())
+            self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get())
+            self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get())
+            self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get())
+            self.save_bestfit_type.config(state="readonly" if self.save_bestfit.get() else "disabled")
+            self.output_mock_photometry_type.config(state="readonly" if self.output_mock_photometry.get() else "disabled")
+            
+            # Force update of all frames
+            self.master.update_idletasks()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to apply settings: {str(e)}")
+
+    def apply_basic_settings(self, settings):
+        for key, value in settings.items():
+            if hasattr(self, key):
+                widget = getattr(self, key)
+                if isinstance(widget, tk.Entry) or isinstance(widget, ttk.Entry) or isinstance(widget, ttk.Combobox):
+                    widget.delete(0, tk.END)
+                    widget.insert(0, value)
+                elif isinstance(widget, tk.BooleanVar):
+                    widget.set(value)
+        
+        # Handle special cases
+        if "sys_err_mod" in settings:
+            for widget, value in zip(self.sys_err_widgets[:5], settings["sys_err_mod"]):
+                widget.delete(0, tk.END)
+                widget.insert(0, value)
+        if "sys_err_obs" in settings:
+            for widget, value in zip(self.sys_err_widgets[5:], settings["sys_err_obs"]):
+                widget.delete(0, tk.END)
+                widget.insert(0, value)
+        
+        # Ensure all checkbox states are properly restored
+        for key in [
+            "priors_only", "no_photometry_fit", "no_spectra_fit", "use_snr", "use_sys_err",
+            "save_bestfit", "save_sample_par", "save_sample_obs", "save_pos_sfh",
+            "save_pos_spec", "save_sample_spec", "save_summary", "output_mock_photometry",
+            "output_mock_spectra", "output_model_absolute_magnitude", "output_pos_obs",
+            "use_build_sedlib", "unweighted_samples", "use_sfr", "use_output_sfh"
+        ]:
+            if key in settings:
+                getattr(self, key).set(settings[key])
+
+    def apply_galaxy_settings(self, settings):
+        # Clear existing instances
+        for instance in self.galaxy_instances:
+            instance['frame'].destroy()
+        self.galaxy_instances.clear()
+
+        # Create new instances from settings
+        for instance_settings in settings:
+            try:
+                self.add_galaxy_instance()
+                instance = self.galaxy_instances[-1]
+                for key in ['ssp', 'sfh', 'dal', 'dem']:
+                    for widget, value in zip(instance[key], instance_settings[key]):
+                        widget.delete(0, tk.END)
+                        widget.insert(0, value)
+                
+                # Handle DEM model selection
+                dem_model = instance_settings.get('dem_model', '0')  # Default to '0' if not found
+                instance['dem'][1].set(dem_model)
+                
+                # Handle DEM additional parameters
+                if dem_model in self.additional_dem_widgets:
+                    additional_widgets = self.additional_dem_widgets[dem_model][1]
+                    for widget, value in zip(additional_widgets, instance_settings['dem_additional']):
+                        widget.delete(0, tk.END)
+                        widget.insert(0, value)
+                else:
+                    print(f"Warning: DEM model {dem_model} not found in current configuration.")
+
+                # Handle the ID settings
+                for id_key in ['ssp_id', 'sfh_id', 'dal_id', 'dem_id']:
+                    instance[id_key].delete(0, tk.END)
+                    instance[id_key].insert(0, instance_settings.get(id_key, ''))
+
+                # Update DEM parameters after setting the model
+                self.update_dem_params(None, instance['frame'])
+            except Exception as e:
+                print(f"Error applying galaxy instance settings: {str(e)}")
+
+    def apply_agn_settings(self, settings):
+        # Clear existing instances
+        for instance in self.agn_instances:
+            instance['frame'].destroy()
+        self.agn_instances.clear()
+
+        # Create new instances from settings
+        for instance_settings in settings:
+            self.add_AGN_instance()
+            instance = self.agn_instances[-1]
+            for key, value in instance_settings.items():
+                if key in instance:
+                    widget = instance[key]
+                    widget.delete(0, tk.END)
+                    widget.insert(0, value)
+
+    def apply_cosmology_settings(self, settings):
+        self.use_cosmology.set(settings.get("use_cosmology", False))
+        for param, value in settings.get("cosmology_params", {}).items():
+            if param in self.cosmology_params:
+                widget = self.cosmology_params[param]
+                widget.delete(0, tk.END)
+                widget.insert(0, value)
+        
+        self.use_igm.set(settings.get("use_igm", False))
+        self.igm_model.set(settings.get("igm_model", "1"))
+        
+        self.use_redshift.set(settings.get("use_redshift", False))
+        for param, value in settings.get("redshift_params", {}).items():
+            if param in self.redshift_params:
+                widget = self.redshift_params[param]
+                widget.delete(0, tk.END)
+                widget.insert(0, value)
+
+        # Update widget states
+        self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get())
+        self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get())
+        self.toggle_redshift_widgets()
+
+    def apply_advanced_settings(self, settings):
+        for section in ['multinest', 'nnlm', 'ndumper', 'gsl', 'misc']:
+            use_var = getattr(self, f'use_{section}')
+            use_var.set(settings.get(f'use_{section}', False))
+            
+            params = settings.get(f'{section}_params', {})
+            widgets = getattr(self, f'{section}_widgets')
+            for param, value in params.items():
+                if param in widgets:
+                    widget = widgets[param]
+                    widget.delete(0, tk.END)
+                    widget.insert(0, value)
+            
+            # Update widget states
+            self.toggle_widgets(widgets.values(), use_var.get())
 
     def update_dem_params(self, event, frame):
-        imodel = event.widget.get()
+        imodel = event.widget.get() if event else frame.dem[1].get()
         
         # Find the correct instance
         instance = next((inst for inst in self.galaxy_instances if inst['frame'] == frame), None)
