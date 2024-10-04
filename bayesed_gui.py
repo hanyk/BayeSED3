@@ -912,88 +912,94 @@ class BayeSEDGUI:
         self.agn_instances = []
 
     def add_AGN_instance(self):
-        # Find the maximum ID among existing galaxy instances (including DEM)
-        max_galaxy_id = -1
+        # Find the maximum ID among existing galaxy and AGN instances
+        max_id = -1
         for instance in self.galaxy_instances:
-            ssp_id = int(instance['ssp'][1].get())  # id of SSP (same as SFH and DAL)
-            dem_id = ssp_id + 1  # DEM id is always SSP id + 1
-            max_galaxy_id = max(max_galaxy_id, dem_id)
+            max_id = max(max_id, int(instance['ssp'][1].get()))  # id
+        for instance in self.agn_instances:
+            max_id = max(max_id, int(instance['id'].get()))
         
-        # Find the maximum ID among existing AGN instances
-        max_agn_id = max([int(instance['id'].get()) for instance in self.agn_instances], default=-1)
-        
-        # New AGN ID should be the larger of (max_galaxy_id + 1) and (max_agn_id + 1)
-        new_id = max(max_galaxy_id, max_agn_id) + 1
+        new_id = max_id + 1
         
         instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {new_id}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        # Arrange sub-parameters horizontally with 5 parameters per row
+        # Main AGN component (optional)
+        main_agn_frame = ttk.Frame(instance_frame)
+        main_agn_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        use_main_agn = tk.BooleanVar(value=True)
+        ttk.Checkbutton(main_agn_frame, text="Main", variable=use_main_agn, 
+                        command=lambda: self.toggle_component(agn_params_frame, use_main_agn.get())).grid(row=0, column=0, sticky=tk.W)
+
+        agn_params_frame = ttk.Frame(main_agn_frame)
+        agn_params_frame.grid(row=0, column=1, sticky=tk.W)
+
         # First row parameters: igroup, id, name, iscalable, imodel
-        ttk.Label(instance_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        agn_igroup = ttk.Entry(instance_frame, width=8)
+        ttk.Label(agn_params_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        agn_igroup = ttk.Entry(agn_params_frame, width=8)
         agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         agn_igroup.insert(0, str(new_id))
         CreateToolTip(agn_igroup, "Group ID")
 
-        ttk.Label(instance_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
-        agn_id = ttk.Entry(instance_frame, width=8)
+        ttk.Label(agn_params_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
+        agn_id = ttk.Entry(agn_params_frame, width=8)
         agn_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
         agn_id.insert(0, str(new_id))
         CreateToolTip(agn_id, "Model ID")
 
-        ttk.Label(instance_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
-        agn_name = ttk.Entry(instance_frame, width=12)
+        ttk.Label(agn_params_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
+        agn_name = ttk.Entry(agn_params_frame, width=12)
         agn_name.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
         agn_name.insert(0, "AGN")
         CreateToolTip(agn_name, "Name of the AGN Model (default: AGN)")
 
-        ttk.Label(instance_frame, text="iscalable:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
-        agn_scalable = ttk.Combobox(instance_frame, values=["0", "1"], width=5)
+        ttk.Label(agn_params_frame, text="iscalable:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
+        agn_scalable = ttk.Combobox(agn_params_frame, values=["0", "1"], width=5)
         agn_scalable.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
         agn_scalable.set("1")
         CreateToolTip(agn_scalable, "Is Scalable")
 
-        ttk.Label(instance_frame, text="imodel:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
-        agn_imodel = ttk.Combobox(instance_frame, values=["0 (qsosed)", "1 (agnsed)", "2 (fagnsed)", "3 (relagn)", "4 (relqso)", "5 (agnslim)"], width=12)
+        ttk.Label(agn_params_frame, text="imodel:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
+        agn_imodel = ttk.Combobox(agn_params_frame, values=["0 (qsosed)", "1 (agnsed)", "2 (fagnsed)", "3 (relagn)", "4 (relqso)", "5 (agnslim)"], width=12)
         agn_imodel.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
         agn_imodel.set("0 (qsosed)")
         CreateToolTip(agn_imodel, "Model Subtype:\n0: qsosed\n1: agnsed\n2: fagnsed\n3: relagn\n4: relqso\n5: agnslim")
 
         # Second row parameters: icloudy, suffix, w_min, w_max, Nw
-        ttk.Label(instance_frame, text="icloudy:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        agn_icloudy = ttk.Combobox(instance_frame, values=["0", "1"], width=5)
+        ttk.Label(agn_params_frame, text="icloudy:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        agn_icloudy = ttk.Combobox(agn_params_frame, values=["0", "1"], width=5)
         agn_icloudy.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
         agn_icloudy.set("0")
         CreateToolTip(agn_icloudy, "Cloudy Model Flag")
 
-        ttk.Label(instance_frame, text="suffix:").grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
-        agn_suffix = ttk.Entry(instance_frame, width=12)
+        ttk.Label(agn_params_frame, text="suffix:").grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
+        agn_suffix = ttk.Entry(agn_params_frame, width=12)
         agn_suffix.grid(row=1, column=3, sticky=tk.W, padx=5, pady=2)
         agn_suffix.insert(0, "")  # Set suffix to empty by default
         CreateToolTip(agn_suffix, "Suffix for the Model Name")
 
-        ttk.Label(instance_frame, text="w_min:").grid(row=1, column=4, sticky=tk.W, padx=5, pady=2)
-        agn_w_min = ttk.Entry(instance_frame, width=8)
+        ttk.Label(agn_params_frame, text="w_min:").grid(row=1, column=4, sticky=tk.W, padx=5, pady=2)
+        agn_w_min = ttk.Entry(agn_params_frame, width=8)
         agn_w_min.grid(row=1, column=5, sticky=tk.W, padx=5, pady=2)
         agn_w_min.insert(0, "300.0")
         CreateToolTip(agn_w_min, "Minimum Wavelength")
 
-        ttk.Label(instance_frame, text="w_max:").grid(row=1, column=6, sticky=tk.W, padx=5, pady=2)
-        agn_w_max = ttk.Entry(instance_frame, width=8)
+        ttk.Label(agn_params_frame, text="w_max:").grid(row=1, column=6, sticky=tk.W, padx=5, pady=2)
+        agn_w_max = ttk.Entry(agn_params_frame, width=8)
         agn_w_max.grid(row=1, column=7, sticky=tk.W, padx=5, pady=2)
         agn_w_max.insert(0, "1000.0")
         CreateToolTip(agn_w_max, "Maximum Wavelength")
 
-        ttk.Label(instance_frame, text="Nw:").grid(row=1, column=8, sticky=tk.W, padx=5, pady=2)
-        agn_nw = ttk.Entry(instance_frame, width=5)
+        ttk.Label(agn_params_frame, text="Nw:").grid(row=1, column=8, sticky=tk.W, padx=5, pady=2)
+        agn_nw = ttk.Entry(agn_params_frame, width=5)
         agn_nw.grid(row=1, column=9, sticky=tk.W, padx=5, pady=2)
         agn_nw.insert(0, "200")
         CreateToolTip(agn_nw, "Number of Wavelength Points")
 
         # BBB component
         bbb_frame = ttk.Frame(instance_frame)
-        bbb_frame.grid(row=3, column=0, columnspan=6, sticky=tk.W, padx=5, pady=2)
+        bbb_frame.pack(fill=tk.X, padx=5, pady=2)
         use_bbb = tk.BooleanVar(value=True)
         ttk.Checkbutton(bbb_frame, text="BBB", variable=use_bbb, 
                         command=lambda: self.toggle_component(bbb_frame, use_bbb.get())).pack(side=tk.LEFT, padx=(0, 5))
@@ -1016,7 +1022,7 @@ class BayeSEDGUI:
 
         # BLR component
         blr_frame = ttk.Frame(instance_frame)
-        blr_frame.grid(row=4, column=0, columnspan=6, sticky=tk.W, padx=5, pady=2)
+        blr_frame.pack(fill=tk.X, padx=5, pady=2)
         use_blr = tk.BooleanVar(value=True)
         ttk.Checkbutton(blr_frame, text="BLR", variable=use_blr, 
                         command=lambda: self.toggle_component(blr_frame, use_blr.get())).pack(side=tk.LEFT, padx=(0, 5))
@@ -1035,7 +1041,7 @@ class BayeSEDGUI:
 
         # NLR component
         nlr_frame = ttk.Frame(instance_frame)
-        nlr_frame.grid(row=5, column=0, columnspan=6, sticky=tk.W, padx=5, pady=2)
+        nlr_frame.pack(fill=tk.X, padx=5, pady=2)
         use_nlr = tk.BooleanVar(value=True)
         ttk.Checkbutton(nlr_frame, text="NLR", variable=use_nlr, 
                         command=lambda: self.toggle_component(nlr_frame, use_nlr.get())).pack(side=tk.LEFT, padx=(0, 5))
@@ -1054,7 +1060,7 @@ class BayeSEDGUI:
 
         # FeII component
         feii_frame = ttk.Frame(instance_frame)
-        feii_frame.grid(row=6, column=0, columnspan=6, sticky=tk.W, padx=5, pady=2)
+        feii_frame.pack(fill=tk.X, padx=5, pady=2)
         use_feii = tk.BooleanVar(value=True)
         ttk.Checkbutton(feii_frame, text="FeII", variable=use_feii, 
                         command=lambda: self.toggle_component(feii_frame, use_feii.get())).pack(side=tk.LEFT, padx=(0, 5))
@@ -1073,11 +1079,12 @@ class BayeSEDGUI:
 
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_AGN_instance(cf))
-        delete_button.grid(row=7, column=0, columnspan=6, padx=5, pady=5, sticky=tk.E)
+        delete_button.pack(side=tk.RIGHT, padx=5, pady=5)
 
         # Add the instance to the list
         self.agn_instances.append({
             'frame': instance_frame,
+            'use_main_agn': use_main_agn,
             'igroup': agn_igroup,
             'id': agn_id,
             'name': agn_name,
@@ -1111,14 +1118,16 @@ class BayeSEDGUI:
             'feii_gh_emis': feii_gh_emis
         })
 
+        # Initialize the main AGN component visibility
+        self.toggle_component(agn_params_frame, use_main_agn.get())
+
     # Add this new method to toggle component visibility
     def toggle_component(self, frame, state):
-        children = frame.winfo_children()
-        for child in children[1:]:  # Skip the checkbox itself
+        for child in frame.winfo_children():
             if state:
-                child.pack(side=tk.LEFT, padx=(0, 5))
+                child.grid()
             else:
-                child.pack_forget()
+                child.grid_remove()
 
     # Update the generate_command method to include only selected components
     def generate_command(self):
@@ -1126,7 +1135,23 @@ class BayeSEDGUI:
 
         # AGN settings
         for agn in self.agn_instances:
-            # ... (keep existing AGN parameter code)
+            if agn['use_main_agn'].get():
+                agn_igroup = agn['igroup'].get()
+                agn_id = agn['id'].get()
+                agn_name = agn['name'].get()
+                agn_scalable = agn['iscalable'].get()
+                agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
+                agn_icloudy = agn['icloudy'].get()
+                agn_suffix = agn['suffix'].get()
+                agn_w_min = agn['w_min'].get()
+                agn_w_max = agn['w_max'].get()
+                agn_nw = agn['nw'].get()
+    
+                if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
+                    command.extend([
+                        "--AGN",
+                        f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
+                    ])
 
             if agn['use_bbb'].get():
                 bbb_id = int(agn_id) + 1
@@ -1277,69 +1302,53 @@ class BayeSEDGUI:
 
         # AGN settings
         for agn in self.agn_instances:
-            agn_igroup = agn['igroup'].get()
-            agn_id = agn['id'].get()
-            agn_name = agn['name'].get()
-            agn_scalable = agn['iscalable'].get()
-            agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
-            agn_icloudy = agn['icloudy'].get()
-            agn_suffix = agn['suffix'].get()
-            agn_w_min = agn['w_min'].get()
-            agn_w_max = agn['w_max'].get()
-            agn_nw = agn['nw'].get()
-            agn_bbb_name = agn['bbb_name'].get()
-            agn_bbb_w_min = agn['bbb_w_min'].get()
-            agn_bbb_w_max = agn['bbb_w_max'].get()
-            agn_bbb_nw = agn['bbb_nw'].get()
-            agn_blr_file = agn['blr_file'].get()
-            agn_blr_r = agn['blr_r'].get()
-            agn_blr_nkin = agn['blr_nkin'].get()
-            agn_feii_velscale = agn['feii_velscale'].get()
-            agn_feii_gh_cont = agn['feii_gh_cont'].get()
-            agn_feii_gh_emis = agn['feii_gh_emis'].get()
-            agn_nlr_file = agn['nlr_file'].get()
-            agn_nlr_r = agn['nlr_r'].get()
-            agn_nlr_nkin = agn['nlr_nkin'].get()
+            if agn['use_main_agn'].get():
+                agn_igroup = agn['igroup'].get()
+                agn_id = agn['id'].get()
+                agn_name = agn['name'].get()
+                agn_scalable = agn['iscalable'].get()
+                agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
+                agn_icloudy = agn['icloudy'].get()
+                agn_suffix = agn['suffix'].get()
+                agn_w_min = agn['w_min'].get()
+                agn_w_max = agn['w_max'].get()
+                agn_nw = agn['nw'].get()
     
-            if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
+                if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
+                    command.extend([
+                        "--AGN",
+                        f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
+                    ])
+
+            if agn['use_bbb'].get():
+                bbb_id = int(agn_id) + 1
                 command.extend([
-                    "--AGN",
-                    f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
+                    "-bbb",
+                    f"{bbb_id},{bbb_id},{agn['bbb_name'].get()},1,{agn['bbb_w_min'].get()},{agn['bbb_w_max'].get()},{agn['bbb_nw'].get()}"
                 ])
 
-                # Add BBB
-                if agn['use_bbb'].get():
-                    bbb_id = int(agn_id) + 1
-                    command.extend([
-                        "-bbb",
-                        f"{bbb_id},{bbb_id},{agn_bbb_name},1,{agn_bbb_w_min},{agn_bbb_w_max},{agn_bbb_nw}"
-                    ])
+            if agn['use_blr'].get():
+                blr_id = int(agn_id) + 2
+                command.extend([
+                    "-ls1",
+                    f"{blr_id},{blr_id},BLR,1,{agn['blr_file'].get()},{agn['blr_r'].get()},2,{agn['blr_nkin'].get()}"
+                ])
 
-                # Add BLR
-                if agn['use_blr'].get():
-                    blr_id = int(agn_id) + 2
-                    command.extend([
-                        "-ls1",
-                        f"{blr_id},{blr_id},BLR,1,{agn_blr_file},{agn_blr_r},2,{agn_blr_nkin}"
-                    ])
+            if agn['use_feii'].get():
+                feii_id = int(agn_id) + 3
+                command.extend([
+                    "-k",
+                    f"{feii_id},{feii_id},FeII,1,1,1,0,0,1,1,1",
+                    "--kin",
+                    f"{feii_id},{agn['feii_velscale'].get()},{agn['feii_gh_cont'].get()},{agn['feii_gh_emis'].get()}"
+                ])
 
-                # Add FeII
-                if agn['use_feii'].get():
-                    feii_id = int(agn_id) + 3
-                    command.extend([
-                        "-k",
-                        f"{feii_id},{feii_id},FeII,1,1,1,0,0,1,1,1",
-                        "--kin",
-                        f"{feii_id},{agn_feii_velscale},{agn_feii_gh_cont},{agn_feii_gh_emis}"
-                    ])
-
-                # Add NLR
-                if agn['use_nlr'].get():
-                    nlr_id = int(agn_id) + 4
-                    command.extend([
-                        "-ls1",
-                        f"{nlr_id},{nlr_id},NLR,1,{agn_nlr_file},{agn_nlr_r},2,{agn_nlr_nkin}"
-                    ])
+            if agn['use_nlr'].get():
+                nlr_id = int(agn_id) + 4
+                command.extend([
+                    "-ls1",
+                    f"{nlr_id},{nlr_id},NLR,1,{agn['nlr_file'].get()},{agn['nlr_r'].get()},2,{agn['nlr_nkin'].get()}"
+                ])
         
         # Advanced settings
         if self.use_multinest.get():
