@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext, messagebox, Toplevel
 import subprocess
 import threading
+import queue
+import sys
 from PIL import Image, ImageDraw, ImageTk, ImageFont
 
 class BayeSEDGUI:
@@ -26,6 +28,9 @@ class BayeSEDGUI:
         style.configure('Large.TCheckbutton', font=('Helvetica', 12))
         
         self.create_widgets()
+
+        self.output_queue = queue.Queue()
+        self.stop_output_thread = threading.Event()
 
     def create_icon(self):
         try:
@@ -1028,24 +1033,40 @@ class BayeSEDGUI:
         
         self.update_output("Executing command: " + " ".join(command) + "\n")
         
+        self.stop_output_thread.clear()
         threading.Thread(target=self.execute_command, args=(command,)).start()
+        self.master.after(100, self.check_output_queue)
 
     def execute_command(self, command):
         try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            process = subprocess.Popen([sys.executable, "-c", 
+                                        "import subprocess; process = subprocess.Popen(" + repr(command) + ", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1); [print(line, end='', flush=True) for line in process.stdout]; exit(process.wait())"],
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
             
             for line in process.stdout:
-                self.update_output(line)
+                self.output_queue.put(line)
+                if self.stop_output_thread.is_set():
+                    process.terminate()
+                    break
             
             process.wait()
             
             if process.returncode == 0:
-                self.update_output("BayeSED execution completed\n")
+                self.output_queue.put("BayeSED execution completed\n")
             else:
-                self.update_output(f"BayeSED execution failed, return code: {process.returncode}\n")
+                self.output_queue.put(f"BayeSED execution failed, return code: {process.returncode}\n")
         
         except Exception as e:
-            self.update_output(f"Error: {str(e)}\n")
+            self.output_queue.put(f"Error: {str(e)}\n")
+
+    def check_output_queue(self):
+        try:
+            while True:
+                line = self.output_queue.get_nowait()
+                self.update_output(line)
+        except queue.Empty:
+            if not self.stop_output_thread.is_set():
+                self.master.after(100, self.check_output_queue)
 
     def update_output(self, text):
         self.output_text.config(state=tk.NORMAL)
@@ -1252,4 +1273,5 @@ class CreateToolTip(object):
 if __name__ == "__main__":
     root = tk.Tk()
     gui = BayeSEDGUI(root)
+    root.protocol("WM_DELETE_WINDOW", lambda: (gui.stop_output_thread.set(), root.destroy()))
     root.mainloop()
