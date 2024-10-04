@@ -21,6 +21,10 @@ class BayeSEDGUI:
         # Create and set the icon
         self.create_icon()
 
+        # Configure style for larger checkbuttons
+        style = ttk.Style()
+        style.configure('Large.TCheckbutton', font=('Helvetica', 12))
+        
         self.create_widgets()
 
     def create_icon(self):
@@ -230,8 +234,12 @@ class BayeSEDGUI:
         clear_button.pack(side=tk.TOP, anchor=tk.W, padx=5, pady=5)
 
         # Output text
-        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, state=tk.DISABLED, height=10)
+        self.output_text = scrolledtext.ScrolledText(output_frame, wrap=tk.WORD, height=10)
         self.output_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Add bindings to allow copy but prevent editing
+        self.output_text.bind("<Key>", lambda e: "break")
+        self.output_text.bind("<Control-c>", lambda e: None)
 
         # Configure grid weights
         basic_frame.grid_columnconfigure(0, weight=1)
@@ -397,43 +405,63 @@ class BayeSEDGUI:
                 dal_id_widget = widget
 
         # DEM settings
-        dem_frame = ttk.LabelFrame(instance_frame, text="DEM")
+        dem_frame = ttk.Frame(instance_frame)
         dem_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(dem_frame, text="DEM:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(dem_frame, text="DEM:").pack(side=tk.LEFT, padx=(0, 5))
 
         dem_params = [
-            ("id", str(new_id), 3),
-            ("imodel", "0", 3, [
-                "0: Greybody",
-                "1: Blackbody",
-                "2: FANN",
-                "3: AKNN"
-            ]),
-            ("iscalable", "-2", 3),
+            ("id", str(new_id), 5),
+            ("imodel", "0", 5, ["0: Greybody", "1: Blackbody", "2: FANN", "3: AKNN"]),
+            ("iscalable", "-2", 5),
+            ("name", "", 15),
         ]
 
         dem_widgets = []
-        for i, param_info in enumerate(dem_params):
+        for param_info in dem_params:
             param, default, width = param_info[:3]
-            ttk.Label(dem_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.E)
+            param_frame = ttk.Frame(dem_frame)
+            param_frame.pack(side=tk.LEFT, padx=(0, 5))
+            ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT)
             if len(param_info) > 3:  # If there are options
-                widget = ttk.Combobox(dem_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
+                widget = ttk.Combobox(param_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
                 widget.set(default)
                 tooltip = "\n".join(param_info[3])
                 CreateToolTip(widget, tooltip)
                 if param == "imodel":
-                    widget.bind("<<ComboboxSelected>>", lambda event, f=dem_frame: self.update_dem_params(event, f))
+                    widget.bind("<<ComboboxSelected>>", lambda event, f=instance_frame: self.update_dem_params(event, f))
             else:
-                widget = ttk.Entry(dem_frame, width=width)
+                widget = ttk.Entry(param_frame, width=width)
                 widget.insert(0, default)
-            widget.grid(row=0, column=i*2+2, sticky=tk.W)
+            widget.pack(side=tk.LEFT)
             dem_widgets.append(widget)
             if param == 'id':
                 dem_id_widget = widget
 
-        # Create a frame for extra DEM parameters
-        extra_dem_frame = ttk.Frame(dem_frame)
-        extra_dem_frame.grid(row=0, column=7, columnspan=10, sticky=tk.W)
+        # Additional parameters for each model type
+        self.additional_dem_params = {
+            "0": [("ithick", "0", 3), ("w_min", "1", 5), ("w_max", "1000", 5), ("Nw", "200", 5)],  # Greybody
+            "1": [("w_min", "1", 5), ("w_max", "1000", 5), ("Nw", "200", 5)],  # Blackbody
+            "2": [],  # FANN (no additional parameters)
+            "3": [("k", "1", 3), ("f_run", "1", 3), ("eps", "0", 5), ("iRad", "0", 3), 
+                  ("iprep", "0", 3), ("Nstep", "1", 3), ("alpha", "0", 5)]  # AKNN
+        }
+
+        self.additional_dem_widgets = {}
+        for model, params in self.additional_dem_params.items():
+            model_frame = ttk.Frame(dem_frame)
+            model_widgets = []
+            for param, default, width in params:
+                param_frame = ttk.Frame(model_frame)
+                param_frame.pack(side=tk.LEFT, padx=(0, 5))
+                ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT)
+                widget = ttk.Entry(param_frame, width=width)
+                widget.insert(0, default)
+                widget.pack(side=tk.LEFT)
+                model_widgets.append(widget)
+            self.additional_dem_widgets[model] = (model_frame, model_widgets)
+
+        # Show the initial model's widgets (Greybody by default)
+        self.additional_dem_widgets["0"][0].pack(side=tk.LEFT)
 
         # Create the instance dictionary
         new_instance = {
@@ -441,16 +469,11 @@ class BayeSEDGUI:
             'ssp': ssp_widgets,
             'sfh': sfh_widgets,
             'dal': dal_widgets,
-            'dem': dem_widgets,
-            'dem_extra': [],
-            'dem_extra_frame': extra_dem_frame
+            'dem': dem_widgets
         }
 
         # Append the new instance to the list
         self.galaxy_instances.append(new_instance)
-
-        # Now trigger the update_dem_params to show the initial extra parameters
-        self.update_dem_params(type('Event', (), {'widget': dem_widgets[1]})(), dem_frame)
 
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_galaxy_instance(cf))
@@ -465,6 +488,11 @@ class BayeSEDGUI:
         # MultiNest Settings
         multinest_frame = ttk.LabelFrame(advanced_frame, text="MultiNest Settings")
         multinest_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+
+        self.use_multinest = tk.BooleanVar(value=False)
+        ttk.Checkbutton(multinest_frame, text="Use MultiNest Settings", variable=self.use_multinest, 
+                        command=lambda: self.toggle_widgets(self.multinest_widgets.values(), self.use_multinest.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=6, sticky="w", padx=5, pady=5)
 
         multinest_params = [
             ("INS", "Importance Nested Sampling flag"),
@@ -490,16 +518,21 @@ class BayeSEDGUI:
         for i, (param, tooltip) in enumerate(multinest_params):
             row = i // 3
             col = i % 3 * 2
-            ttk.Label(multinest_frame, text=f"{param}:").grid(row=row, column=col, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(multinest_frame, text=f"{param}:").grid(row=row+1, column=col, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(multinest_frame, width=8)
             widget.insert(0, default_values[i] if i < len(default_values) else "")
-            widget.grid(row=row, column=col+1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=row+1, column=col+1, sticky=tk.W, padx=5, pady=2)
             self.multinest_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
         # NNLM Settings
         nnlm_frame = ttk.LabelFrame(advanced_frame, text="NNLM Settings")
         nnlm_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+
+        self.use_nnlm = tk.BooleanVar(value=False)
+        ttk.Checkbutton(nnlm_frame, text="Use NNLM Settings", variable=self.use_nnlm, 
+                        command=lambda: self.toggle_widgets(self.nnlm_widgets.values(), self.use_nnlm.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
         nnlm_params = [
             ("method", "Method (0=eazy, 1=scd, 2=lee_ls, 3=scd_kl, 4=lee_kl)", "0"),
@@ -512,16 +545,21 @@ class BayeSEDGUI:
         ]
         self.nnlm_widgets = {}
         for i, (param, tooltip, default) in enumerate(nnlm_params):
-            ttk.Label(nnlm_frame, text=f"{param}:").grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(nnlm_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(nnlm_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
             self.nnlm_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
         # Ndumper Settings
         ndumper_frame = ttk.LabelFrame(advanced_frame, text="Ndumper Settings")
         ndumper_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+
+        self.use_ndumper = tk.BooleanVar(value=False)
+        ttk.Checkbutton(ndumper_frame, text="Use Ndumper Settings", variable=self.use_ndumper, 
+                        command=lambda: self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
         ndumper_params = [
             ("max_number", "Maximum number", "1"),
@@ -530,16 +568,21 @@ class BayeSEDGUI:
         ]
         self.ndumper_widgets = {}
         for i, (param, tooltip, default) in enumerate(ndumper_params):
-            ttk.Label(ndumper_frame, text=f"{param}:").grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(ndumper_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(ndumper_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
             self.ndumper_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
         # GSL Integration and Multifit Settings
         gsl_frame = ttk.LabelFrame(advanced_frame, text="GSL Settings")
         gsl_frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+
+        self.use_gsl = tk.BooleanVar(value=False)
+        ttk.Checkbutton(gsl_frame, text="Use GSL Settings", variable=self.use_gsl, 
+                        command=lambda: self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
 
         gsl_params = [
             ("integration_epsabs", "Integration absolute error", "0"),
@@ -550,16 +593,21 @@ class BayeSEDGUI:
         ]
         self.gsl_widgets = {}
         for i, (param, tooltip, default) in enumerate(gsl_params):
-            ttk.Label(gsl_frame, text=f"{param}:").grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(gsl_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(gsl_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
             self.gsl_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
         # Other Miscellaneous Settings
         misc_frame = ttk.LabelFrame(advanced_frame, text="Other Settings")
         misc_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+        self.use_misc = tk.BooleanVar(value=False)
+        ttk.Checkbutton(misc_frame, text="Use Other Settings", variable=self.use_misc, 
+                        command=lambda: self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=6, sticky="w", padx=5, pady=5)
 
         misc_params = [
             ("NfilterPoints", "Number of filter points", "30"),
@@ -573,73 +621,83 @@ class BayeSEDGUI:
         for i, (param, tooltip, default) in enumerate(misc_params):
             row = i // 3
             col = i % 3 * 2
-            ttk.Label(misc_frame, text=f"{param}:").grid(row=row, column=col, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(misc_frame, text=f"{param}:").grid(row=row+1, column=col, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(misc_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=row, column=col+1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=row+1, column=col+1, sticky=tk.W, padx=5, pady=2)
             self.misc_widgets[param] = widget
             CreateToolTip(widget, tooltip)
 
+        # SFR Settings
+        sfr_frame = ttk.LabelFrame(advanced_frame, text="SFR Settings")
+        sfr_frame.grid(row=3, column=0, padx=5, pady=5, sticky="nsew")
+
+        self.use_sfr = tk.BooleanVar(value=False)
+        ttk.Checkbutton(sfr_frame, text="Use SFR Settings", variable=self.use_sfr, 
+                        command=lambda: self.toggle_widgets([self.sfr_past_myr1, self.sfr_past_myr2], self.use_sfr.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
+        ttk.Label(sfr_frame, text="Past Myr1:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.sfr_past_myr1 = ttk.Entry(sfr_frame, width=10)
+        self.sfr_past_myr1.insert(0, "10")
+        self.sfr_past_myr1.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        ttk.Label(sfr_frame, text="Past Myr2:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.sfr_past_myr2 = ttk.Entry(sfr_frame, width=10)
+        self.sfr_past_myr2.insert(0, "100")
+        self.sfr_past_myr2.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+
+        # SNR Settings
+        snr_frame = ttk.LabelFrame(advanced_frame, text="SNR Settings")
+        snr_frame.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
+
+        self.use_snr = tk.BooleanVar(value=False)
+        ttk.Checkbutton(snr_frame, text="Use SNR Settings", variable=self.use_snr, 
+                        command=lambda: self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
+        ttk.Label(snr_frame, text="SNRmin1 (phot,spec):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.snrmin1 = ttk.Entry(snr_frame, width=10)
+        self.snrmin1.insert(0, "0,0")
+        self.snrmin1.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        ttk.Label(snr_frame, text="SNRmin2 (phot,spec):").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+        self.snrmin2 = ttk.Entry(snr_frame, width=10)
+        self.snrmin2.insert(0, "0,0")
+        self.snrmin2.grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+
+        # Build SED Library
+        build_sed_frame = ttk.LabelFrame(advanced_frame, text="Build SED Library")
+        build_sed_frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+
+        self.use_build_sedlib = tk.BooleanVar(value=False)
+        ttk.Checkbutton(build_sed_frame, text="Build SED Library", variable=self.use_build_sedlib, 
+                        command=lambda: self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, sticky="w", padx=5, pady=5)
+
+        self.build_sedlib = ttk.Combobox(build_sed_frame, values=["0 (Rest)", "1 (Observed)"], width=15, state="disabled")
+        self.build_sedlib.set("0 (Rest)")
+        self.build_sedlib.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+
         # Checkboxes for boolean options
         checkbox_frame = ttk.Frame(advanced_frame)
-        checkbox_frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        checkbox_frame.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
 
-        self.no_photometry_fit = tk.BooleanVar()
-        ttk.Checkbutton(checkbox_frame, text="No photometry fit", variable=self.no_photometry_fit).grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.no_photometry_fit = tk.BooleanVar(value=False)
+        ttk.Checkbutton(checkbox_frame, text="No photometry fit", variable=self.no_photometry_fit, style='Large.TCheckbutton').grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         
-        self.no_spectra_fit = tk.BooleanVar()
-        ttk.Checkbutton(checkbox_frame, text="No spectra fit", variable=self.no_spectra_fit).grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        self.no_spectra_fit = tk.BooleanVar(value=False)
+        ttk.Checkbutton(checkbox_frame, text="No spectra fit", variable=self.no_spectra_fit, style='Large.TCheckbutton').grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         
-        self.unweighted_samples = tk.BooleanVar()
-        ttk.Checkbutton(checkbox_frame, text="Use unweighted samples", variable=self.unweighted_samples).grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
+        self.unweighted_samples = tk.BooleanVar(value=False)
+        ttk.Checkbutton(checkbox_frame, text="Use unweighted samples", variable=self.unweighted_samples, style='Large.TCheckbutton').grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+
+        self.priors_only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(checkbox_frame, text="Priors Only", variable=self.priors_only, style='Large.TCheckbutton').grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
 
         # Configure grid weights
         advanced_frame.grid_columnconfigure(0, weight=1)
         advanced_frame.grid_columnconfigure(1, weight=1)
-
-        # SFR_over
-        sfr_frame = ttk.LabelFrame(advanced_frame, text="SFR Over")
-        sfr_frame.grid(row=4, column=0, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Label(sfr_frame, text="Past Myr1:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.sfr_past_myr1 = ttk.Entry(sfr_frame, width=10)
-        self.sfr_past_myr1.insert(0, "10")
-        self.sfr_past_myr1.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(sfr_frame, text="Past Myr2:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.sfr_past_myr2 = ttk.Entry(sfr_frame, width=10)
-        self.sfr_past_myr2.insert(0, "100")
-        self.sfr_past_myr2.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # SNRmin1 and SNRmin2
-        snr_frame = ttk.LabelFrame(advanced_frame, text="SNR Settings")
-        snr_frame.grid(row=4, column=1, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Label(snr_frame, text="SNRmin1 (phot,spec):").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        self.snrmin1 = ttk.Entry(snr_frame, width=10)
-        self.snrmin1.insert(0, "0,0")
-        self.snrmin1.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        
-        ttk.Label(snr_frame, text="SNRmin2 (phot,spec):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        self.snrmin2 = ttk.Entry(snr_frame, width=10)
-        self.snrmin2.insert(0, "0,0")
-        self.snrmin2.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # build_sedlib
-        self.build_sedlib = tk.StringVar(value="0")
-        ttk.Label(advanced_frame, text="Build SED Library:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Radiobutton(advanced_frame, text="Rest", variable=self.build_sedlib, value="0").grid(row=5, column=1, sticky=tk.W, padx=5, pady=2)
-        ttk.Radiobutton(advanced_frame, text="Observed", variable=self.build_sedlib, value="1").grid(row=5, column=2, sticky=tk.W, padx=5, pady=2)
-
-        # Confidence Levels
-        ttk.Label(advanced_frame, text="Confidence Levels:").grid(row=6, column=0, sticky=tk.W, padx=5, pady=2)
-        self.cl = ttk.Entry(advanced_frame, width=15)
-        self.cl.insert(0, "0.68,0.95")
-        self.cl.grid(row=6, column=1, sticky=tk.W, padx=5, pady=2)
-
-        # Priors Only
-        self.priors_only = tk.BooleanVar()
-        ttk.Checkbutton(advanced_frame, text="Priors Only", variable=self.priors_only).grid(row=7, column=0, sticky=tk.W, padx=5, pady=2)
 
     def create_AGN_tab(self):
         agn_frame = ttk.Frame(self.notebook)
@@ -768,7 +826,7 @@ class BayeSEDGUI:
         self.output_text.config(state=tk.DISABLED)
 
     def generate_command(self):
-        command = ["python", "bayesed.py"]
+        command = ["python3", "bayesed.py"]
         
         # Basic settings
         input_type = self.input_type.get().split()[0]
@@ -803,7 +861,6 @@ class BayeSEDGUI:
             sfh_values = [widget.get() for widget in instance['sfh']]
             dal_values = [widget.get() for widget in instance['dal']]
             dem_values = [widget.get() for widget in instance['dem']]
-            dem_extra_values = [widget.get() for widget in instance['dem_extra']]
             
             if all(ssp_values):
                 command.extend(["-ssp", ",".join(ssp_values)])
@@ -817,14 +874,32 @@ class BayeSEDGUI:
             if all(dem_values):
                 imodel = dem_values[1]  # The imodel value
                 igroup = ssp_values[0]  # Use SSP's igroup for DEM
-                if imodel == "0":  # Greybody
-                    command.extend(["--greybody", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]},{dem_extra_values[4]}"])
-                elif imodel == "1":  # Blackbody
-                    command.extend(["--blackbody", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]}"])
-                elif imodel == "2":  # FANN
-                    command.extend(["-a", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]}"])
-                elif imodel == "3":  # AKNN
-                    command.extend(["-k", f"{igroup},{dem_values[0]},{dem_extra_values[0]},{dem_values[2]},{dem_extra_values[1]},{dem_extra_values[2]},{dem_extra_values[3]},{dem_extra_values[4]},{dem_extra_values[5]},{dem_extra_values[6]},{dem_extra_values[7]}"])
+                additional_values = [widget.get() for widget in self.additional_dem_widgets[imodel][1]]
+                all_dem_values = dem_values + additional_values
+                
+                try:
+                    if imodel == "0":  # Greybody
+                        if len(all_dem_values) >= 8:
+                            command.extend(["--greybody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
+                        else:
+                            print(f"Warning: Not enough values for Greybody model. Expected 8, got {len(all_dem_values)}.")
+                    elif imodel == "1":  # Blackbody
+                        if len(all_dem_values) >= 7:
+                            command.extend(["--blackbody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
+                        else:
+                            print(f"Warning: Not enough values for Blackbody model. Expected 7, got {len(all_dem_values)}.")
+                    elif imodel == "2":  # FANN
+                        if len(all_dem_values) >= 4:
+                            command.extend(["-a", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]}"])
+                        else:
+                            print(f"Warning: Not enough values for FANN model. Expected 4, got {len(all_dem_values)}.")
+                    elif imodel == "3":  # AKNN
+                        if len(all_dem_values) >= 11:
+                            command.extend(["-k", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]},{all_dem_values[8]},{all_dem_values[9]},{all_dem_values[10]}"])
+                        else:
+                            print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
+                except IndexError as e:
+                    print(f"Error: Invalid number of DEM values for model {imodel}. {str(e)}")
         
         # AGN settings
         for agn in self.agn_instances:
@@ -846,9 +921,35 @@ class BayeSEDGUI:
                 ])
         
         # Advanced settings
-        multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
-        command.extend(["--multinest", ",".join(multinest_values)])
+        if self.use_multinest.get():
+            multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
+            command.extend(["--multinest", ",".join(multinest_values)])
         
+        if self.use_nnlm.get():
+            nnlm_values = [widget.get() for widget in self.nnlm_widgets.values()]
+            if all(nnlm_values):
+                command.extend(["--NNLM", ",".join(nnlm_values)])
+
+        if self.use_ndumper.get():
+            ndumper_values = [widget.get() for widget in self.ndumper_widgets.values()]
+            if all(ndumper_values):
+                command.extend(["--Ndumper", ",".join(ndumper_values)])
+
+        if self.use_gsl.get():
+            gsl_integration_values = [self.gsl_widgets[p].get() for p in ["integration_epsabs", "integration_epsrel", "integration_limit"]]
+            if all(gsl_integration_values):
+                command.extend(["--gsl_integration_qag", ",".join(gsl_integration_values)])
+            
+            gsl_multifit_values = [self.gsl_widgets[p].get() for p in ["multifit_type", "multifit_tune"]]
+            if all(gsl_multifit_values):
+                command.extend(["--gsl_multifit_robust", ",".join(gsl_multifit_values)])
+
+        if self.use_misc.get():
+            for param, widget in self.misc_widgets.items():
+                value = widget.get()
+                if value:
+                    command.extend([f"--{param}", value])
+
         # Add output options to the command
         if self.output_mock_photometry.get():
             output_type = self.output_mock_photometry_type.get().split()[0]
@@ -863,12 +964,14 @@ class BayeSEDGUI:
             command.extend(["--suffix", self.suffix.get()])
 
         # Add cosmology parameters
-        cosmo_values = [f"{param}={widget.get()}" for param, widget in self.cosmology_params.items()]
-        if cosmo_values:
-            command.extend(["--cosmology", ",".join(cosmo_values)])
+        if self.use_cosmology.get():
+            cosmo_values = [f"{param}={widget.get()}" for param, widget in self.cosmology_params.items()]
+            if cosmo_values:
+                command.extend(["--cosmology", ",".join(cosmo_values)])
 
         # Add IGM model
-        command.extend(["--IGM", self.igm_model.get()])
+        if self.use_igm.get():
+            command.extend(["--IGM", self.igm_model.get()])
 
         # Add redshift parameters if enabled
         if self.use_redshift.get():
@@ -876,30 +979,9 @@ class BayeSEDGUI:
             if all(redshift_values):
                 command.extend(["-z", ",".join(redshift_values)])
 
-        # NNLM settings
-        nnlm_values = [widget.get() for widget in self.nnlm_widgets.values()]
-        if all(nnlm_values):
-            command.extend(["--NNLM", ",".join(nnlm_values)])
-
-        # Ndumper settings
-        ndumper_values = [widget.get() for widget in self.ndumper_widgets.values()]
-        if all(ndumper_values):
-            command.extend(["--Ndumper", ",".join(ndumper_values)])
-
-        # GSL settings
-        gsl_integration_values = [self.gsl_widgets[p].get() for p in ["integration_epsabs", "integration_epsrel", "integration_limit"]]
-        if all(gsl_integration_values):
-            command.extend(["--gsl_integration_qag", ",".join(gsl_integration_values)])
-        
-        gsl_multifit_values = [self.gsl_widgets[p].get() for p in ["multifit_type", "multifit_tune"]]
-        if all(gsl_multifit_values):
-            command.extend(["--gsl_multifit_robust", ",".join(gsl_multifit_values)])
-
-        # Other miscellaneous settings
-        for param, widget in self.misc_widgets.items():
-            value = widget.get()
-            if value:
-                command.extend([f"--{param}", value])
+        # Add confidence levels
+        if self.use_cl.get():
+            command.extend(["--cl", self.cl.get()])
 
         # Boolean options
         if self.no_photometry_fit.get():
@@ -915,14 +997,15 @@ class BayeSEDGUI:
         if self.filters_selected.get():
             command.extend(["--filters_selected", self.filters_selected.get()])
         
-        command.extend(["--SFR_over", f"{self.sfr_past_myr1.get()},{self.sfr_past_myr2.get()}"])
-        command.extend(["--SNRmin1", self.snrmin1.get()])
-        command.extend(["--SNRmin2", self.snrmin2.get()])
+        if self.use_sfr.get():
+            command.extend(["--SFR_over", f"{self.sfr_past_myr1.get()},{self.sfr_past_myr2.get()}"])
         
-        if self.build_sedlib.get() != "0":
-            command.extend(["--build_sedlib", self.build_sedlib.get()])
+        if self.use_snr.get():
+            command.extend(["--SNRmin1", self.snrmin1.get()])
+            command.extend(["--SNRmin2", self.snrmin2.get()])
         
-        command.extend(["--cl", self.cl.get()])
+        if self.use_build_sedlib.get():
+            command.extend(["--build_sedlib", self.build_sedlib.get().split()[0]])
         
         if self.priors_only.get():
             command.append("--priors_only")
@@ -979,6 +1062,11 @@ class BayeSEDGUI:
         cosmo_frame = ttk.LabelFrame(cosmology_frame, text="Cosmology Parameters")
         cosmo_frame.pack(fill=tk.X, padx=5, pady=5)
 
+        self.use_cosmology = tk.BooleanVar(value=False)
+        ttk.Checkbutton(cosmo_frame, text="Use Cosmology Parameters", variable=self.use_cosmology, 
+                        command=lambda: self.toggle_widgets(self.cosmology_params.values(), self.use_cosmology.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
         cosmo_params = [
             ("H0", "Hubble constant (km/s/Mpc)", "70"),
             ("omigaA", "Omega Lambda", "0.7"),
@@ -986,16 +1074,21 @@ class BayeSEDGUI:
         ]
 
         for i, (param, tooltip, default) in enumerate(cosmo_params):
-            ttk.Label(cosmo_frame, text=f"{param}:").grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
+            ttk.Label(cosmo_frame, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
             widget = ttk.Entry(cosmo_frame, width=10)
             widget.insert(0, default)
-            widget.grid(row=i, column=1, sticky=tk.W, padx=5, pady=2)
+            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
             self.cosmology_params[param] = widget
             CreateToolTip(widget, tooltip)
 
         # IGM model
         igm_frame = ttk.LabelFrame(cosmology_frame, text="IGM Model")
         igm_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        self.use_igm = tk.BooleanVar(value=False)
+        ttk.Checkbutton(igm_frame, text="Use IGM Model", variable=self.use_igm, 
+                        command=lambda: self.toggle_widgets([self.igm_model], self.use_igm.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=3, sticky="w", padx=5, pady=5)
 
         self.igm_model = tk.StringVar(value="1")
         igm_options = [
@@ -1008,14 +1101,16 @@ class BayeSEDGUI:
         ]
 
         for i, (value, text) in enumerate(igm_options):
-            ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value).grid(row=i//3, column=i%3, sticky=tk.W, padx=5, pady=2)
+            ttk.Radiobutton(igm_frame, text=text, variable=self.igm_model, value=value).grid(row=i//3+1, column=i%3, sticky=tk.W, padx=5, pady=2)
 
         # Redshift parameters
         redshift_frame = ttk.LabelFrame(cosmology_frame, text="Redshift Parameters (Optional)")
         redshift_frame.pack(fill=tk.X, padx=5, pady=5)
 
         self.use_redshift = tk.BooleanVar(value=False)
-        ttk.Checkbutton(redshift_frame, text="Set Redshift Parameters", variable=self.use_redshift, command=self.toggle_redshift_widgets).grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(redshift_frame, text="Set Redshift Parameters", variable=self.use_redshift, 
+                        command=self.toggle_redshift_widgets,
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky=tk.W, padx=5, pady=5)
 
         redshift_params = [
             ("iprior_type", "Prior type (0-7)", "1"),
@@ -1035,6 +1130,20 @@ class BayeSEDGUI:
             self.redshift_params[param] = widget
             CreateToolTip(widget, tooltip)
             self.redshift_widgets.append(widget)
+
+        # Confidence Levels
+        cl_frame = ttk.LabelFrame(cosmology_frame, text="Confidence Levels")
+        cl_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        self.use_cl = tk.BooleanVar(value=False)
+        ttk.Checkbutton(cl_frame, text="Use Confidence Levels", variable=self.use_cl, 
+                        command=lambda: self.toggle_widgets([self.cl], self.use_cl.get()),
+                        style='Large.TCheckbutton').grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+
+        ttk.Label(cl_frame, text="Confidence Levels:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.cl = ttk.Entry(cl_frame, width=15)
+        self.cl.insert(0, "0.68,0.95")
+        self.cl.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
 
     def toggle_redshift_widgets(self):
         state = "normal" if self.use_redshift.get() else "disabled"
@@ -1072,65 +1181,20 @@ class BayeSEDGUI:
         imodel = event.widget.get()
         
         # Find the correct instance
-        instance = next((inst for inst in self.galaxy_instances if inst['frame'] == frame.master), None)
+        instance = next((inst for inst in self.galaxy_instances if inst['frame'] == frame), None)
         if not instance:
             return  # If we can't find the instance, just return
 
-        extra_frame = instance['dem_extra_frame']
+        # Hide all additional parameter frames
+        for model_frame, _ in self.additional_dem_widgets.values():
+            model_frame.pack_forget()
 
-        # Clear all existing widgets in extra_frame
-        for widget in extra_frame.winfo_children():
-            widget.destroy()
-
-        instance['dem_extra'] = []
-
-        extra_params = []
-        if imodel == "0":  # Greybody
-            extra_params = [
-                ("name", "greybody", 15),
-                ("ithick", "0", 3),
-                ("w_min", "1", 3),
-                ("w_max", "1000", 5),
-                ("Nw", "200", 3)
-            ]
-        elif imodel == "1":  # Blackbody
-            extra_params = [
-                ("name", "blackbody", 15),
-                ("w_min", "1", 3),
-                ("w_max", "1000", 5),
-                ("Nw", "200", 3)
-            ]
-        elif imodel == "2":  # FANN
-            extra_params = [
-                ("name", "FANN", 15)
-            ]
-        elif imodel == "3":  # AKNN
-            extra_params = [
-                ("name", "AKNN", 15),
-                ("k", "1", 3),
-                ("f_run", "1", 3),
-                ("eps", "0", 3),
-                ("iRad", "0", 3),
-                ("iprep", "0", 3),
-                ("Nstep", "1", 3),
-                ("alpha", "0", 3)
-            ]
-
-        new_extra_widgets = []
-
-        for i, (param, default, width) in enumerate(extra_params):
-            label = ttk.Label(extra_frame, text=f"{param}:")
-            label.grid(row=0, column=i*2, sticky=tk.E, padx=(0, 2))
-            widget = ttk.Entry(extra_frame, width=width)
-            widget.insert(0, default)
-            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=(0, 5))
-            new_extra_widgets.append(widget)
-
-        # Update the instance with new extra widgets
-        instance['dem_extra'] = new_extra_widgets
+        # Show the frame for the selected model
+        if imodel in self.additional_dem_widgets:
+            self.additional_dem_widgets[imodel][0].pack(side=tk.LEFT)
 
         # Force the frame to update its layout
-        extra_frame.update_idletasks()
+        frame.update_idletasks()
 
     def delete_galaxy_instance(self, frame):
         for instance in self.galaxy_instances:
@@ -1142,32 +1206,37 @@ class BayeSEDGUI:
                 break
         frame.destroy()
 
+    def toggle_widgets(self, widgets, state):
+        for widget in widgets:
+            widget.config(state="normal" if state else "disabled")
+
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
     def __init__(self, widget, text='widget info'):
         self.widget = widget
         self.text = text
-        self.widget.bind("<Enter>", self.enter)
-        self.widget.bind("<Leave>", self.close)
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
 
-    def enter(self, event=None):
+    def show_tooltip(self, event=None):
         x = y = 0
-        x, y, cx, cy = self.widget.bbox("insert")
+        x, y, _, _ = self.widget.bbox("insert")
         x += self.widget.winfo_rootx() + 25
         y += self.widget.winfo_rooty() + 20
-        # creates a toplevel window
-        self.tw = tk.Toplevel(self.widget)
-        # Leaves only the label and removes the app window
-        self.tw.wm_overrideredirect(True)
-        self.tw.wm_geometry(f"+{x}+{y}")
-        label = tk.Label(self.tw, text=self.text, justify='left',
-                         background='#FFFFDD', relief='solid', borderwidth=1,
-                         font=("Arial", "12", "bold"))  # Increased font size to 12, changed to Arial and bold
-        label.pack(ipadx=5, ipady=5)  # Added more padding
 
-    def close(self, event=None):
-        if self.tw:
-            self.tw.destroy()
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(self.tooltip, text=self.text, justify='left',
+                         background='#FFFFDD', relief='solid', borderwidth=1,
+                         font=("Arial", "12", "bold"))
+        label.pack(ipadx=5, ipady=5)
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
 
 if __name__ == "__main__":
     root = tk.Tk()

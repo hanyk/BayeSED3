@@ -554,8 +554,8 @@ class BayeSEDInterface:
             # For help command, execute the executable file directly without using mpirun
             cmd = [self.executable_path] + args
         else:
-            # When executing normally, use mpirun
-            cmd = [self.mpi_cmd, '-np', str(self.num_processes), self.executable_path] + args
+            # When executing normally, use mpirun with --use-hwthread-cpus
+            cmd = [self.mpi_cmd, '--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
         
         print(f"Executing command: {' '.join(cmd)}")
         
