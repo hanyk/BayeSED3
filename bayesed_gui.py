@@ -430,6 +430,12 @@ class BayeSEDGUI:
         control_frame = ttk.Frame(bottom_frame)
         control_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
 
+        # MPI processes input
+        ttk.Label(control_frame, text="MPI processes:").pack(side=tk.LEFT, padx=(0, 5))
+        self.mpi_processes = ttk.Entry(control_frame, width=5)
+        self.mpi_processes.pack(side=tk.LEFT, padx=(0, 5))
+        CreateToolTip(self.mpi_processes, "Number of MPI processes to use (optional, leave empty to use all cores)")
+
         # Run button
         self.run_button = ttk.Button(control_frame, text="Run", command=self.run_bayesed)
         self.run_button.pack(side=tk.LEFT, padx=5)
@@ -1735,10 +1741,23 @@ class BayeSEDGUI:
     def run_bayesed(self):
         command = self.generate_command()
         
-        self.update_output("Executing command: " + " ".join(command) + "\n")
+        # Get the number of MPI processes if specified
+        np = self.mpi_processes.get().strip()
+        
+        # Construct the command with bayesed.py as the first argument
+        full_command = [sys.executable, "-u", "bayesed.py"]
+        
+        # Add the --np argument after bayesed.py if specified
+        if np:
+            full_command.extend(["--np", np])
+        
+        # Add the rest of the command
+        full_command.extend(command)
+        
+        self.update_output("Executing command: " + " ".join(full_command) + "\n")
         
         self.output_queue = queue.Queue()
-        threading.Thread(target=self.execute_command, args=(command,), daemon=True).start()
+        threading.Thread(target=self.execute_command, args=(full_command,), daemon=True).start()
         self.master.after(100, self.check_output_queue)
 
     def execute_command(self, command):
@@ -1980,7 +1999,8 @@ class BayeSEDGUI:
             "use_output_sfh": self.use_output_sfh.get(),
             "output_sfh_ntimes": self.output_sfh_ntimes.get(),
             "output_sfh_ilog": self.output_sfh_ilog.get(),
-            "suffix": self.suffix.get()
+            "suffix": self.suffix.get(),
+            "mpi_processes": self.mpi_processes.get()
         }
 
     def get_galaxy_settings(self):
@@ -2082,6 +2102,10 @@ class BayeSEDGUI:
         ]:
             if key in settings:
                 getattr(self, key).set(settings[key])
+
+        if "mpi_processes" in settings:
+            self.mpi_processes.delete(0, tk.END)
+            self.mpi_processes.insert(0, settings["mpi_processes"])
 
     def apply_galaxy_settings(self, settings):
         # Clear existing instances
