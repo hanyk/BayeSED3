@@ -903,27 +903,6 @@ class BayeSEDGUI:
         self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get())
         self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get())
 
-    def toggle_widgets(self, widgets, state):
-        for widget in widgets:
-            if isinstance(widget, ttk.Radiobutton):
-                widget.config(state="normal" if state else "disabled")
-            elif hasattr(widget, 'config'):
-                if state:
-                    widget.config(state="normal")
-                    widget.config(foreground="black")
-                else:
-                    widget.config(state="disabled")
-                    widget.config(foreground="grey")
-            
-            # Handle the label associated with the widget
-            parent = widget.master
-            for child in parent.winfo_children():
-                if isinstance(child, ttk.Label) and child.grid_info()['row'] == widget.grid_info()['row']:
-                    if state:
-                        child.config(foreground="black")
-                    else:
-                        child.config(foreground="grey")
-
     def create_AGN_tab(self):
         agn_frame = ttk.Frame(self.notebook)
         self.notebook.add(agn_frame, text="AGN")
@@ -1289,144 +1268,7 @@ class BayeSEDGUI:
             else:
                 self.toggle_component(locals()[f"{component}_content_frame"], var.get())
 
-    # Add this new method to toggle component visibility
-    def toggle_component(self, frame, state):
-        for child in frame.winfo_children():
-            if child.winfo_class() == 'TCheckbutton':
-                continue  # Skip the checkbox itself
-            if state:
-                if child.winfo_manager() == 'grid':
-                    child.grid()
-                elif child.winfo_manager() == 'pack':
-                    child.pack()
-            else:
-                if child.winfo_manager() == 'grid':
-                    child.grid_remove()
-                elif child.winfo_manager() == 'pack':
-                    child.pack_forget()
 
-    # Update the generate_command method to include only selected components
-    def generate_command(self):
-        command = [self.bayesed_path.get()]
-
-        # ... (rest of the code remains unchanged)
-
-        # AGN settings
-        for agn in self.agn_instances:
-            if agn['component_vars']['main_agn'].get():
-                agn_igroup = agn['agn_igroup'].get()
-                agn_id = agn['agn_id'].get()
-                agn_name = agn['name'].get()
-                agn_scalable = agn['iscalable'].get()
-                agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
-                agn_icloudy = agn['icloudy'].get()
-                agn_suffix = agn['suffix'].get()
-                agn_w_min = agn['w_min'].get()
-                agn_w_max = agn['w_max'].get()
-                agn_nw = agn['nw'].get()
-    
-                if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
-                    command.extend([
-                        "--AGN",
-                        f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
-                    ])
-
-            if agn['component_vars']['bbb'].get():
-                bbb_id = int(agn['agn_id'].get()) + 1
-                command.extend([
-                    "-bbb",
-                    f"{bbb_id},{bbb_id},{agn['bbb_name'].get()},1,{agn['bbb_w_min'].get()},{agn['bbb_w_max'].get()},{agn['bbb_nw'].get()}"
-                ])
-
-            if agn['component_vars']['blr'].get():
-                blr_params = [agn['blr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
-                command.extend(["-ls1", ",".join(blr_params)])
-
-            if agn['component_vars']['feii'].get():
-                feii_params = [agn['feii_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']]
-                command.extend(["-k", ",".join(feii_params)])
-                kin_params = [agn['feii_widgets']['id'].get()] + [agn['kin_widgets'][p].get() for p in ['velscale', 'gh_cont', 'gh_emis']]
-                command.extend(["--kin", ",".join(kin_params)])
-
-            if agn['component_vars']['nlr'].get():
-                nlr_params = [agn['nlr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
-                command.extend(["-ls1", ",".join(nlr_params)])
-
-        # ... (rest of the code remains unchanged)
-
-        return command
-        nlr_file.insert(0, "observation/test/lines_NLR.txt")
-        ttk.Label(nlr_frame, text="R:").pack(side=tk.LEFT, padx=(0, 5))
-        nlr_r = ttk.Entry(nlr_frame, width=5)
-        nlr_r.pack(side=tk.LEFT, padx=(0, 5))
-        nlr_r.insert(0, "2000")
-        ttk.Label(nlr_frame, text="Nkin:").pack(side=tk.LEFT, padx=(0, 5))
-        nlr_nkin = ttk.Entry(nlr_frame, width=5)
-        nlr_nkin.pack(side=tk.LEFT, padx=(0, 5))
-        nlr_nkin.insert(0, "2")
-
-        # FeII component
-        feii_frame = ttk.Frame(instance_frame)
-        feii_frame.pack(fill=tk.X, padx=5, pady=2)
-        use_feii = tk.BooleanVar(value=True)
-        ttk.Checkbutton(feii_frame, text="FeII", variable=use_feii, 
-                        command=lambda: self.toggle_component(feii_frame, use_feii.get())).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Label(feii_frame, text="velscale:").pack(side=tk.LEFT, padx=(0, 5))
-        feii_velscale = ttk.Entry(feii_frame, width=5)
-        feii_velscale.pack(side=tk.LEFT, padx=(0, 5))
-        feii_velscale.insert(0, "10")
-        ttk.Label(feii_frame, text="GH cont:").pack(side=tk.LEFT, padx=(0, 5))
-        feii_gh_cont = ttk.Entry(feii_frame, width=5)
-        feii_gh_cont.pack(side=tk.LEFT, padx=(0, 5))
-        feii_gh_cont.insert(0, "2")
-        ttk.Label(feii_frame, text="GH emis:").pack(side=tk.LEFT, padx=(0, 5))
-        feii_gh_emis = ttk.Entry(feii_frame, width=5)
-        feii_gh_emis.pack(side=tk.LEFT, padx=(0, 5))
-        feii_gh_emis.insert(0, "0")
-
-        # Add delete button
-        delete_button = ttk.Button(instance_frame, text="Delete", command=lambda cf=instance_frame: self.delete_AGN_instance(cf))
-        delete_button.pack(side=tk.RIGHT, padx=5, pady=5)
-
-        # Update the instance dictionary
-        self.agn_instances.append({
-            'frame': instance_frame,
-            'use_main_agn': use_main_agn,
-            'igroup': agn_igroup,
-            'id': agn_id,
-            'name': agn_name,
-            'iscalable': agn_scalable,
-            'imodel': agn_imodel,
-            'icloudy': agn_icloudy,
-            'suffix': agn_suffix,
-            'w_min': agn_w_min,
-            'w_max': agn_w_max,
-            'nw': agn_nw,
-            'use_bbb': use_bbb,
-            'bbb_frame': bbb_frame,
-            'bbb_name': bbb_name,
-            'bbb_w_min': bbb_w_min,
-            'bbb_w_max': bbb_w_max,
-            'bbb_nw': bbb_nw,
-            'use_blr': use_blr,
-            'blr_frame': blr_frame,
-            'blr_file': blr_file,
-            'blr_r': blr_r,
-            'blr_nkin': blr_nkin,
-            'use_nlr': use_nlr,
-            'nlr_frame': nlr_frame,
-            'nlr_file': nlr_file,
-            'nlr_r': nlr_r,
-            'nlr_nkin': nlr_nkin,
-            'use_feii': use_feii,
-            'feii_frame': feii_frame,
-            'feii_velscale': feii_velscale,
-            'feii_gh_cont': feii_gh_cont,
-            'feii_gh_emis': feii_gh_emis
-        })
-
-        # Initialize the main AGN component visibility
-        self.toggle_component(agn_params_frame, use_main_agn.get())
 
     # Add this new method to toggle component visibility
     def toggle_component(self, frame, state):
@@ -1436,80 +1278,6 @@ class BayeSEDGUI:
             else:
                 child.grid_remove()
 
-    # Update the generate_command method to include only selected components
-    def generate_command(self):
-        # ... (keep existing code)
-
-        # AGN settings
-        for agn in self.agn_instances:
-            if agn['use_main_agn'].get():
-                agn_igroup = agn['igroup'].get()
-                agn_id = agn['id'].get()
-                agn_name = agn['name'].get()
-                agn_scalable = agn['iscalable'].get()
-                agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
-                agn_icloudy = agn['icloudy'].get()
-                agn_suffix = agn['suffix'].get()
-                agn_w_min = agn['w_min'].get()
-                agn_w_max = agn['w_max'].get()
-                agn_nw = agn['nw'].get()
-    
-                if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
-                    command.extend([
-                        "--AGN",
-                        f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
-                    ])
-
-            if agn['use_bbb'].get():
-                bbb_id = int(agn_id) + 1
-                command.extend([
-                    "-bbb",
-                    f"{bbb_id},{bbb_id},{agn['bbb_name'].get()},1,{agn['bbb_w_min'].get()},{agn['bbb_w_max'].get()},{agn['bbb_nw'].get()}"
-                ])
-
-            if agn['use_blr'].get():
-                blr_id = int(agn_id) + 2
-                command.extend([
-                    "-ls1",
-                    f"{blr_id},{blr_id},BLR,1,{agn['blr_file'].get()},{agn['blr_r'].get()},2,{agn['blr_nkin'].get()}"
-                ])
-
-            if agn['use_feii'].get():
-                feii_id = int(agn_id) + 3
-                command.extend([
-                    "-k",
-                    f"{feii_id},{feii_id},FeII,1,1,1,0,0,1,1,1",
-                    "--kin",
-                    f"{feii_id},{agn['feii_velscale'].get()},{agn['feii_gh_cont'].get()},{agn['feii_gh_emis'].get()}"
-                ])
-
-            if agn['use_nlr'].get():
-                nlr_id = int(agn_id) + 4
-                command.extend([
-                    "-ls1",
-                    f"{nlr_id},{nlr_id},NLR,1,{agn['nlr_file'].get()},{agn['nlr_r'].get()},2,{agn['nlr_nkin'].get()}"
-                ])
-
-        # ... (keep the rest of the method unchanged)
-
-    # Update the apply_agn_settings method to handle the new structure
-    def apply_agn_settings(self, settings):
-        # ... (keep existing code)
-
-        for instance_settings in settings:
-            self.add_AGN_instance()
-            instance = self.agn_instances[-1]
-            for key, value in instance_settings.items():
-                if key in instance and key != 'frame':
-                    if key.startswith('use_'):
-                        instance[key].set(value)
-                        self.toggle_component(instance[f'{key[4:]}_frame'], value)
-                    elif isinstance(instance[key], ttk.Entry):
-                        instance[key].delete(0, tk.END)
-                        instance[key].insert(0, value)
-                    elif isinstance(instance[key], ttk.Combobox):
-                        instance[key].set(value)
-
     # Update the get_agn_settings method to include the use_* flags
     def get_agn_settings(self):
         return [
@@ -1517,13 +1285,6 @@ class BayeSEDGUI:
              for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame']}
             for instance in self.agn_instances
         ]
-
-    def delete_AGN_instance(self, frame):
-        for instance in self.agn_instances:
-            if instance['frame'] == frame:
-                self.agn_instances.remove(instance)
-                break
-        frame.destroy()
 
     def clear_output(self):
         self.output_text.config(state=tk.NORMAL)
@@ -2070,12 +1831,6 @@ class BayeSEDGUI:
                 "dem_id": instance['dem_id'].get()
             }
             for instance in self.galaxy_instances
-        ]
-
-    def get_agn_settings(self):
-        return [
-            {key: widget.get() for key, widget in instance.items() if key != 'frame'}
-            for instance in self.agn_instances
         ]
 
     def get_cosmology_settings(self):
