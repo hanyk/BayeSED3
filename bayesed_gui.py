@@ -478,16 +478,21 @@ class BayeSEDGUI:
         self.add_galaxy_instance()
 
     def add_galaxy_instance(self):
-        # Find the maximum ID among existing galaxy and AGN instances
-        max_id = -1
+        # Find the maximum ID and igroup among existing galaxy and AGN instances
+        max_id = max_igroup = -1
         for instance in self.galaxy_instances:
             max_id = max(max_id, int(instance['ssp'][1].get()))  # id is the second element in ssp list
+            max_id = max(max_id, int(instance['dem'][1].get()))  # Consider DEM ID as well
+            max_igroup = max(max_igroup, int(instance['ssp'][0].get()))  # igroup is the first element in ssp list
         for instance in self.agn_instances:
             max_id = max(max_id, int(instance['agn_id'].get()))
+            max_igroup = max(max_igroup, int(instance['agn_igroup'].get()))
         
-        new_id = max_id + 1
+        new_id = max_id + 2  # Increment by 2 to leave room for DEM ID
+        new_dem_id = new_id + 1  # DEM ID is always one more than the main ID
+        new_igroup = max_igroup + 1  # Increment igroup by 1
         
-        instance_frame = ttk.LabelFrame(self.galaxy_instances_frame, text=f"CSP {new_id}")
+        instance_frame = ttk.LabelFrame(self.galaxy_instances_frame, text=f"CSP {len(self.galaxy_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
         def update_ids(event):
@@ -513,7 +518,7 @@ class BayeSEDGUI:
         ttk.Label(ssp_frame, text="SSP:").grid(row=0, column=0, sticky=tk.W)
         
         ssp_params = [
-            ("igroup", str(new_id), 5),
+            ("igroup", str(new_igroup), 5),
             ("id", str(new_id), 5),
             ("name", "bc2003_hr_stelib_chab_neb_2000r", 30),
             ("iscalable", "1", 5),
@@ -632,7 +637,7 @@ class BayeSEDGUI:
         ttk.Label(dem_frame, text="DEM:").pack(side=tk.LEFT, padx=(0, 5))
 
         dem_params = [
-            ("id", str(new_id + 1), 5),  # Increment the ID by 1 for DEM
+            ("id", str(new_dem_id), 5),  # DEM ID is always one more than the main ID
             ("imodel", "0", 5, ["0: Greybody", "1: Blackbody", "2: FANN", "3: AKNN"]),
             ("iscalable", "-2", 5),
             ("name", "", 15),
@@ -912,16 +917,23 @@ class BayeSEDGUI:
         self.agn_instances = []
 
     def add_AGN_instance(self):
-        # Find the maximum ID among existing galaxy and AGN instances
-        max_id = -1
+        # Find the maximum ID and igroup among existing galaxy and AGN instances
+        max_id = max_igroup = -1
         for instance in self.galaxy_instances:
             max_id = max(max_id, int(instance['ssp'][1].get()))  # id is the second element in ssp list
+            max_id = max(max_id, int(instance['dem'][1].get()))  # Consider DEM ID as well
+            max_igroup = max(max_igroup, int(instance['ssp'][0].get()))  # igroup is the first element in ssp list
         for instance in self.agn_instances:
             max_id = max(max_id, int(instance['agn_id'].get()))
+            max_igroup = max(max_igroup, int(instance['agn_igroup'].get()))
         
-        new_id = max_id + 1
+        new_id = max_id + 2  # Increment by 2 to ensure uniqueness
+        new_igroup = max_igroup + 1  # Increment igroup by 5 for a new AGN instance
+        if len(self.agn_instances) > 0:
+            new_id = new_id + 3
+            new_igroup = new_igroup + 4
         
-        instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {new_id}")
+        instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {len(self.agn_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Create a dictionary to store the BooleanVars for each component
@@ -957,7 +969,7 @@ class BayeSEDGUI:
         # First row parameters: igroup, id, name, iscalable, imodel
         ttk.Label(agn_params_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        agn_igroup.insert(0, str(new_id))
+        agn_igroup.insert(0, str(new_igroup))
         CreateToolTip(agn_igroup, "Group ID")
 
         ttk.Label(agn_params_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
@@ -1018,7 +1030,7 @@ class BayeSEDGUI:
         ttk.Label(bbb_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         bbb_igroup = ttk.Entry(bbb_content_frame, width=5)
         bbb_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        bbb_igroup.insert(0, "1")
+        bbb_igroup.insert(0, str(new_igroup + 1))  # BBB igroup is main AGN igroup + 1
         ttk.Label(bbb_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         bbb_id = ttk.Entry(bbb_content_frame, width=5)
         bbb_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
@@ -1052,7 +1064,7 @@ class BayeSEDGUI:
         ttk.Label(blr_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         blr_igroup = ttk.Entry(blr_content_frame, width=5)
         blr_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        blr_igroup.insert(0, "2")
+        blr_igroup.insert(0, str(new_igroup + 2))  # BLR igroup is main AGN igroup + 2
         ttk.Label(blr_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         blr_id = ttk.Entry(blr_content_frame, width=5)
         blr_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
@@ -1086,7 +1098,7 @@ class BayeSEDGUI:
         ttk.Label(feii_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         feii_igroup = ttk.Entry(feii_content_frame, width=5)
         feii_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        feii_igroup.insert(0, "3")
+        feii_igroup.insert(0, str(new_igroup + 3))  # FeII igroup is main AGN igroup + 3
         ttk.Label(feii_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         feii_id = ttk.Entry(feii_content_frame, width=5)
         feii_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
@@ -1116,7 +1128,7 @@ class BayeSEDGUI:
         ttk.Label(nlr_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         nlr_igroup = ttk.Entry(nlr_content_frame, width=5)
         nlr_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        nlr_igroup.insert(0, "4")
+        nlr_igroup.insert(0, str(new_igroup + 4))  # NLR igroup is main AGN igroup + 4
         ttk.Label(nlr_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         nlr_id = ttk.Entry(nlr_content_frame, width=5)
         nlr_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
