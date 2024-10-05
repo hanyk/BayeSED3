@@ -8,6 +8,8 @@ from PIL import Image, ImageDraw, ImageTk, ImageFont
 import pyperclip
 import json
 import os
+import psutil
+import signal
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -1752,26 +1754,65 @@ class BayeSEDGUI:
         return command
 
     def run_bayesed(self):
-        command = self.generate_command()
+        if self.run_button['text'] == "Run":
+            command = self.generate_command()
+            
+            # Get the number of MPI processes if specified
+            np = self.mpi_processes.get().strip()
+            
+            # Construct the command with bayesed.py as the first argument
+            full_command = [sys.executable, "-u", "bayesed.py"]
+            
+            # Add the --np argument after bayesed.py if specified
+            if np:
+                full_command.extend(["--np", np])
+            
+            # Add the rest of the command
+            full_command.extend(command)
+            
+            self.update_output("Executing command: " + " ".join(full_command) + "\n")
+            
+            self.output_queue = queue.Queue()
+            self.stop_output_thread = threading.Event()
+            threading.Thread(target=self.execute_command, args=(full_command,), daemon=True).start()
+            self.master.after(100, self.check_output_queue)
+
+            # Change button text to "Stop"
+            self.run_button.config(text="Stop", command=self.stop_bayesed)
+        else:
+            self.stop_bayesed()
+
+    def stop_bayesed(self):
+        if hasattr(self, 'process') and self.process:
+            # Terminate the main Python process
+            parent = psutil.Process(self.process.pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                child.terminate()
+            parent.terminate()
+            
+            # If using MPI, terminate all MPI processes
+            np = self.mpi_processes.get().strip()
+            if np:
+                try:
+                    # This will terminate all processes with 'mpirun' or 'bayesed' in their command line
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        if 'mpirun' in proc.info['name'] or 'bayesed' in proc.info['name']:
+                            proc.terminate()
+                except Exception as e:
+                    print(f"Error terminating MPI processes: {e}")
+            
+            # Wait for all processes to actually terminate
+            gone, alive = psutil.wait_procs(children + [parent], timeout=3)
+            for p in alive:
+                p.kill()  # Force kill if still alive
         
-        # Get the number of MPI processes if specified
-        np = self.mpi_processes.get().strip()
+        self.stop_output_thread.set()
         
-        # Construct the command with bayesed.py as the first argument
-        full_command = [sys.executable, "-u", "bayesed.py"]
+        # Change button text back to "Run"
+        self.run_button.config(text="Run", command=self.run_bayesed)
         
-        # Add the --np argument after bayesed.py if specified
-        if np:
-            full_command.extend(["--np", np])
-        
-        # Add the rest of the command
-        full_command.extend(command)
-        
-        self.update_output("Executing command: " + " ".join(full_command) + "\n")
-        
-        self.output_queue = queue.Queue()
-        threading.Thread(target=self.execute_command, args=(full_command,), daemon=True).start()
-        self.master.after(100, self.check_output_queue)
+        self.update_output("BayeSED execution stopped by user.\n")
 
     def execute_command(self, command):
         try:
@@ -1791,22 +1832,20 @@ class BayeSEDGUI:
             
             self.process.wait()
             
-            # if self.process.returncode == 0:
-            #     self.output_queue.put("BayeSED execution completed\n")
-            # else:
-            #     self.output_queue.put(f"BayeSED execution failed, return code: {self.process.returncode}\n")
-        
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
         
         finally:
             self.output_queue.put(None)  # Signal that the process has finished
+            # Change button text back to "Run"
+            self.master.after(0, lambda: self.run_button.config(text="Run", command=self.run_bayesed))
 
     def check_output_queue(self):
         try:
             while True:
                 line = self.output_queue.get_nowait()
                 if line is None:  # Process has finished
+                    self.run_button.config(text="Run", command=self.run_bayesed)
                     return
                 self.update_output(line)
         except queue.Empty:
