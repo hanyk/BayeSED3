@@ -7,6 +7,7 @@ import sys
 from PIL import Image, ImageDraw, ImageTk, ImageFont
 import pyperclip
 import json
+import os
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -443,6 +444,18 @@ class BayeSEDGUI:
         # Export and Import buttons
         ttk.Button(control_frame, text="Export Settings", command=self.export_settings).pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Import Settings", command=self.import_settings).pack(side=tk.LEFT, padx=5)
+
+        # Plot button and FITS file selection
+        plot_frame = ttk.Frame(control_frame)
+        plot_frame.pack(side=tk.LEFT, padx=(5, 0))
+
+        ttk.Button(plot_frame, text="Plot", command=self.plot_bestfit).pack(side=tk.LEFT)
+        
+        self.fits_file = ttk.Entry(plot_frame, width=20)
+        self.fits_file.pack(side=tk.LEFT, padx=(5, 0))
+        CreateToolTip(self.fits_file, "Enter the FITS file name (without path)")
+
+        ttk.Button(plot_frame, text="Browse", command=self.browse_fits_file).pack(side=tk.LEFT, padx=(5, 0))
 
         # Output frame
         output_frame = ttk.LabelFrame(bottom_frame, text="Output")
@@ -2254,6 +2267,58 @@ class BayeSEDGUI:
         except tk.TclError:
             pass  # No selection
         return "break"
+
+    def plot_bestfit(self):
+        if not hasattr(self, 'full_fits_path') or not os.path.exists(self.full_fits_path):
+            output_dir = self.outdir.get()
+            fits_file = self.fits_file.get()
+            full_path = os.path.join(output_dir, fits_file)
+            
+            if not os.path.exists(full_path):
+                messagebox.showerror("Error", f"FITS file not found: {full_path}")
+                return
+        else:
+            full_path = self.full_fits_path
+
+        plot_script = "plot/plot_bestfit.py"
+        
+        # Check if filter files exist
+        filter_file = self.filters.get()
+        filter_names_file = self.filters_selected.get()
+
+        if filter_file and filter_names_file and os.path.exists(filter_file) and os.path.exists(filter_names_file):
+            command = [sys.executable, plot_script, full_path, filter_file, filter_names_file]
+        else:
+            command = [sys.executable, plot_script, full_path]
+
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Error", f"Failed to run plot script: {e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
+
+    def browse_fits_file(self):
+        output_dir = self.outdir.get()
+        if not output_dir:
+            messagebox.showerror("Error", "Please set an output directory in the input settings first.")
+            return
+        
+        if not os.path.isdir(output_dir):
+            messagebox.showerror("Error", f"The specified output directory does not exist: {output_dir}")
+            return
+
+        filename = filedialog.askopenfilename(
+            initialdir=output_dir,
+            title="Select FITS file",
+            filetypes=(("FITS files", "*.fits"), ("All files", "*.*"))
+        )
+        if filename:
+            # Store the full path, but display only the relative path from the output directory
+            self.full_fits_path = filename
+            relative_path = os.path.relpath(filename, output_dir)
+            self.fits_file.delete(0, tk.END)
+            self.fits_file.insert(0, relative_path)
 
 # Add the following tooltip class if not already present
 class CreateToolTip(object):
