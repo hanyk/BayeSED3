@@ -1859,16 +1859,16 @@ class BayeSEDGUI:
         self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
-        filename = filedialog.askopenfilename()
+        filename = filedialog.askopenfilename(initialdir=os.getcwd())
         if filename:
             self.input_file.delete(0, tk.END)
-            self.input_file.insert(0, filename)
+            self.input_file.insert(0, os.path.relpath(filename))
 
     def browse_outdir(self):
-        dirname = filedialog.askdirectory()
+        dirname = filedialog.askdirectory(initialdir=os.getcwd())
         if dirname:
             self.outdir.delete(0, tk.END)
-            self.outdir.insert(0, dirname)
+            self.outdir.insert(0, os.path.relpath(dirname))
 
     def create_cosmology_tab(self):
         cosmology_frame = ttk.Frame(self.notebook)
@@ -1976,16 +1976,16 @@ class BayeSEDGUI:
             self.toggle_widgets([widget], state)
 
     def browse_filters(self):
-        filename = filedialog.askopenfilename()
+        filename = filedialog.askopenfilename(initialdir=os.getcwd())
         if filename:
             self.filters.delete(0, tk.END)
-            self.filters.insert(0, filename)
+            self.filters.insert(0, os.path.relpath(filename))
 
     def browse_filters_selected(self):
-        filename = filedialog.askopenfilename()
+        filename = filedialog.askopenfilename(initialdir=os.getcwd())
         if filename:
             self.filters_selected.delete(0, tk.END)
-            self.filters_selected.insert(0, filename)
+            self.filters_selected.insert(0, os.path.relpath(filename))
 
     def export_settings(self):
         filename = filedialog.asksaveasfilename(defaultextension=".json")
