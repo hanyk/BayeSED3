@@ -970,53 +970,53 @@ class BayeSEDGUI:
         ttk.Label(agn_params_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         agn_igroup.insert(0, str(new_igroup))
-        CreateToolTip(agn_igroup, "Group ID")
+        CreateToolTip(agn_igroup, "Group ID for the AGN component")
 
         ttk.Label(agn_params_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         agn_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
         agn_id.insert(0, str(new_id))
-        CreateToolTip(agn_id, "Model ID")
+        CreateToolTip(agn_id, "Unique ID for the AGN component")
 
         ttk.Label(agn_params_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
         agn_name.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
         agn_name.insert(0, "AGN")
-        CreateToolTip(agn_name, "Name of the AGN Model (default: AGN)")
+        CreateToolTip(agn_name, "Name of the AGN component")
 
         ttk.Label(agn_params_frame, text="iscalable:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
         agn_scalable.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
         agn_scalable.set("1")
-        CreateToolTip(agn_scalable, "Is Scalable")
+        CreateToolTip(agn_scalable, "Whether the component is scalable (0: No, 1: Yes)")
 
         ttk.Label(agn_params_frame, text="imodel:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
         agn_imodel.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
         agn_imodel.set("0 (qsosed)")
-        CreateToolTip(agn_imodel, "Model Subtype:\n0: qsosed\n1: agnsed\n2: fagnsed\n3: relagn\n4: relqso\n5: agnslim")
+        CreateToolTip(agn_imodel, "AGN model type (0: qsosed, 1: agnsed, 2: fagnsed, 3: relagn, 4: relqso, 5: agnslim)")
 
         # Second row parameters: icloudy, suffix, w_min, w_max, Nw
         ttk.Label(agn_params_frame, text="icloudy:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         agn_icloudy.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
         agn_icloudy.set("0")
-        CreateToolTip(agn_icloudy, "Cloudy Model Flag")
+        CreateToolTip(agn_icloudy, "Whether to use Cloudy model (0: No, 1: Yes)")
 
         ttk.Label(agn_params_frame, text="suffix:").grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
         agn_suffix.grid(row=1, column=3, sticky=tk.W, padx=5, pady=2)
-        agn_suffix.insert(0, "")  # Set suffix to empty by default
-        CreateToolTip(agn_suffix, "Suffix for the Model Name")
+        agn_suffix.insert(0, "disk")  # Set suffix to empty by default
+        CreateToolTip(agn_suffix, "Suffix for the AGN component name")
 
         ttk.Label(agn_params_frame, text="w_min:").grid(row=1, column=4, sticky=tk.W, padx=5, pady=2)
         agn_w_min.grid(row=1, column=5, sticky=tk.W, padx=5, pady=2)
         agn_w_min.insert(0, "300.0")
-        CreateToolTip(agn_w_min, "Minimum Wavelength")
+        CreateToolTip(agn_w_min, "Minimum wavelength (in microns)")
 
         ttk.Label(agn_params_frame, text="w_max:").grid(row=1, column=6, sticky=tk.W, padx=5, pady=2)
         agn_w_max.grid(row=1, column=7, sticky=tk.W, padx=5, pady=2)
         agn_w_max.insert(0, "1000.0")
-        CreateToolTip(agn_w_max, "Maximum Wavelength")
+        CreateToolTip(agn_w_max, "Maximum wavelength (in microns)")
 
         ttk.Label(agn_params_frame, text="Nw:").grid(row=1, column=8, sticky=tk.W, padx=5, pady=2)
         agn_nw.grid(row=1, column=9, sticky=tk.W, padx=5, pady=2)
         agn_nw.insert(0, "200")
-        CreateToolTip(agn_nw, "Number of Wavelength Points")
+        CreateToolTip(agn_nw, "Number of wavelength points")
 
         # BBB component
         bbb_frame = ttk.Frame(instance_frame)
@@ -1031,124 +1031,201 @@ class BayeSEDGUI:
         bbb_igroup = ttk.Entry(bbb_content_frame, width=5)
         bbb_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         bbb_igroup.insert(0, str(new_igroup + 1))  # BBB igroup is main AGN igroup + 1
+        CreateToolTip(bbb_igroup, "Group ID for the BBB component")
+
         ttk.Label(bbb_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         bbb_id = ttk.Entry(bbb_content_frame, width=5)
         bbb_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
         bbb_id.insert(0, str(int(agn_id.get()) + 1))
+        CreateToolTip(bbb_id, "Unique ID for the BBB component")
+
         ttk.Label(bbb_content_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
         bbb_name = ttk.Entry(bbb_content_frame, width=10)
         bbb_name.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
         bbb_name.insert(0, "bbb")
+        CreateToolTip(bbb_name, "Name of the BBB component")
+
         ttk.Label(bbb_content_frame, text="w_min:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
         bbb_w_min = ttk.Entry(bbb_content_frame, width=8)
         bbb_w_min.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
         bbb_w_min.insert(0, "0.1")
+        CreateToolTip(bbb_w_min, "Minimum wavelength for BBB (in microns)")
+
         ttk.Label(bbb_content_frame, text="w_max:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
         bbb_w_max = ttk.Entry(bbb_content_frame, width=8)
         bbb_w_max.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
         bbb_w_max.insert(0, "10")
+        CreateToolTip(bbb_w_max, "Maximum wavelength for BBB (in microns)")
+
         ttk.Label(bbb_content_frame, text="Nw:").grid(row=0, column=10, sticky=tk.W, padx=5, pady=2)
         bbb_nw = ttk.Entry(bbb_content_frame, width=5)
         bbb_nw.grid(row=0, column=11, sticky=tk.W, padx=5, pady=2)
         bbb_nw.insert(0, "1000")
+        CreateToolTip(bbb_nw, "Number of wavelength points for BBB")
 
         # BLR component
         blr_frame = ttk.Frame(instance_frame)
         blr_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Checkbutton(blr_frame, text="BLR", variable=component_vars['blr'], 
-                        command=lambda: self.toggle_component(blr_content_frame, component_vars['blr'].get())).grid(row=0, column=0, sticky=tk.W)
+                        command=lambda: self.toggle_component(blr_content_frame, component_vars['blr'].get())).pack(side=tk.LEFT, padx=(0, 5))
 
         blr_content_frame = ttk.Frame(blr_frame)
-        blr_content_frame.grid(row=0, column=1, sticky=tk.W)
+        blr_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        ttk.Label(blr_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        blr_igroup = ttk.Entry(blr_content_frame, width=5)
-        blr_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        blr_igroup.insert(0, str(new_igroup + 2))  # BLR igroup is main AGN igroup + 2
-        ttk.Label(blr_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
-        blr_id = ttk.Entry(blr_content_frame, width=5)
-        blr_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
-        blr_id.insert(0, str(int(agn_id.get()) + 2))
-        ttk.Label(blr_content_frame, text="itype:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
-        blr_itype = ttk.Entry(blr_content_frame, width=5)
-        blr_itype.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
-        blr_itype.insert(0, "2")
-        ttk.Label(blr_content_frame, text="file:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
-        blr_file = ttk.Entry(blr_content_frame, width=20)
-        blr_file.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
-        blr_file.insert(0, "observation/test/lines_BLR.txt")
-        ttk.Label(blr_content_frame, text="R:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
-        blr_r = ttk.Entry(blr_content_frame, width=5)
-        blr_r.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
-        blr_r.insert(0, "300")
-        ttk.Label(blr_content_frame, text="Nkin:").grid(row=0, column=10, sticky=tk.W, padx=5, pady=2)
-        blr_nkin = ttk.Entry(blr_content_frame, width=5)
-        blr_nkin.grid(row=0, column=11, sticky=tk.W, padx=5, pady=2)
-        blr_nkin.insert(0, "3")
+        blr_params = [
+            ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
+            ("file", 20), ("R", 5), ("Nsample", 5), ("Nkin", 5)
+        ]
+
+        blr_widgets = {}
+        for i, (param, width) in enumerate(blr_params):
+            ttk.Label(blr_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=2)
+            widget = ttk.Entry(blr_content_frame, width=width)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            blr_widgets[param] = widget
+
+        blr_widgets['igroup'].insert(0, str(new_igroup + 2))
+        blr_widgets['id'].insert(0, str(int(agn_id.get()) + 2))
+        blr_widgets['name'].insert(0, "BLR")
+        blr_widgets['iscalable'].insert(0, "1")
+        blr_widgets['file'].insert(0, "observation/test/lines_BLR.txt")
+        blr_widgets['R'].insert(0, "300")
+        blr_widgets['Nsample'].insert(0, "2")
+        blr_widgets['Nkin'].insert(0, "3")
+
+        # Add tooltips for BLR parameters
+        blr_tooltips = {
+            "igroup": "Group ID for the BLR component",
+            "id": "Unique ID for the BLR component",
+            "name": "Name of the BLR component",
+            "iscalable": "Whether the component is scalable (0: No, 1: Yes)",
+            "file": "File containing BLR line information",
+            "R": "Spectral resolution for BLR",
+            "Nsample": "Number of samples for BLR",
+            "Nkin": "Number of kinematic components for BLR"
+        }
+        for param, tooltip in blr_tooltips.items():
+            CreateToolTip(blr_widgets[param], tooltip)
 
         # FeII component
         feii_frame = ttk.Frame(instance_frame)
         feii_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Checkbutton(feii_frame, text="FeII", variable=component_vars['feii'], 
-                        command=lambda: self.toggle_component(feii_content_frame, component_vars['feii'].get())).grid(row=0, column=0, sticky=tk.W)
+                        command=lambda: self.toggle_component(feii_content_frame, component_vars['feii'].get())).pack(side=tk.LEFT, padx=(0, 5))
 
         feii_content_frame = ttk.Frame(feii_frame)
-        feii_content_frame.grid(row=0, column=1, sticky=tk.W)
+        feii_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        ttk.Label(feii_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        feii_igroup = ttk.Entry(feii_content_frame, width=5)
-        feii_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        feii_igroup.insert(0, str(new_igroup + 3))  # FeII igroup is main AGN igroup + 3
-        ttk.Label(feii_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
-        feii_id = ttk.Entry(feii_content_frame, width=5)
-        feii_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
-        feii_id.insert(0, str(int(agn_id.get()) + 3))
-        ttk.Label(feii_content_frame, text="velscale:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
-        feii_velscale = ttk.Entry(feii_content_frame, width=8)
-        feii_velscale.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
-        feii_velscale.insert(0, "1000")
-        ttk.Label(feii_content_frame, text="gh_cont:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
-        feii_gh_cont = ttk.Entry(feii_content_frame, width=8)
-        feii_gh_cont.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
-        feii_gh_cont.insert(0, "0.0")
-        ttk.Label(feii_content_frame, text="gh_emis:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
-        feii_gh_emis = ttk.Entry(feii_content_frame, width=8)
-        feii_gh_emis.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
-        feii_gh_emis.insert(0, "0.0")
+        # AKNN parameters
+        aknn_params = [
+            ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
+            ("k", 5), ("f_run", 5), ("eps", 5), ("iRad", 5),
+            ("iprep", 5), ("Nstep", 5), ("alpha", 5)
+        ]
+
+        feii_widgets = {}
+        for i, (param, width) in enumerate(aknn_params):
+            ttk.Label(feii_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=2)
+            widget = ttk.Entry(feii_content_frame, width=width)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            feii_widgets[param] = widget
+
+        # Set default values
+        feii_widgets['igroup'].insert(0, str(new_igroup + 3))
+        feii_widgets['id'].insert(0, str(int(agn_id.get()) + 3))
+        feii_widgets['name'].insert(0, "FeII")
+        feii_widgets['iscalable'].insert(0, "1")
+        for param in ['k', 'f_run', 'iprep', 'Nstep', 'alpha']:
+            feii_widgets[param].insert(0, "1")
+        for param in ['eps', 'iRad']:
+            feii_widgets[param].insert(0, "0")
+
+        # Add tooltips for FeII parameters
+        feii_tooltips = {
+            "igroup": "Group ID for the FeII component",
+            "id": "Unique ID for the FeII component",
+            "name": "Name of the FeII component",
+            "iscalable": "Whether the FeII component is scalable (0: No, 1: Yes)",
+            "k": "Number of nearest neighbors for AKNN",
+            "f_run": "Fraction of points to use in the running average",
+            "eps": "Epsilon parameter for AKNN",
+            "iRad": "Radial basis function flag",
+            "iprep": "Preprocessing flag",
+            "Nstep": "Number of steps for AKNN",
+            "alpha": "Alpha parameter for AKNN"
+        }
+        for param, tooltip in feii_tooltips.items():
+            CreateToolTip(feii_widgets[param], tooltip)
+
+        # Kinematic settings for FeII
+        kin_frame = ttk.Frame(feii_content_frame)
+        kin_frame.grid(row=1, column=0, columnspan=len(aknn_params)*2, sticky=tk.W, pady=5)
+
+        ttk.Label(kin_frame, text="Kinematics:").pack(side=tk.LEFT, padx=(0, 5))
+        kin_params = [("velscale", 5), ("gh_cont", 5), ("gh_emis", 5)]
+        kin_widgets = {}
+        for param, width in kin_params:
+            ttk.Label(kin_frame, text=f"{param}:").pack(side=tk.LEFT, padx=(0, 2))
+            widget = ttk.Entry(kin_frame, width=width)
+            widget.pack(side=tk.LEFT, padx=(0, 5))
+            kin_widgets[param] = widget
+
+        kin_widgets['velscale'].insert(0, "10")
+        kin_widgets['gh_cont'].insert(0, "2")
+        kin_widgets['gh_emis'].insert(0, "0")
+
+        # Add tooltips for FeII kinematic parameters
+        kin_tooltips = {
+            "velscale": "Velocity scale for FeII (km/s)",
+            "gh_cont": "Number of Gauss-Hermite terms for continuum",
+            "gh_emis": "Number of Gauss-Hermite terms for emission"
+        }
+        for param, tooltip in kin_tooltips.items():
+            CreateToolTip(kin_widgets[param], tooltip)
 
         # NLR component
         nlr_frame = ttk.Frame(instance_frame)
         nlr_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Checkbutton(nlr_frame, text="NLR", variable=component_vars['nlr'], 
-                        command=lambda: self.toggle_component(nlr_content_frame, component_vars['nlr'].get())).grid(row=0, column=0, sticky=tk.W)
+                        command=lambda: self.toggle_component(nlr_content_frame, component_vars['nlr'].get())).pack(side=tk.LEFT, padx=(0, 5))
 
         nlr_content_frame = ttk.Frame(nlr_frame)
-        nlr_content_frame.grid(row=0, column=1, sticky=tk.W)
+        nlr_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        ttk.Label(nlr_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        nlr_igroup = ttk.Entry(nlr_content_frame, width=5)
-        nlr_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        nlr_igroup.insert(0, str(new_igroup + 4))  # NLR igroup is main AGN igroup + 4
-        ttk.Label(nlr_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
-        nlr_id = ttk.Entry(nlr_content_frame, width=5)
-        nlr_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
-        nlr_id.insert(0, str(int(agn_id.get()) + 4))
-        ttk.Label(nlr_content_frame, text="itype:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
-        nlr_itype = ttk.Entry(nlr_content_frame, width=5)
-        nlr_itype.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
-        nlr_itype.insert(0, "2")
-        ttk.Label(nlr_content_frame, text="file:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
-        nlr_file = ttk.Entry(nlr_content_frame, width=20)
-        nlr_file.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
-        nlr_file.insert(0, "observation/test/lines_NLR.txt")
-        ttk.Label(nlr_content_frame, text="R:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
-        nlr_r = ttk.Entry(nlr_content_frame, width=5)
-        nlr_r.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
-        nlr_r.insert(0, "300")
-        ttk.Label(nlr_content_frame, text="Nkin:").grid(row=0, column=10, sticky=tk.W, padx=5, pady=2)
-        nlr_nkin = ttk.Entry(nlr_content_frame, width=5)
-        nlr_nkin.grid(row=0, column=11, sticky=tk.W, padx=5, pady=2)
-        nlr_nkin.insert(0, "3")
+        nlr_params = [
+            ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
+            ("file", 20), ("R", 5), ("Nsample", 5), ("Nkin", 5)
+        ]
+
+        nlr_widgets = {}
+        for i, (param, width) in enumerate(nlr_params):
+            ttk.Label(nlr_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=2)
+            widget = ttk.Entry(nlr_content_frame, width=width)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            nlr_widgets[param] = widget
+
+        nlr_widgets['igroup'].insert(0, str(new_igroup + 4))
+        nlr_widgets['id'].insert(0, str(int(agn_id.get()) + 4))
+        nlr_widgets['name'].insert(0, "NLR")
+        nlr_widgets['iscalable'].insert(0, "1")
+        nlr_widgets['file'].insert(0, "observation/test/lines_NLR.txt")
+        nlr_widgets['R'].insert(0, "2000")
+        nlr_widgets['Nsample'].insert(0, "2")
+        nlr_widgets['Nkin'].insert(0, "2")
+
+        # Add tooltips for NLR parameters
+        nlr_tooltips = {
+            "igroup": "Group ID for the NLR component",
+            "id": "Unique ID for the NLR component",
+            "name": "Name of the NLR component",
+            "iscalable": "Whether the component is scalable (0: No, 1: Yes)",
+            "file": "File containing NLR line information",
+            "R": "Spectral resolution for NLR",
+            "Nsample": "Number of samples for NLR",
+            "Nkin": "Number of kinematic components for NLR"
+        }
+        for param, tooltip in nlr_tooltips.items():
+            CreateToolTip(nlr_widgets[param], tooltip)
 
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda: self.delete_AGN_instance(instance_frame))
@@ -1176,25 +1253,12 @@ class BayeSEDGUI:
             'bbb_w_max': bbb_w_max,
             'bbb_nw': bbb_nw,
             'blr_frame': blr_frame,
-            'blr_igroup': blr_igroup,
-            'blr_id': blr_id,
-            'blr_itype': blr_itype,
-            'blr_file': blr_file,
-            'blr_r': blr_r,
-            'blr_nkin': blr_nkin,
+            'blr_widgets': blr_widgets,
             'feii_frame': feii_frame,
-            'feii_igroup': feii_igroup,
-            'feii_id': feii_id,
-            'feii_velscale': feii_velscale,
-            'feii_gh_cont': feii_gh_cont,
-            'feii_gh_emis': feii_gh_emis,
+            'feii_widgets': feii_widgets,
+            'kin_widgets': kin_widgets,
             'nlr_frame': nlr_frame,
-            'nlr_igroup': nlr_igroup,
-            'nlr_id': nlr_id,
-            'nlr_itype': nlr_itype,
-            'nlr_file': nlr_file,
-            'nlr_r': nlr_r,
-            'nlr_nkin': nlr_nkin
+            'nlr_widgets': nlr_widgets
         })
 
         # Initialize the component visibilities
@@ -1254,27 +1318,18 @@ class BayeSEDGUI:
                 ])
 
             if agn['component_vars']['blr'].get():
-                blr_id = int(agn['agn_id'].get()) + 2
-                command.extend([
-                    "-ls1",
-                    f"{blr_id},{blr_id},BLR,1,{agn['blr_file'].get()},{agn['blr_r'].get()},2,{agn['blr_nkin'].get()}"
-                ])
+                blr_params = [agn['blr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
+                command.extend(["-ls1", ",".join(blr_params)])
 
             if agn['component_vars']['feii'].get():
-                feii_id = int(agn['agn_id'].get()) + 3
-                command.extend([
-                    "-k",
-                    f"{feii_id},{feii_id},FeII,1,1,1,0,0,1,1,1",
-                    "--kin",
-                    f"{feii_id},{agn['feii_velscale'].get()},{agn['feii_gh_cont'].get()},{agn['feii_gh_emis'].get()}"
-                ])
+                feii_params = [agn['feii_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']]
+                command.extend(["-k", ",".join(feii_params)])
+                kin_params = [agn['feii_widgets']['id'].get()] + [agn['kin_widgets'][p].get() for p in ['velscale', 'gh_cont', 'gh_emis']]
+                command.extend(["--kin", ",".join(kin_params)])
 
             if agn['component_vars']['nlr'].get():
-                nlr_id = int(agn['agn_id'].get()) + 4
-                command.extend([
-                    "-ls1",
-                    f"{nlr_id},{nlr_id},NLR,1,{agn['nlr_file'].get()},{agn['nlr_r'].get()},2,{agn['nlr_nkin'].get()}"
-                ])
+                nlr_params = [agn['nlr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
+                command.extend(["-ls1", ",".join(nlr_params)])
 
         # ... (rest of the code remains unchanged)
 
@@ -1564,27 +1619,18 @@ class BayeSEDGUI:
                 ])
 
             if agn['component_vars']['blr'].get():
-                blr_id = int(agn['agn_id'].get()) + 2
-                command.extend([
-                    "-ls1",
-                    f"{blr_id},{blr_id},BLR,1,{agn['blr_file'].get()},{agn['blr_r'].get()},2,{agn['blr_nkin'].get()}"
-                ])
+                blr_params = [agn['blr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
+                command.extend(["-ls1", ",".join(blr_params)])
 
             if agn['component_vars']['feii'].get():
-                feii_id = int(agn['agn_id'].get()) + 3
-                command.extend([
-                    "-k",
-                    f"{feii_id},{feii_id},FeII,1,1,1,0,0,1,1,1",
-                    "--kin",
-                    f"{feii_id},{agn['feii_velscale'].get()},{agn['feii_gh_cont'].get()},{agn['feii_gh_emis'].get()}"
-                ])
+                feii_params = [agn['feii_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']]
+                command.extend(["-k", ",".join(feii_params)])
+                kin_params = [agn['feii_widgets']['id'].get()] + [agn['kin_widgets'][p].get() for p in ['velscale', 'gh_cont', 'gh_emis']]
+                command.extend(["--kin", ",".join(kin_params)])
 
             if agn['component_vars']['nlr'].get():
-                nlr_id = int(agn['agn_id'].get()) + 4
-                command.extend([
-                    "-ls1",
-                    f"{nlr_id},{nlr_id},NLR,1,{agn['nlr_file'].get()},{agn['nlr_r'].get()},2,{agn['nlr_nkin'].get()}"
-                ])
+                nlr_params = [agn['nlr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
+                command.extend(["-ls1", ",".join(nlr_params)])
         
         # Advanced settings
         if self.use_multinest.get():
@@ -2205,8 +2251,8 @@ class CreateToolTip(object):
         self.tooltip.wm_geometry(f"+{x}+{y}")
         label = tk.Label(self.tooltip, text=self.text, justify='left',
                          background='#FFFFDD', relief='solid', borderwidth=1,
-                         font=("Arial", "10", "bold"))
-        label.pack(ipadx=5, ipady=5)
+                         font=("Arial", "10", "normal"))
+        label.pack(ipadx=1)
 
     def hide_tooltip(self, event=None):
         if self.tooltip:
