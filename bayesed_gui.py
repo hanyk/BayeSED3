@@ -10,6 +10,7 @@ import json
 import os
 import psutil
 import signal
+import traceback
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -947,12 +948,12 @@ class BayeSEDGUI:
 
         # Main AGN component
         main_agn_frame = ttk.Frame(instance_frame)
-        main_agn_frame.pack(fill=tk.X, padx=5, pady=2)
+        main_agn_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=2)
         ttk.Checkbutton(main_agn_frame, text="Main", variable=component_vars['main_agn'], 
-                        command=lambda: self.toggle_component(agn_params_frame, component_vars['main_agn'].get())).grid(row=0, column=0, sticky=tk.W)
+                        command=lambda: self.toggle_component(agn_params_frame, component_vars['main_agn'].get())).grid(row=0, column=0, sticky='w')
 
         agn_params_frame = ttk.Frame(main_agn_frame)
-        agn_params_frame.grid(row=0, column=1, sticky=tk.W)
+        agn_params_frame.grid(row=0, column=1, sticky='ew')
 
         # Initialize AGN parameters
         agn_igroup = ttk.Entry(agn_params_frame, width=8)
@@ -1020,12 +1021,12 @@ class BayeSEDGUI:
 
         # BBB component
         bbb_frame = ttk.Frame(instance_frame)
-        bbb_frame.pack(fill=tk.X, padx=5, pady=2)
+        bbb_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=2)
         ttk.Checkbutton(bbb_frame, text="BBB", variable=component_vars['bbb'], 
-                        command=lambda: self.toggle_component(bbb_content_frame, component_vars['bbb'].get())).grid(row=0, column=0, sticky=tk.W)
+                        command=lambda: self.toggle_component(bbb_content_frame, component_vars['bbb'].get())).grid(row=0, column=0, sticky='w')
 
         bbb_content_frame = ttk.Frame(bbb_frame)
-        bbb_content_frame.grid(row=0, column=1, sticky=tk.W)
+        bbb_content_frame.grid(row=0, column=1, sticky='ew')
 
         ttk.Label(bbb_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         bbb_igroup = ttk.Entry(bbb_content_frame, width=5)
@@ -1065,12 +1066,12 @@ class BayeSEDGUI:
 
         # BLR component
         blr_frame = ttk.Frame(instance_frame)
-        blr_frame.pack(fill=tk.X, padx=5, pady=2)
+        blr_frame.grid(row=2, column=0, sticky='ew', padx=5, pady=2)
         ttk.Checkbutton(blr_frame, text="BLR", variable=component_vars['blr'], 
-                        command=lambda: self.toggle_component(blr_content_frame, component_vars['blr'].get())).pack(side=tk.LEFT, padx=(0, 5))
+                        command=lambda: self.toggle_component(blr_content_frame, component_vars['blr'].get())).grid(row=0, column=0, sticky='w')
 
         blr_content_frame = ttk.Frame(blr_frame)
-        blr_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        blr_content_frame.grid(row=0, column=1, sticky='ew')
 
         blr_params = [
             ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
@@ -1109,12 +1110,12 @@ class BayeSEDGUI:
 
         # FeII component
         feii_frame = ttk.Frame(instance_frame)
-        feii_frame.pack(fill=tk.X, padx=5, pady=2)
+        feii_frame.grid(row=3, column=0, sticky='ew', padx=5, pady=2)
         ttk.Checkbutton(feii_frame, text="FeII", variable=component_vars['feii'], 
-                        command=lambda: self.toggle_component(feii_content_frame, component_vars['feii'].get())).pack(side=tk.LEFT, padx=(0, 5))
+                        command=lambda: self.toggle_component(feii_content_frame, component_vars['feii'].get())).grid(row=0, column=0, sticky='w')
 
         feii_content_frame = ttk.Frame(feii_frame)
-        feii_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        feii_content_frame.grid(row=0, column=1, sticky='ew')
 
         # AKNN parameters
         aknn_params = [
@@ -1185,12 +1186,12 @@ class BayeSEDGUI:
 
         # NLR component
         nlr_frame = ttk.Frame(instance_frame)
-        nlr_frame.pack(fill=tk.X, padx=5, pady=2)
+        nlr_frame.grid(row=4, column=0, sticky='ew', padx=5, pady=2)
         ttk.Checkbutton(nlr_frame, text="NLR", variable=component_vars['nlr'], 
-                        command=lambda: self.toggle_component(nlr_content_frame, component_vars['nlr'].get())).pack(side=tk.LEFT, padx=(0, 5))
+                        command=lambda: self.toggle_component(nlr_content_frame, component_vars['nlr'].get())).grid(row=0, column=0, sticky='w')
 
         nlr_content_frame = ttk.Frame(nlr_frame)
-        nlr_content_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        nlr_content_frame.grid(row=0, column=1, sticky='ew')
 
         nlr_params = [
             ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
@@ -1229,7 +1230,7 @@ class BayeSEDGUI:
 
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda: self.delete_AGN_instance(instance_frame))
-        delete_button.pack(side=tk.RIGHT, padx=5, pady=5)
+        delete_button.grid(row=5, column=0, sticky='e', padx=5, pady=5)
 
         # Update the instance dictionary
         self.agn_instances.append({
@@ -1268,10 +1269,25 @@ class BayeSEDGUI:
             else:
                 self.toggle_component(locals()[f"{component}_content_frame"], var.get())
 
-
+        # Configure column weights to allow expansion
+        instance_frame.grid_columnconfigure(0, weight=1)
+        main_agn_frame.grid_columnconfigure(1, weight=1)
+        bbb_frame.grid_columnconfigure(1, weight=1)
+        blr_frame.grid_columnconfigure(1, weight=1)
+        feii_frame.grid_columnconfigure(1, weight=1)
+        nlr_frame.grid_columnconfigure(1, weight=1)
 
     # Add this new method to toggle component visibility
     def toggle_component(self, frame, state):
+        if frame is None:
+            print(f"Warning: Frame is None. Skipping.")
+            return
+        
+        if state:
+            frame.grid()
+        else:
+            frame.grid_remove()
+
         for child in frame.winfo_children():
             if state:
                 child.grid()
@@ -1281,7 +1297,9 @@ class BayeSEDGUI:
     # Update the get_agn_settings method to include the use_* flags
     def get_agn_settings(self):
         return [
-            {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else widget.get() if isinstance(widget, tk.BooleanVar) else None)
+            {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else 
+                   widget.get() if isinstance(widget, tk.BooleanVar) else 
+                   {k: v.get() for k, v in widget.items()} if isinstance(widget, dict) else None)
              for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame']}
             for instance in self.agn_instances
         ]
@@ -1773,48 +1791,7 @@ class BayeSEDGUI:
         return settings
 
     def get_basic_settings(self):
-        return {
-            "input_file": self.input_file.get(),
-            "input_type": self.input_type.get(),
-            "outdir": self.outdir.get(),
-            "verbose": self.verbose.get(),
-            "filters": self.filters.get(),
-            "filters_selected": self.filters_selected.get(),
-            "priors_only": self.priors_only.get(),
-            "no_photometry_fit": self.no_photometry_fit.get(),
-            "no_spectra_fit": self.no_spectra_fit.get(),
-            "use_snr": self.use_snr.get(),
-            "snrmin1": self.snrmin1.get(),
-            "snrmin2": self.snrmin2.get(),
-            "use_sys_err": self.use_sys_err.get(),
-            "sys_err_mod": [widget.get() for widget in self.sys_err_widgets[:5]],
-            "sys_err_obs": [widget.get() for widget in self.sys_err_widgets[5:]],
-            "save_bestfit": self.save_bestfit.get(),
-            "save_bestfit_type": self.save_bestfit_type.get(),
-            "save_sample_par": self.save_sample_par.get(),
-            "save_sample_obs": self.save_sample_obs.get(),
-            "save_pos_sfh": self.save_pos_sfh.get(),
-            "save_pos_sfh_ngrid": self.save_pos_sfh_ngrid.get(),
-            "save_pos_sfh_ilog": self.save_pos_sfh_ilog.get(),
-            "save_pos_spec": self.save_pos_spec.get(),
-            "save_sample_spec": self.save_sample_spec.get(),
-            "save_summary": self.save_summary.get(),
-            "output_mock_photometry": self.output_mock_photometry.get(),
-            "output_mock_photometry_type": self.output_mock_photometry_type.get(),
-            "output_mock_spectra": self.output_mock_spectra.get(),
-            "output_model_absolute_magnitude": self.output_model_absolute_magnitude.get(),
-            "output_pos_obs": self.output_pos_obs.get(),
-            "use_build_sedlib": self.use_build_sedlib.get(),
-            "build_sedlib": self.build_sedlib.get(),
-            "unweighted_samples": self.unweighted_samples.get(),
-            "use_sfr": self.use_sfr.get(),
-            "sfr_myr": self.sfr_myr_entry.get(),
-            "use_output_sfh": self.use_output_sfh.get(),
-            "output_sfh_ntimes": self.output_sfh_ntimes.get(),
-            "output_sfh_ilog": self.output_sfh_ilog.get(),
-            "suffix": self.suffix.get(),
-            "mpi_processes": self.mpi_processes.get()
-        }
+        return {attr: getattr(self, attr).get() for attr in dir(self) if isinstance(getattr(self, attr), (tk.Entry, ttk.Entry, ttk.Combobox, tk.BooleanVar))}
 
     def get_galaxy_settings(self):
         return [
@@ -1823,7 +1800,7 @@ class BayeSEDGUI:
                 "sfh": [widget.get() for widget in instance['sfh']],
                 "dal": [widget.get() for widget in instance['dal']],
                 "dem": [widget.get() for widget in instance['dem']],
-                "dem_model": instance['dem'][1].get(),  # Add this line to save the DEM model selection
+                "dem_model": instance['dem'][1].get(),
                 "dem_additional": [widget.get() for widget in self.additional_dem_widgets[instance['dem'][1].get()][1]],
                 "ssp_id": instance['ssp_id'].get(),
                 "sfh_id": instance['sfh_id'].get(),
@@ -1831,6 +1808,15 @@ class BayeSEDGUI:
                 "dem_id": instance['dem_id'].get()
             }
             for instance in self.galaxy_instances
+        ]
+
+    def get_agn_settings(self):
+        return [
+            {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else 
+                   widget.get() if isinstance(widget, tk.BooleanVar) else 
+                   {k: v.get() for k, v in widget.items()} if isinstance(widget, dict) else None)
+             for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame']}
+            for instance in self.agn_instances
         ]
 
     def get_cosmology_settings(self):
@@ -1845,74 +1831,39 @@ class BayeSEDGUI:
 
     def get_advanced_settings(self):
         return {
-            "use_multinest": self.use_multinest.get(),
-            "multinest_params": {param: widget.get() for param, widget in self.multinest_widgets.items()},
-            "use_nnlm": self.use_nnlm.get(),
-            "nnlm_params": {param: widget.get() for param, widget in self.nnlm_widgets.items()},
-            "use_ndumper": self.use_ndumper.get(),
-            "ndumper_params": {param: widget.get() for param, widget in self.ndumper_widgets.items()},
-            "use_gsl": self.use_gsl.get(),
-            "gsl_params": {param: widget.get() for param, widget in self.gsl_widgets.items()},
-            "use_misc": self.use_misc.get(),
-            "misc_params": {param: widget.get() for param, widget in self.misc_widgets.items()}
+            section: {
+                "use": getattr(self, f"use_{section}").get(),
+                "params": {param: widget.get() for param, widget in getattr(self, f"{section}_widgets").items()}
+            }
+            for section in ['multinest', 'nnlm', 'ndumper', 'gsl', 'misc']
         }
 
     def apply_all_settings(self, settings):
         try:
-            self.apply_basic_settings(settings.get("basic", {}))
-            self.apply_galaxy_settings(settings.get("galaxy", []))
-            self.apply_agn_settings(settings.get("agn", []))
-            self.apply_cosmology_settings(settings.get("cosmology", {}))
-            self.apply_advanced_settings(settings.get("advanced", {}))
+            for section in ["basic", "galaxy", "agn", "cosmology", "advanced"]:
+                if section in settings:
+                    getattr(self, f"apply_{section}_settings")(settings[section])
+                else:
+                    print(f"Warning: '{section}' section not found in settings. Skipping.")
             
             # Update the state of widgets after applying all settings
-            self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get())
-            self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get())
-            self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get())
-            self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get())
-            self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get())
-            self.save_bestfit_type.config(state="readonly" if self.save_bestfit.get() else "disabled")
-            self.output_mock_photometry_type.config(state="readonly" if self.output_mock_photometry.get() else "disabled")
+            self.update_widget_states()
             
             # Force update of all frames
             self.master.update_idletasks()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to apply settings: {str(e)}")
+            print(f"Error details: {traceback.format_exc()}")  # This will print the full traceback
 
     def apply_basic_settings(self, settings):
         for key, value in settings.items():
             if hasattr(self, key):
                 widget = getattr(self, key)
-                if isinstance(widget, tk.Entry) or isinstance(widget, ttk.Entry) or isinstance(widget, ttk.Combobox):
+                if isinstance(widget, (tk.Entry, ttk.Entry, ttk.Combobox)):
                     widget.delete(0, tk.END)
-                    widget.insert(0, value)
+                    widget.insert(0, str(value))
                 elif isinstance(widget, tk.BooleanVar):
                     widget.set(value)
-        
-        # Handle special cases
-        if "sys_err_mod" in settings:
-            for widget, value in zip(self.sys_err_widgets[:5], settings["sys_err_mod"]):
-                widget.delete(0, tk.END)
-                widget.insert(0, value)
-        if "sys_err_obs" in settings:
-            for widget, value in zip(self.sys_err_widgets[5:], settings["sys_err_obs"]):
-                widget.delete(0, tk.END)
-                widget.insert(0, value)
-        
-        # Ensure all checkbox states are properly restored
-        for key in [
-            "priors_only", "no_photometry_fit", "no_spectra_fit", "use_snr", "use_sys_err",
-            "save_bestfit", "save_sample_par", "save_sample_obs", "save_pos_sfh",
-            "save_pos_spec", "save_sample_spec", "save_summary", "output_mock_photometry",
-            "output_mock_spectra", "output_model_absolute_magnitude", "output_pos_obs",
-            "use_build_sedlib", "unweighted_samples", "use_sfr", "use_output_sfh"
-        ]:
-            if key in settings:
-                getattr(self, key).set(settings[key])
-
-        if "mpi_processes" in settings:
-            self.mpi_processes.delete(0, tk.END)
-            self.mpi_processes.insert(0, settings["mpi_processes"])
 
     def apply_galaxy_settings(self, settings):
         # Clear existing instances
@@ -1922,36 +1873,30 @@ class BayeSEDGUI:
 
         # Create new instances from settings
         for instance_settings in settings:
-            try:
-                self.add_galaxy_instance()
-                instance = self.galaxy_instances[-1]
-                for key in ['ssp', 'sfh', 'dal', 'dem']:
-                    for widget, value in zip(instance[key], instance_settings[key]):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                
-                # Handle DEM model selection
-                dem_model = instance_settings.get('dem_model', '0')  # Default to '0' if not found
+            self.add_galaxy_instance()
+            instance = self.galaxy_instances[-1]
+            for key in ['ssp', 'sfh', 'dal', 'dem']:
+                for widget, value in zip(instance[key], instance_settings.get(key, [])):
+                    widget.delete(0, tk.END)
+                    widget.insert(0, str(value))
+            
+            dem_model = instance_settings.get('dem_model', '0')
+            if dem_model in [option.split()[0] for option in instance['dem'][1]['values']]:
                 instance['dem'][1].set(dem_model)
-                
-                # Handle DEM additional parameters
-                if dem_model in self.additional_dem_widgets:
-                    additional_widgets = self.additional_dem_widgets[dem_model][1]
-                    for widget, value in zip(additional_widgets, instance_settings['dem_additional']):
-                        widget.delete(0, tk.END)
-                        widget.insert(0, value)
-                else:
-                    print(f"Warning: DEM model {dem_model} not found in current configuration.")
+            else:
+                print(f"Warning: DEM model {dem_model} not found in current configuration. Using default.")
+            
+            if dem_model in self.additional_dem_widgets:
+                additional_widgets = self.additional_dem_widgets[dem_model][1]
+                for widget, value in zip(additional_widgets, instance_settings.get('dem_additional', [])):
+                    widget.delete(0, tk.END)
+                    widget.insert(0, str(value))
 
-                # Handle the ID settings
-                for id_key in ['ssp_id', 'sfh_id', 'dal_id', 'dem_id']:
-                    instance[id_key].delete(0, tk.END)
-                    instance[id_key].insert(0, instance_settings.get(id_key, ''))
+            for id_key in ['ssp_id', 'sfh_id', 'dal_id', 'dem_id']:
+                instance[id_key].delete(0, tk.END)
+                instance[id_key].insert(0, str(instance_settings.get(id_key, '')))
 
-                # Update DEM parameters after setting the model
-                self.update_dem_params(None, instance['frame'])
-            except Exception as e:
-                print(f"Error applying galaxy instance settings: {str(e)}")
+            self.update_dem_params(None, instance['frame'])
 
     def apply_agn_settings(self, settings):
         # Clear existing instances
@@ -1965,22 +1910,45 @@ class BayeSEDGUI:
             instance = self.agn_instances[-1]
             for key, value in instance_settings.items():
                 if key in instance and key != 'frame':
-                    if key.startswith('use_'):
-                        instance[key].set(value)
-                        self.toggle_component(instance[f'{key[4:]}_frame'], value)
-                    elif isinstance(instance[key], ttk.Entry):
+                    if key == 'component_vars':
+                        if isinstance(value, dict):
+                            for component, state in value.items():
+                                if component in instance[key]:
+                                    instance[key][component].set(state)
+                                    frame_key = f'{component}_frame'
+                                    if frame_key in instance:
+                                        frame = instance[frame_key]
+                                        if frame:
+                                            try:
+                                                self.toggle_component(frame, state)
+                                            except Exception as e:
+                                                print(f"Error toggling component {component}: {str(e)}")
+                                        else:
+                                            print(f"Warning: Frame for component '{component}' is None. Skipping.")
+                                    else:
+                                        print(f"Warning: Frame key '{frame_key}' not found in instance. Skipping.")
+                                else:
+                                    print(f"Warning: Component '{component}' not found in instance[component_vars]. Skipping.")
+                        elif value is None:
+                            print(f"Warning: 'component_vars' is None in AGN settings. Skipping.")
+                        else:
+                            print(f"Warning: 'component_vars' is not a dictionary in AGN settings. Skipping.")
+                    elif isinstance(instance[key], (ttk.Entry, ttk.Combobox)):
                         instance[key].delete(0, tk.END)
-                        instance[key].insert(0, value)
-                    elif isinstance(instance[key], ttk.Combobox):
+                        instance[key].insert(0, str(value))
+                    elif isinstance(instance[key], tk.BooleanVar):
                         instance[key].set(value)
+                else:
+                    print(f"Warning: Key '{key}' not found in instance or is 'frame'. Skipping.")
+
+        print("AGN settings applied successfully.")
 
     def apply_cosmology_settings(self, settings):
         self.use_cosmology.set(settings.get("use_cosmology", False))
         for param, value in settings.get("cosmology_params", {}).items():
             if param in self.cosmology_params:
-                widget = self.cosmology_params[param]
-                widget.delete(0, tk.END)
-                widget.insert(0, value)
+                self.cosmology_params[param].delete(0, tk.END)
+                self.cosmology_params[param].insert(0, str(value))
         
         self.use_igm.set(settings.get("use_igm", False))
         self.igm_model.set(settings.get("igm_model", "1"))
@@ -1988,38 +1956,58 @@ class BayeSEDGUI:
         self.use_redshift.set(settings.get("use_redshift", False))
         for param, value in settings.get("redshift_params", {}).items():
             if param in self.redshift_params:
-                widget = self.redshift_params[param]
-                widget.delete(0, tk.END)
-                widget.insert(0, value)
-
-        # Update widget states
-        self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get())
-        self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get())
-        self.toggle_redshift_widgets()
+                self.redshift_params[param].delete(0, tk.END)
+                self.redshift_params[param].insert(0, str(value))
 
     def apply_advanced_settings(self, settings):
         for section in ['multinest', 'nnlm', 'ndumper', 'gsl', 'misc']:
-            use_var = getattr(self, f'use_{section}')
-            use_var.set(settings.get(f'use_{section}', False))
+            section_settings = settings.get(section, {})
+            if not isinstance(section_settings, dict):
+                print(f"Warning: {section} settings are not in the expected format. Skipping.")
+                continue
             
-            params = settings.get(f'{section}_params', {})
+            use_var = getattr(self, f'use_{section}')
+            use_var.set(section_settings.get("use", False))
+            
+            params = section_settings.get("params", {})
+            if not isinstance(params, dict):
+                print(f"Warning: {section} params are not in the expected format. Skipping.")
+                continue
+            
             widgets = getattr(self, f'{section}_widgets')
             for param, value in params.items():
                 if param in widgets:
-                    widget = widgets[param]
-                    widget.delete(0, tk.END)
-                    widget.insert(0, value)
-            
-            # Update widget states
+                    widgets[param].delete(0, tk.END)
+                    widgets[param].insert(0, str(value))
+
+    def update_widget_states(self):
+        # Update the state of widgets based on their associated BooleanVars
+        self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get())
+        self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get())
+        self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get())
+        self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get())
+        self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get())
+        self.save_bestfit_type.config(state="readonly" if self.save_bestfit.get() else "disabled")
+        self.output_mock_photometry_type.config(state="readonly" if self.output_mock_photometry.get() else "disabled")
+        
+        # Update cosmology widget states
+        self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get())
+        self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get())
+        self.toggle_redshift_widgets()
+        
+        # Update advanced settings widget states
+        for section in ['multinest', 'nnlm', 'ndumper', 'gsl', 'misc']:
+            use_var = getattr(self, f'use_{section}')
+            widgets = getattr(self, f'{section}_widgets')
             self.toggle_widgets(widgets.values(), use_var.get())
 
     def update_dem_params(self, event, frame):
-        imodel = event.widget.get() if event else frame.dem[1].get()
-        
         # Find the correct instance
         instance = next((inst for inst in self.galaxy_instances if inst['frame'] == frame), None)
         if not instance:
             return  # If we can't find the instance, just return
+
+        imodel = event.widget.get() if event else instance['dem'][1].get()
 
         # Hide all additional parameter frames
         for model_frame, _ in self.additional_dem_widgets.values():
