@@ -133,7 +133,7 @@ class BayeSEDGUI:
         self.input_file = ttk.Entry(input_frame, width=40)
         self.input_file.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=2)
         ttk.Button(input_frame, text="Browse", command=self.browse_input_file).grid(row=0, column=2, padx=5, pady=2)
-        CreateToolTip(self.input_file, "Input file containing observed photometric SEDs")
+        CreateToolTip(self.input_file, "Input file containing observed photometric and/or spectroscopic SEDs")
 
         # Input Type
         ttk.Label(input_frame, text="Input Type:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
@@ -158,14 +158,14 @@ class BayeSEDGUI:
         CreateToolTip(self.verbose, "Verbose level (0-3)")
 
         # Filters
-        ttk.Label(input_frame, text="Filters:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(input_frame, text="Filters definition:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
         self.filters = ttk.Entry(input_frame, width=40)
         self.filters.grid(row=4, column=1, sticky=tk.EW, padx=5, pady=2)
         ttk.Button(input_frame, text="Browse", command=self.browse_filters).grid(row=4, column=2, padx=5, pady=2)
         CreateToolTip(self.filters, "File containing the definition of filters")
 
         # Filters Selected
-        ttk.Label(input_frame, text="Filters Selected:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(input_frame, text="Filters selection:").grid(row=5, column=0, sticky=tk.W, padx=5, pady=2)
         self.filters_selected = ttk.Entry(input_frame, width=40)
         self.filters_selected.grid(row=5, column=1, sticky=tk.EW, padx=5, pady=2)
         ttk.Button(input_frame, text="Browse", command=self.browse_filters_selected).grid(row=5, column=2, padx=5, pady=2)
@@ -254,6 +254,15 @@ class BayeSEDGUI:
 
         # Initialize the Systematic Error widgets to be disabled and grey
         self.toggle_widgets(self.sys_err_widgets, False)
+
+        # Ntest
+        ntest_frame = ttk.Frame(input_frame)
+        ntest_frame.grid(row=11, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+
+        ttk.Label(ntest_frame, text="Ntest:").pack(side=tk.LEFT, padx=(0, 5))
+        self.ntest = ttk.Entry(ntest_frame, width=10)
+        self.ntest.pack(side=tk.LEFT)
+        CreateToolTip(self.ntest, "Number of objects for test run (leave empty to process all objects)")
 
         # Configure column weights for input_frame
         input_frame.columnconfigure(1, weight=1)
@@ -456,7 +465,7 @@ class BayeSEDGUI:
         
         self.fits_file = ttk.Entry(plot_frame, width=20)
         self.fits_file.pack(side=tk.LEFT, padx=(5, 0))
-        CreateToolTip(self.fits_file, "Enter the FITS file name (without path)")
+        CreateToolTip(self.fits_file, "Path to the FITS file to plot")
 
         ttk.Button(plot_frame, text="Browse", command=self.browse_fits_file).pack(side=tk.LEFT, padx=(5, 0))
 
@@ -876,7 +885,6 @@ class BayeSEDGUI:
         misc_params = [
             ("NfilterPoints", "Number of filter points for interpolation", "30"),
             ("Nsample", "Number of samples for catalog creation or SED library building", ""),
-            ("Ntest", "Number of objects for test run", ""),
             ("niteration", "Number of iterations", "0"),
             ("logZero", "Log of Zero (points with loglike < logZero will be ignored)", "-1e90"),
             ("lw_max", "Max line coverage in km/s for emission line model creation", "10000"),
@@ -1530,6 +1538,10 @@ class BayeSEDGUI:
             command.extend(["--sys_err_mod", mod_values])
             command.extend(["--sys_err_obs", obs_values])
 
+        # Ntest
+        if self.ntest.get().strip():
+            command.extend(["--Ntest", self.ntest.get().strip()])
+
         return command
 
     def run_bayesed(self):
@@ -1791,7 +1803,7 @@ class BayeSEDGUI:
         return settings
 
     def get_basic_settings(self):
-        return {attr: getattr(self, attr).get() for attr in dir(self) if isinstance(getattr(self, attr), (tk.Entry, ttk.Entry, ttk.Combobox, tk.BooleanVar))}
+        return {attr: getattr(self, attr).get() for attr in dir(self) if isinstance(getattr(self, attr), (tk.Entry, ttk.Entry, ttk.Combobox, tk.BooleanVar, ttk.Entry))}
 
     def get_galaxy_settings(self):
         return [
