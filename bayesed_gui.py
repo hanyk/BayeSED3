@@ -20,7 +20,11 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         
         # Define a standard font
-        self.standard_font = ('Helvetica', 10)
+        self.standard_font = ('Helvetica', 12)
+        
+        # Apply the standard font to all ttk widgets
+        style = ttk.Style()
+        style.configure('.', font=self.standard_font)
         
         self.galaxy_count = -1  # Start from -1, so the first instance will be 0
         
@@ -1647,7 +1651,7 @@ class BayeSEDGUI:
         self.output_text.config(state=tk.NORMAL)
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
-        self.output_text.config(state=tk.NORMAL)  # Keep it in normal state
+        self.output_text.config(state=tk.NORMAL, font=self.standard_font)  # Apply standard font to output text
         self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
