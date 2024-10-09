@@ -754,56 +754,28 @@ class BayeSEDGUI:
         self.notebook.add(advanced_frame, text="Advanced Settings")
 
         # MultiNest Settings
-        multinest_frame = ttk.Frame(advanced_frame)
-        multinest_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(multinest_frame, variable=self.use_multinest, 
-                        command=lambda: self.toggle_widgets(self.multinest_widgets.values(), self.use_multinest.get())).pack(side=tk.LEFT, padx=5)
-        
-        multinest_content = ttk.LabelFrame(multinest_frame, text="MultiNest Settings")
-        multinest_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
+        multinest_frame, multinest_columns = self.create_advanced_section(advanced_frame, "MultiNest", self.use_multinest, 5)
         multinest_params = [
-            ("INS", "Importance Nested Sampling flag (0 or 1)"),
-            ("mmodal", "Multimodal flag (0 or 1)"),
-            ("ceff", "Constant efficiency mode flag (0 or 1)"),
-            ("nlive", "Number of live points"),
-            ("efr", "Sampling efficiency"),
-            ("tol", "Tolerance for termination"),
-            ("updInt", "Update interval for posterior output"),
-            ("Ztol", "Evidence tolerance"),
-            ("seed", "Random seed (0 for system time)"),
-            ("fb", "Feedback level (0-3)"),
-            ("resume", "Resume from a previous run (0 or 1)"),
-            ("outfile", "Write output files (0 or 1)"),
-            ("logZero", "Log of Zero (points with loglike < logZero will be ignored)"),
-            ("maxiter", "Maximum number of iterations"),
-            ("acpt", "Acceptance rate")
+            ("INS", "Importance Nested Sampling flag (0 or 1)", "1"),
+            ("mmodal", "Multimodal flag (0 or 1)", "0"),
+            ("ceff", "Constant efficiency mode flag (0 or 1)", "0"),
+            ("nlive", "Number of live points", "100"),
+            ("efr", "Sampling efficiency", "0.1"),
+            ("tol", "Tolerance for termination", "0.5"),
+            ("updInt", "Update interval for posterior output", "1000"),
+            ("Ztol", "Evidence tolerance", "-1e90"),
+            ("seed", "Random seed (0 for system time)", "1"),
+            ("fb", "Feedback level (0-3)", "0"),
+            ("resume", "Resume from a previous run (0 or 1)", "0"),
+            ("outfile", "Write output files (0 or 1)", "0"),
+            ("logZero", "Log of Zero (points with loglike < logZero will be ignored)", "-1e90"),
+            ("maxiter", "Maximum number of iterations", "100000"),
+            ("acpt", "Acceptance rate", "0.01")
         ]
-
-        default_values = "1,0,0,100,0.1,0.5,1000,-1e90,1,0,0,0,-1e90,100000,0.01".split(',')
-        self.multinest_widgets = {}
-
-        for i, (param, tooltip) in enumerate(multinest_params):
-            row = i // 3
-            col = i % 3 * 2
-            ttk.Label(multinest_content, text=f"{param}:").grid(row=row+1, column=col, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(multinest_content, width=8)
-            widget.insert(0, default_values[i] if i < len(default_values) else "")
-            widget.grid(row=row+1, column=col+1, sticky=tk.W, padx=5, pady=2)
-            self.multinest_widgets[param] = widget
-            CreateToolTip(widget, tooltip)
+        self.multinest_widgets = self.create_param_widgets(multinest_frame, multinest_params, multinest_columns)
 
         # NNLM Settings
-        nnlm_frame = ttk.Frame(advanced_frame)
-        nnlm_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(nnlm_frame, variable=self.use_nnlm, 
-                        command=lambda: self.toggle_widgets(self.nnlm_widgets.values(), self.use_nnlm.get())).pack(side=tk.LEFT, padx=5)
-        
-        nnlm_content = ttk.LabelFrame(nnlm_frame, text="NNLM Settings")
-        nnlm_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
+        nnlm_frame, nnlm_columns = self.create_advanced_section(advanced_frame, "NNLM", self.use_nnlm, 4)
         nnlm_params = [
             ("method", "Method (0=eazy, 1=scd, 2=lee_ls, 3=scd_kl, 4=lee_kl)", "0"),
             ("Niter1", "Number of iterations for first step", "10000"),
@@ -813,49 +785,19 @@ class BayeSEDGUI:
             ("p1", "Parameter p1 for NNLM algorithm", "0.05"),
             ("p2", "Parameter p2 for NNLM algorithm", "0.95")
         ]
-        self.nnlm_widgets = {}
-        for i, (param, tooltip, default) in enumerate(nnlm_params):
-            ttk.Label(nnlm_content, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(nnlm_content, width=10)
-            widget.insert(0, default)
-            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
-            self.nnlm_widgets[param] = widget
-            CreateToolTip(widget, tooltip)
+        self.nnlm_widgets = self.create_param_widgets(nnlm_frame, nnlm_params, nnlm_columns)
 
         # Ndumper Settings
-        ndumper_frame = ttk.Frame(advanced_frame)
-        ndumper_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(ndumper_frame, variable=self.use_ndumper, 
-                        command=lambda: self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get())).pack(side=tk.LEFT, padx=5)
-        
-        ndumper_content = ttk.LabelFrame(ndumper_frame, text="Ndumper Settings")
-        ndumper_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
+        ndumper_frame, ndumper_columns = self.create_advanced_section(advanced_frame, "Ndumper", self.use_ndumper, 3)
         ndumper_params = [
             ("max_number", "Maximum number of samples to dump", "1"),
             ("iconverged_min", "Minimum convergence flag", "0"),
             ("Xmin_squared_Nd", "Xmin^2/Nd value (-1 for no constraint)", "-1")
         ]
-        self.ndumper_widgets = {}
-        for i, (param, tooltip, default) in enumerate(ndumper_params):
-            ttk.Label(ndumper_content, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(ndumper_content, width=10)
-            widget.insert(0, default)
-            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
-            self.ndumper_widgets[param] = widget
-            CreateToolTip(widget, tooltip)
+        self.ndumper_widgets = self.create_param_widgets(ndumper_frame, ndumper_params, ndumper_columns)
 
-        # GSL Integration and Multifit Settings
-        gsl_frame = ttk.Frame(advanced_frame)
-        gsl_frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(gsl_frame, variable=self.use_gsl, 
-                        command=lambda: self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get())).pack(side=tk.LEFT, padx=5)
-        
-        gsl_content = ttk.LabelFrame(gsl_frame, text="GSL Settings")
-        gsl_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
+        # GSL Settings
+        gsl_frame, gsl_columns = self.create_advanced_section(advanced_frame, "GSL", self.use_gsl, 3)
         gsl_params = [
             ("integration_epsabs", "Absolute error for GSL integration", "0"),
             ("integration_epsrel", "Relative error for GSL integration", "0.1"),
@@ -863,25 +805,10 @@ class BayeSEDGUI:
             ("multifit_type", "Multifit type (ols or huber)", "ols"),
             ("multifit_tune", "Tuning parameter for robust fitting", "1.0")
         ]
-        self.gsl_widgets = {}
-        for i, (param, tooltip, default) in enumerate(gsl_params):
-            ttk.Label(gsl_content, text=f"{param}:").grid(row=i+1, column=0, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(gsl_content, width=10)
-            widget.insert(0, default)
-            widget.grid(row=i+1, column=1, sticky=tk.W, padx=5, pady=2)
-            self.gsl_widgets[param] = widget
-            CreateToolTip(widget, tooltip)
+        self.gsl_widgets = self.create_param_widgets(gsl_frame, gsl_params, gsl_columns)
 
         # Other Miscellaneous Settings
-        misc_frame = ttk.Frame(advanced_frame)
-        misc_frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        ttk.Checkbutton(misc_frame, variable=self.use_misc, 
-                        command=lambda: self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get())).pack(side=tk.LEFT, padx=5)
-        
-        misc_content = ttk.LabelFrame(misc_frame, text="Other Settings")
-        misc_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
+        misc_frame, misc_columns = self.create_advanced_section(advanced_frame, "Other", self.use_misc, 3)
         misc_params = [
             ("NfilterPoints", "Number of filter points for interpolation", "30"),
             ("Nsample", "Number of samples for catalog creation or SED library building", ""),
@@ -890,27 +817,37 @@ class BayeSEDGUI:
             ("lw_max", "Max line coverage in km/s for emission line model creation", "10000"),
             ("cl", "Confidence levels for output estimates", "0.68,0.95")
         ]
-        self.misc_widgets = {}
-        for i, (param, tooltip, default) in enumerate(misc_params):
-            row = i // 3
-            col = i % 3 * 2
-            ttk.Label(misc_content, text=f"{param}:").grid(row=row+1, column=col, sticky=tk.W, padx=5, pady=2)
-            widget = ttk.Entry(misc_content, width=10)
+        self.misc_widgets = self.create_param_widgets(misc_frame, misc_params, misc_columns)
+
+        # Initialize widget states
+        for widgets in [self.multinest_widgets, self.nnlm_widgets, self.ndumper_widgets, self.gsl_widgets, self.misc_widgets]:
+            self.toggle_widgets(widgets.values(), False)
+
+    def create_advanced_section(self, parent, title, variable, columns):
+        frame = ttk.Frame(parent)
+        frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Checkbutton(frame, variable=variable, 
+                        command=lambda: self.toggle_widgets(frame.winfo_children()[1].winfo_children(), variable.get())).pack(side=tk.LEFT, padx=5)
+        
+        content = ttk.LabelFrame(frame, text=f"{title} Settings")
+        content.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        
+        content.columnconfigure(tuple(range(columns * 2)), weight=1)
+        
+        return content, columns  # Return both the content frame and the number of columns
+
+    def create_param_widgets(self, parent, params, columns):
+        widgets = {}
+        for i, (param, tooltip, default) in enumerate(params):
+            row, col = divmod(i, columns)
+            ttk.Label(parent, text=f"{param}:").grid(row=row, column=col*2, sticky=tk.W, padx=5, pady=2)
+            widget = ttk.Entry(parent, width=10)
             widget.insert(0, default)
-            widget.grid(row=row+1, column=col+1, sticky=tk.W, padx=5, pady=2)
-            self.misc_widgets[param] = widget
+            widget.grid(row=row, column=col*2+1, sticky=tk.W, padx=5, pady=2)
+            widgets[param] = widget
             CreateToolTip(widget, tooltip)
-
-        # Configure grid weights
-        advanced_frame.grid_columnconfigure(0, weight=1)
-        advanced_frame.grid_columnconfigure(1, weight=1)
-
-        # At the end of create_advanced_tab method, add these lines:
-        self.toggle_widgets(self.multinest_widgets.values(), self.use_multinest.get())
-        self.toggle_widgets(self.nnlm_widgets.values(), self.use_nnlm.get())
-        self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get())
-        self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get())
-        self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get())
+        return widgets
 
     def create_AGN_tab(self):
         agn_frame = ttk.Frame(self.notebook)
