@@ -1255,8 +1255,13 @@ class BayeSEDGUI:
         self.output_text.config(state=tk.NORMAL)
 
     def generate_command(self):
-        # Use sys.executable to get the path of the current Python interpreter
-        command = [sys.executable, "-u", "bayesed.py"]  # Added '-u' for unbuffered output
+        # Start with just the Python interpreter
+        command = [sys.executable, "-u", "bayesed.py"]
+        
+        # Get the number of MPI processes if specified
+        np = self.mpi_processes.get().strip()
+        if np:
+            command.extend(["--np", np])
         
         # Basic settings
         input_type = self.input_type.get().split()[0]
@@ -1485,24 +1490,11 @@ class BayeSEDGUI:
         if self.run_button['text'] == "Run":
             command = self.generate_command()
             
-            # Get the number of MPI processes if specified
-            np = self.mpi_processes.get().strip()
-            
-            # Construct the command with bayesed.py as the first argument
-            full_command = [sys.executable, "-u", "bayesed.py"]
-            
-            # Add the --np argument after bayesed.py if specified
-            if np:
-                full_command.extend(["--np", np])
-            
-            # Add the rest of the command
-            full_command.extend(command)
-            
-            self.update_output("Executing command: " + " ".join(full_command) + "\n")
+            self.update_output("Executing command: " + " ".join(command) + "\n")
             
             self.output_queue = queue.Queue()
             self.stop_output_thread = threading.Event()
-            threading.Thread(target=self.execute_command, args=(full_command,), daemon=True).start()
+            threading.Thread(target=self.execute_command, args=(command,), daemon=True).start()
             self.master.after(100, self.check_output_queue)
 
             # Change button text to "Stop"
