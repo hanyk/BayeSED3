@@ -548,7 +548,7 @@ class BayeSEDGUI:
         # SSP settings
         ssp_frame = ttk.Frame(instance_frame)
         ssp_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(ssp_frame, text="SSP:").grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(ssp_frame, text="SSP:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         
         ssp_params = [
             ("igroup", str(new_igroup), 5),
@@ -599,10 +599,15 @@ class BayeSEDGUI:
                 "9: Nonparametric"
             ]),
             ("itruncated", "0", 5, ["0: Not truncated", "1: Truncated"]),
-            ("itype_ceh", "0", 5, ["0: No CEH", "1: linear mapping model"])
+            ("itype_ceh", "0", 5, ["0: No CEH", "1: linear mapping model"]),
+            ("np_prior_type", "5", 5),
+            ("np_interp_method", "0", 5),
+            ("np_num_bins", "10", 5),
+            ("np_regul", "100", 5)
         ]
         
         sfh_widgets = []
+        
         for i, param_info in enumerate(sfh_params):
             param, default, width = param_info[:3]
             ttk.Label(sfh_frame, text=f"{param}:").grid(row=0, column=2*i+1, sticky=tk.W, padx=2)
@@ -619,6 +624,35 @@ class BayeSEDGUI:
             if param == 'id':
                 sfh_id_widget = widget
                 sfh_id_widget.config(state='readonly')
+
+        # Add tooltips for SFH parameters
+        sfh_tooltips = {
+            "id": "Unique ID for the SFH component",
+            "itype_sfh": "SFH type (0-9)",
+            "itruncated": "Truncation flag (0: No, 1: Yes)",
+            "itype_ceh": "Chemical evolution history type",
+            "np_prior_type": "Prior type for nonparametric SFH (0-7)",
+            "np_interp_method": "Interpolation method for nonparametric SFH (0-3)",
+            "np_num_bins": "Number of bins for nonparametric SFH",
+            "np_regul": "Regularization parameter for nonparametric SFH"
+        }
+        for i, param_info in enumerate(sfh_params):
+            param = param_info[0]
+            if param in sfh_tooltips:
+                CreateToolTip(sfh_widgets[i], sfh_tooltips[param])
+
+        # Add a trace to the itype_sfh widget to toggle the np_sfh parameters
+        def toggle_np_sfh_params(*args):
+            itype_sfh = int(sfh_widgets[1].get())
+            state = "normal" if itype_sfh == 9 else "disabled"
+            for widget in sfh_widgets[4:]:  # NP_SFH parameters start from index 4
+                widget.config(state=state)
+                widget.config(foreground="black" if state == "normal" else "grey")
+
+        sfh_widgets[1].bind("<<ComboboxSelected>>", toggle_np_sfh_params)
+
+        # Call the function initially to set the correct state
+        toggle_np_sfh_params()
 
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
@@ -1298,7 +1332,10 @@ class BayeSEDGUI:
                 command.extend(["-ssp", ",".join(ssp_values)])
                 
             if all(sfh_values):
-                command.extend(["--sfh", ",".join(sfh_values)])
+                command.extend(["--sfh", ",".join(sfh_values[:4])])  # id, itype_sfh, itruncated, itype_ceh
+                if int(sfh_values[1]) == 9:  # If itype_sfh is 9 (Nonparametric)
+                    np_sfh_values = sfh_values[4:]  # np_prior_type, np_interp_method, np_num_bins, np_regul
+                    command.extend(["--np_sfh", ",".join(np_sfh_values)])
                 
             if all(dal_values):
                 command.extend(["--dal", ",".join(dal_values)])
@@ -1874,7 +1911,14 @@ class BayeSEDGUI:
             for instance in self.galaxy_instances:
                 values = [widget.get() for widget in instance[model_type]]
                 if any(values):
-                    params[model_type].append(values)
+                    if model_type == 'sfh':
+                        sfh_values = values[:4]  # id, itype_sfh, itruncated, itype_ceh
+                        np_sfh_values = values[4:]  # np_prior_type, np_interp_method, np_num_bins, np_regul
+                        params[model_type].append(sfh_values)
+                        if int(sfh_values[1]) == 9:  # If itype_sfh is 9 (Nonparametric)
+                            params['np_sfh'] = np_sfh_values
+                    else:
+                        params[model_type].append(values)
         
         # AGN instances
         for model_type in ['AGN', 'big_blue_bump', 'lines1', 'aknn']:
@@ -2050,6 +2094,14 @@ def run_bayesed():
                             script += f"                {param_name}={value},\n"
                     script += "            ),\n"
                 script += "        ],\n"
+        
+        # Add NP_SFH parameters if present
+        if 'np_sfh' in params:
+            script += "        np_sfh=NPSFHParams(\n"
+            np_sfh_param_names = ['prior_type', 'interp_method', 'num_bins', 'regul']
+            for param_name, value in zip(np_sfh_param_names, params['np_sfh']):
+                script += f"            {param_name}={value},\n"
+            script += "        ),\n"
         
         # AGN models
         agn_classes = {
