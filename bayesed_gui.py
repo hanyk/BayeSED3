@@ -20,7 +20,7 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         
         # Define a standard font
-        self.standard_font = ('Helvetica', 12)
+        self.standard_font = ('Helvetica', 14)
         
         # Apply the standard font to all ttk widgets
         style = ttk.Style()
@@ -177,24 +177,24 @@ class BayeSEDGUI:
         CreateToolTip(self.filters_selected, "File containing all used filters in the observation and select those needed")
 
         # Priors Only
-        ttk.Checkbutton(input_frame, text="Priors Only", variable=self.priors_only, style='Large.TCheckbutton').grid(row=6, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(input_frame, text="Priors Only", variable=self.priors_only).grid(row=6, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(input_frame.winfo_children()[-1], "Test priors by setting the loglike for observational data to be zero")
 
         # No photometry fit
-        ttk.Checkbutton(input_frame, text="No photometry fit", variable=self.no_photometry_fit, style='Large.TCheckbutton').grid(row=7, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(input_frame, text="No photometry fit", variable=self.no_photometry_fit).grid(row=7, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(input_frame.winfo_children()[-1], "Do not fit photometric data even if it is presented")
 
         # No spectra fit
-        ttk.Checkbutton(input_frame, text="No spectra fit", variable=self.no_spectra_fit, style='Large.TCheckbutton').grid(row=8, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(input_frame, text="No spectra fit", variable=self.no_spectra_fit).grid(row=8, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(input_frame.winfo_children()[-1], "Do not fit spectra data even if it is presented")
 
         # SNR Settings
         snr_frame = ttk.Frame(input_frame)
         snr_frame.grid(row=9, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
-        
+
         ttk.Checkbutton(snr_frame, variable=self.use_snr, 
                         command=lambda: self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get()),
-                        style='Large.TCheckbutton', text="SNR Settings").pack(side=tk.LEFT, padx=5)
+                        text="SNR Settings").pack(side=tk.LEFT, padx=5)
         CreateToolTip(snr_frame.winfo_children()[-1], "Enable/disable SNR settings")
 
         snr_content = ttk.Frame(snr_frame)
@@ -221,7 +221,7 @@ class BayeSEDGUI:
 
         ttk.Checkbutton(sys_err_frame, variable=self.use_sys_err, 
                         command=lambda: self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get()),
-                        style='Large.TCheckbutton', text="Systematic Error").pack(side=tk.LEFT)
+                        text="Systematic Error").pack(side=tk.LEFT)
         CreateToolTip(sys_err_frame.winfo_children()[-1], "Set priors for systematic errors of model and observation")
 
         sys_err_content = ttk.Frame(sys_err_frame)
@@ -376,7 +376,7 @@ class BayeSEDGUI:
 
         ttk.Checkbutton(build_sed_frame, variable=self.use_build_sedlib, 
                         command=lambda: self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get()),
-                        style='Large.TCheckbutton', text="Build SED Library").pack(side=tk.LEFT)
+                        text="Build SED Library").pack(side=tk.LEFT)
         CreateToolTip(build_sed_frame.winfo_children()[-1], "Build a SED library using the employed models")
 
         self.build_sedlib = ttk.Combobox(build_sed_frame, values=["0 (Rest)", "1 (Observed)"], width=15, state="disabled")
@@ -385,7 +385,7 @@ class BayeSEDGUI:
         CreateToolTip(self.build_sedlib, "0: Rest frame, 1: Observed frame")
 
         # Use unweighted samples
-        ttk.Checkbutton(output_frame, text="Use unweighted samples", variable=self.unweighted_samples, style='Large.TCheckbutton').grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
+        ttk.Checkbutton(output_frame, text="Use unweighted samples", variable=self.unweighted_samples).grid(row=5, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(output_frame.winfo_children()[-1], "Use unweighted posterior samples")
 
         # SFR Settings
@@ -394,7 +394,7 @@ class BayeSEDGUI:
 
         ttk.Checkbutton(sfr_frame, variable=self.use_sfr, 
                         command=lambda: self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get()),
-                        style='Large.TCheckbutton', text="Output SFR over").pack(side=tk.LEFT)
+                        text="Output SFR over").pack(side=tk.LEFT)
         CreateToolTip(sfr_frame.winfo_children()[-1], "Compute average SFR over the past given Myrs")
 
         ttk.Label(sfr_frame, text="Myr values:").pack(side=tk.LEFT, padx=(5, 2))
@@ -412,7 +412,7 @@ class BayeSEDGUI:
 
         ttk.Checkbutton(sfh_frame, variable=self.use_output_sfh, 
                         command=lambda: self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get()),
-                        style='Large.TCheckbutton', text="Output SFH").pack(side=tk.LEFT)
+                        text="Output SFH").pack(side=tk.LEFT)
         CreateToolTip(sfh_frame.winfo_children()[-1], "Output the SFH over the past tage year")
 
         ttk.Label(sfh_frame, text="ntimes:").pack(side=tk.LEFT, padx=(5, 2))
@@ -758,8 +758,7 @@ class BayeSEDGUI:
         multinest_frame.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         ttk.Checkbutton(multinest_frame, variable=self.use_multinest, 
-                        command=lambda: self.toggle_widgets(self.multinest_widgets.values(), self.use_multinest.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.multinest_widgets.values(), self.use_multinest.get())).pack(side=tk.LEFT, padx=5)
         
         multinest_content = ttk.LabelFrame(multinest_frame, text="MultiNest Settings")
         multinest_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -800,8 +799,7 @@ class BayeSEDGUI:
         nnlm_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         ttk.Checkbutton(nnlm_frame, variable=self.use_nnlm, 
-                        command=lambda: self.toggle_widgets(self.nnlm_widgets.values(), self.use_nnlm.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.nnlm_widgets.values(), self.use_nnlm.get())).pack(side=tk.LEFT, padx=5)
         
         nnlm_content = ttk.LabelFrame(nnlm_frame, text="NNLM Settings")
         nnlm_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -829,8 +827,7 @@ class BayeSEDGUI:
         ndumper_frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         ttk.Checkbutton(ndumper_frame, variable=self.use_ndumper, 
-                        command=lambda: self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.ndumper_widgets.values(), self.use_ndumper.get())).pack(side=tk.LEFT, padx=5)
         
         ndumper_content = ttk.LabelFrame(ndumper_frame, text="Ndumper Settings")
         ndumper_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -854,8 +851,7 @@ class BayeSEDGUI:
         gsl_frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         ttk.Checkbutton(gsl_frame, variable=self.use_gsl, 
-                        command=lambda: self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.gsl_widgets.values(), self.use_gsl.get())).pack(side=tk.LEFT, padx=5)
         
         gsl_content = ttk.LabelFrame(gsl_frame, text="GSL Settings")
         gsl_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -881,8 +877,7 @@ class BayeSEDGUI:
         misc_frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         ttk.Checkbutton(misc_frame, variable=self.use_misc, 
-                        command=lambda: self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.misc_widgets.values(), self.use_misc.get())).pack(side=tk.LEFT, padx=5)
         
         misc_content = ttk.LabelFrame(misc_frame, text="Other Settings")
         misc_content.pack(side=tk.LEFT, expand=True, fill=tk.X)
@@ -1675,8 +1670,7 @@ class BayeSEDGUI:
         cosmo_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Checkbutton(cosmo_frame, variable=self.use_cosmology, 
-                        command=lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get())).pack(side=tk.LEFT, padx=5)
 
         cosmo_content = ttk.LabelFrame(cosmo_frame, text="Cosmology Parameters")
         cosmo_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
@@ -1702,8 +1696,7 @@ class BayeSEDGUI:
         igm_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Checkbutton(igm_frame, variable=self.use_igm, 
-                        command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get()),
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get())).pack(side=tk.LEFT, padx=5)
 
         igm_content = ttk.LabelFrame(igm_frame, text="IGM Model")
         igm_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
@@ -1725,8 +1718,7 @@ class BayeSEDGUI:
         redshift_frame.pack(fill=tk.X, padx=5, pady=5)
 
         ttk.Checkbutton(redshift_frame, variable=self.use_redshift, 
-                        command=self.toggle_redshift_widgets,
-                        style='Large.TCheckbutton').pack(side=tk.LEFT, padx=5)
+                        command=self.toggle_redshift_widgets).pack(side=tk.LEFT, padx=5)
 
         redshift_content = ttk.LabelFrame(redshift_frame, text="Redshift Parameters")
         redshift_content.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
