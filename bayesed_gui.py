@@ -260,15 +260,6 @@ class BayeSEDGUI:
         # Initialize the Systematic Error widgets to be disabled and grey
         self.toggle_widgets(self.sys_err_widgets, False)
 
-        # Ntest
-        ntest_frame = ttk.Frame(input_frame)
-        ntest_frame.grid(row=11, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
-
-        ttk.Label(ntest_frame, text="Ntest:").pack(side=tk.LEFT, padx=(0, 5))
-        self.ntest = ttk.Entry(ntest_frame, width=10)
-        self.ntest.pack(side=tk.LEFT)
-        CreateToolTip(self.ntest, "Number of objects for test run (leave empty to process all objects)")
-
         # Configure column weights for input_frame
         input_frame.columnconfigure(1, weight=1)
 
@@ -454,6 +445,12 @@ class BayeSEDGUI:
         self.mpi_processes.pack(side=tk.LEFT, padx=(0, 5))
         CreateToolTip(self.mpi_processes, "Number of MPI processes to use (optional, leave empty to use all cores)")
 
+        # Ntest input (moved here)
+        ttk.Label(control_frame, text="Ntest:").pack(side=tk.LEFT, padx=(5, 5))
+        self.ntest = ttk.Entry(control_frame, width=5)
+        self.ntest.pack(side=tk.LEFT, padx=(0, 5))
+        CreateToolTip(self.ntest, "Number of objects for test run (leave empty to process all objects)")
+
         # Run button
         self.run_button = ttk.Button(control_frame, text="Run", command=self.run_bayesed)
         self.run_button.pack(side=tk.LEFT, padx=5)
@@ -464,12 +461,12 @@ class BayeSEDGUI:
 
         # Plot button and FITS file selection
         plot_frame = ttk.Frame(control_frame)
-        plot_frame.pack(side=tk.LEFT, padx=(5, 0))
+        plot_frame.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
 
         ttk.Button(plot_frame, text="Plot", command=self.plot_bestfit).pack(side=tk.LEFT)
         
-        self.fits_file = ttk.Entry(plot_frame, width=20)
-        self.fits_file.pack(side=tk.LEFT, padx=(5, 0))
+        self.fits_file = ttk.Entry(plot_frame, width=40)  # Increased width from 20 to 40
+        self.fits_file.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
         CreateToolTip(self.fits_file, "Path to the FITS file to plot")
 
         ttk.Button(plot_frame, text="Browse", command=self.browse_fits_file).pack(side=tk.LEFT, padx=(5, 0))
@@ -1481,8 +1478,9 @@ class BayeSEDGUI:
             command.extend(["--sys_err_obs", obs_values])
 
         # Ntest
-        if self.ntest.get().strip():
-            command.extend(["--Ntest", self.ntest.get().strip()])
+        ntest = self.ntest.get().strip()
+        if ntest:
+            command.extend(["--Ntest", ntest])
 
         return command
 
