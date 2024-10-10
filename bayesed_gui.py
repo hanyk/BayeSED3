@@ -12,6 +12,7 @@ import psutil
 import signal
 import traceback
 from datetime import datetime
+from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams
 
 class BayeSEDGUI:
     def __init__(self, master):
@@ -1287,7 +1288,7 @@ class BayeSEDGUI:
 
     def generate_command(self):
         # Start with just the Python interpreter
-        command = [sys.executable, "-u", "bayesed.py"]
+        command = []
         
         # Get the number of MPI processes if specified
         np = self.mpi_processes.get().strip()
@@ -1841,9 +1842,6 @@ class BayeSEDGUI:
             self.fits_file.insert(0, relative_path)
 
     def save_script(self):
-        params = self.get_params()
-        script = self.generate_script(params)
-        
         # Get the current timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
@@ -1859,361 +1857,139 @@ class BayeSEDGUI:
         
         if filename:
             with open(filename, 'w') as f:
-                f.write(script)
+                f.write("from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, AGNParams, BigBlueBumpParams, LineParams, AKNNParams, KinParams, CosmologyParams, ZParams\n\n")
+                f.write("def run_bayesed():\n")
+                f.write("    bayesed = BayeSEDInterface(mpi_mode='1')\n\n")
+                f.write("    params = BayeSEDParams(\n")
+                
+                # Basic settings
+                f.write(f"        input_type={self.input_type.get().split()[0]},\n")
+                f.write(f"        input_file='{self.input_file.get()}',\n")
+                f.write(f"        outdir='{self.outdir.get()}',\n")
+                f.write(f"        verbose={self.verbose.get()},\n")
+                
+                # Output settings
+                if self.save_bestfit.get():
+                    f.write(f"        save_bestfit={self.save_bestfit_type.get().split()[0]},\n")
+                if self.save_sample_par.get():
+                    f.write("        save_sample_par=True,\n")
+                if self.save_sample_obs.get():
+                    f.write("        save_sample_obs=True,\n")
+                if self.save_pos_sfh.get():
+                    f.write(f"        save_pos_sfh='{self.save_pos_sfh_ngrid.get()},{self.save_pos_sfh_ilog.get()}',\n")
+                if self.save_pos_spec.get():
+                    f.write("        save_pos_spec=True,\n")
+                if self.save_sample_spec.get():
+                    f.write("        save_sample_spec=True,\n")
+                if self.save_summary.get():
+                    f.write("        save_summary=True,\n")
+                
+                # Galaxy instance settings
+                if self.galaxy_instances:
+                    f.write("        ssp=[")
+                    for instance in self.galaxy_instances:
+                        ssp_values = [widget.get() for widget in instance['ssp']]
+                        f.write(f"SSPParams(igroup={ssp_values[0]}, id={ssp_values[1]}, name='{ssp_values[2]}', iscalable={ssp_values[3]}, k={ssp_values[4]}, f_run={ssp_values[5]}, Nstep={ssp_values[6]}, i0={ssp_values[7]}, i1={ssp_values[8]}, i2={ssp_values[9]}, i3={ssp_values[10]}),")
+                    f.write("],\n")
+                    
+                    f.write("        sfh=[")
+                    for instance in self.galaxy_instances:
+                        sfh_values = [widget.get() for widget in instance['sfh']]
+                        f.write(f"SFHParams(id={sfh_values[0]}, itype_sfh={sfh_values[1]}, itruncated={sfh_values[2]}, itype_ceh={sfh_values[3]}),")
+                    f.write("],\n")
+                    
+                    f.write("        dal=[")
+                    for instance in self.galaxy_instances:
+                        dal_values = [widget.get() for widget in instance['dal']]
+                        f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
+                    f.write("],\n")
+                
+                # Advanced settings
+                if self.use_multinest.get():
+                    multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
+                    f.write(f"        multinest=MultiNestParams({', '.join([f'{k}={v}' for k, v in zip(self.multinest_widgets.keys(), multinest_values)])}),\n")
+                
+                if self.use_sys_err.get():
+                    sys_err_mod_values = [widget.get() for widget in self.sys_err_widgets[:5]]
+                    sys_err_obs_values = [widget.get() for widget in self.sys_err_widgets[5:]]
+                    f.write(f"        sys_err_mod=SysErrParams(iprior_type={sys_err_mod_values[0]}, is_age={sys_err_mod_values[1]}, min={sys_err_mod_values[2]}, max={sys_err_mod_values[3]}, nbin={sys_err_mod_values[4]}),\n")
+                    f.write(f"        sys_err_obs=SysErrParams(iprior_type={sys_err_obs_values[0]}, is_age={sys_err_obs_values[1]}, min={sys_err_obs_values[2]}, max={sys_err_obs_values[3]}, nbin={sys_err_obs_values[4]}),\n")
+                
+                # Other settings
+                if self.filters.get():
+                    f.write(f"        filters='{self.filters.get()}',\n")
+                if self.filters_selected.get():
+                    f.write(f"        filters_selected='{self.filters_selected.get()}',\n")
+                if self.no_photometry_fit.get():
+                    f.write("        no_photometry_fit=True,\n")
+                if self.no_spectra_fit.get():
+                    f.write("        no_spectra_fit=True,\n")
+                if self.unweighted_samples.get():
+                    f.write("        unweighted_samples=True,\n")
+                if self.priors_only.get():
+                    f.write("        priors_only=True,\n")
+                
+                # AGN settings
+                agn_settings = self.get_agn_settings()
+                if agn_settings:
+                    f.write("        # AGN components\n")
+                    agn_components = {
+                        'AGN': [],
+                        'big_blue_bump': [],
+                        'lines1': [],
+                        'aknn': [],
+                        'kin': []
+                    }
+
+                    for agn in agn_settings:
+                        if agn['component_vars']['main_agn']:
+                            agn_components['AGN'].append(f"AGNParams(igroup={agn['agn_igroup']}, id={agn['agn_id']}, AGN='{agn['name']}', iscalable={agn['iscalable']}, imodel={agn['imodel'].split()[0]}, icloudy={agn['icloudy']}, suffix='{agn['suffix']}', w_min={agn['w_min']}, w_max={agn['w_max']}, Nw={agn['nw']})")
+                        
+                        if agn['component_vars']['bbb']:
+                            agn_components['big_blue_bump'].append(f"BigBlueBumpParams(igroup={agn['bbb_igroup']}, id={agn['bbb_id']}, name='{agn['bbb_name']}', iscalable=1, w_min={agn['bbb_w_min']}, w_max={agn['bbb_w_max']}, Nw={agn['bbb_nw']})")
+                        
+                        if agn['component_vars']['blr']:
+                            blr = agn['blr_widgets']
+                            agn_components['lines1'].append(f"LineParams(igroup={blr['igroup']}, id={blr['id']}, name='{blr['name']}', iscalable={blr['iscalable']}, file='{blr['file']}', R={blr['R']}, Nsample={blr['Nsample']}, Nkin={blr['Nkin']})")
+                        
+                        if agn['component_vars']['feii']:
+                            feii = agn['feii_widgets']
+                            agn_components['aknn'].append(f"AKNNParams(igroup={feii['igroup']}, id={feii['id']}, name='{feii['name']}', iscalable={feii['iscalable']}, k={feii['k']}, f_run={feii['f_run']}, eps={feii['eps']}, iRad={feii['iRad']}, iprep={feii['iprep']}, Nstep={feii['Nstep']}, alpha={feii['alpha']})")
+                            kin = agn['kin_widgets']
+                            agn_components['kin'].append(f"KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']})")
+                        
+                        if agn['component_vars']['nlr']:
+                            nlr = agn['nlr_widgets']
+                            agn_components['lines1'].append(f"LineParams(igroup={nlr['igroup']}, id={nlr['id']}, name='{nlr['name']}', iscalable={nlr['iscalable']}, file='{nlr['file']}', R={nlr['R']}, Nsample={nlr['Nsample']}, Nkin={nlr['Nkin']})")
+
+                    for component, params in agn_components.items():
+                        if params:
+                            if component == 'kin':
+                                f.write(f"        kin=[{', '.join(params)}],\n")
+                            else:
+                                f.write(f"        {component}=[{', '.join(params)}],\n")
+
+                # Cosmology settings
+                if self.use_cosmology.get():
+                    f.write(f"        cosmology=CosmologyParams(H0={self.cosmology_params['H0'].get()}, omigaA={self.cosmology_params['omigaA'].get()}, omigam={self.cosmology_params['omigam'].get()}),\n")
+                
+                # IGM model
+                if self.use_igm.get():
+                    f.write(f"        IGM={self.igm_model.get()},\n")
+                
+                # Redshift parameters
+                if self.use_redshift.get():
+                    redshift_values = [widget.get() for widget in self.redshift_widgets]
+                    f.write(f"        z=ZParams(iprior_type={redshift_values[0]}, is_age={redshift_values[1]}, min={redshift_values[2]}, max={redshift_values[3]}, nbin={redshift_values[4]}),\n")
+
+                f.write("    )\n\n")
+                f.write("    print('Running BayeSED...')\n")
+                f.write("    bayesed.run(params)\n")
+                f.write("    print('BayeSED execution completed')\n\n")
+                f.write("if __name__ == '__main__':\n")
+                f.write("    run_bayesed()\n")
+            
             messagebox.showinfo("Save Successful", f"Script saved to {filename}")
-
-    def get_params(self):
-        params = {}
-        
-        # Basic parameters
-        basic_params = [
-            ('input_type', lambda: int(self.input_type.get().split()[0])),
-            ('input_file', self.input_file.get),
-            ('outdir', self.outdir.get),
-            ('verbose', lambda: int(self.verbose.get())),
-            ('save_bestfit', lambda: int(self.save_bestfit.get())),
-            ('filters', self.filters.get),
-            ('filters_selected', self.filters_selected.get),
-            ('suffix', self.suffix.get),
-        ]
-        
-        for key, getter in basic_params:
-            value = getter()
-            if value is not None:
-                params[key] = value
-        
-        # Boolean parameters
-        bool_params = [
-            ('save_sample_par', self.save_sample_par),
-            ('save_sample_obs', self.save_sample_obs),
-            ('save_pos_sfh', self.save_pos_sfh),
-            ('save_pos_spec', self.save_pos_spec),
-            ('save_sample_spec', self.save_sample_spec),
-            ('save_summary', self.save_summary),
-            ('output_mock_spectra', self.output_mock_spectra),
-            ('output_model_absolute_magnitude', self.output_model_absolute_magnitude),
-            ('output_pos_obs', self.output_pos_obs),
-            ('no_photometry_fit', self.no_photometry_fit),
-            ('no_spectra_fit', self.no_spectra_fit),
-            ('unweighted_samples', self.unweighted_samples),
-            ('priors_only', self.priors_only),
-        ]
-        
-        for key, var in bool_params:
-            params[key] = var.get()
-        
-        # Output mock photometry
-        params['output_mock_photometry'] = int(self.output_mock_photometry_type.get().split()[0]) if self.output_mock_photometry.get() else None
-        
-        # Galaxy instances
-        for model_type in ['ssp', 'sfh', 'dal', 'dem']:
-            params[model_type] = []
-            for instance in self.galaxy_instances:
-                values = [widget.get() for widget in instance[model_type]]
-                if any(values):
-                    if model_type == 'sfh':
-                        sfh_values = values[:4]  # id, itype_sfh, itruncated, itype_ceh
-                        np_sfh_values = values[4:]  # np_prior_type, np_interp_method, np_num_bins, np_regul
-                        params[model_type].append(sfh_values)
-                        if int(sfh_values[1]) == 9:  # If itype_sfh is 9 (Nonparametric)
-                            params['np_sfh'] = np_sfh_values
-                    else:
-                        params[model_type].append(values)
-        
-        # AGN instances
-        for model_type in ['AGN', 'big_blue_bump', 'lines1', 'aknn']:
-            params[model_type] = []
-        params['kin'] = None
-        
-        for instance in self.agn_instances:
-            if instance['component_vars']['main_agn'].get():
-                params['AGN'].append([
-                    instance['agn_igroup'].get(),
-                    instance['agn_id'].get(),
-                    instance['name'].get(),
-                    instance['iscalable'].get(),
-                    instance['imodel'].get().split()[0],
-                    instance['icloudy'].get(),
-                    instance['suffix'].get(),
-                    instance['w_min'].get(),
-                    instance['w_max'].get(),
-                    instance['nw'].get()
-                ])
-            
-            if instance['component_vars']['bbb'].get():
-                params['big_blue_bump'].append([
-                    instance['bbb_igroup'].get(),
-                    instance['bbb_id'].get(),
-                    instance['bbb_name'].get(),
-                    '1',
-                    instance['bbb_w_min'].get(),
-                    instance['bbb_w_max'].get(),
-                    instance['bbb_nw'].get()
-                ])
-            
-            if instance['component_vars']['blr'].get():
-                params['lines1'].append([widget.get() for widget in instance['blr_widgets'].values()])
-            
-            if instance['component_vars']['feii'].get():
-                params['aknn'].append([widget.get() for widget in instance['feii_widgets'].values()])
-                params['kin'] = [
-                    instance['feii_widgets']['id'].get(),
-                    instance['kin_widgets']['velscale'].get(),
-                    instance['kin_widgets']['gh_cont'].get(),
-                    instance['kin_widgets']['gh_emis'].get()
-                ]
-            
-            if instance['component_vars']['nlr'].get():
-                params['lines1'].append([widget.get() for widget in instance['nlr_widgets'].values()])
-        
-        # Advanced settings
-        if self.use_multinest.get():
-            params['multinest'] = [widget.get() for widget in self.multinest_widgets.values()]
-        
-        if self.use_nnlm.get():
-            params['NNLM'] = [widget.get() for widget in self.nnlm_widgets.values()]
-        
-        if self.use_ndumper.get():
-            params['Ndumper'] = [widget.get() for widget in self.ndumper_widgets.values()]
-        
-        if self.use_gsl.get():
-            params['gsl_integration_qag'] = [self.gsl_widgets[key].get() for key in ['integration_epsabs', 'integration_epsrel', 'integration_limit']]
-            params['gsl_multifit_robust'] = [self.gsl_widgets[key].get() for key in ['multifit_type', 'multifit_tune']]
-        
-        if self.use_misc.get():
-            for key, widget in self.misc_widgets.items():
-                value = widget.get()
-                if value:
-                    params[key] = value
-        
-        # Cosmology parameters
-        if self.use_cosmology.get():
-            params['cosmology'] = [self.cosmology_params[key].get() for key in ['H0', 'omigaA', 'omigam']]
-        
-        # IGM model
-        if self.use_igm.get():
-            params['IGM'] = self.igm_model.get()
-        
-        # Redshift parameters
-        if self.use_redshift.get():
-            params['z'] = [widget.get() for widget in self.redshift_widgets]
-        
-        # SFR settings
-        if self.use_sfr.get():
-            params['SFR_over'] = self.sfr_myr_entry.get()
-        
-        # SNR settings
-        if self.use_snr.get():
-            params['SNRmin1'] = self.snrmin1.get()
-            params['SNRmin2'] = self.snrmin2.get()
-        
-        # Systematic error settings
-        if self.use_sys_err.get():
-            params['sys_err_mod'] = [widget.get() for widget in self.sys_err_widgets[:5]]
-            params['sys_err_obs'] = [widget.get() for widget in self.sys_err_widgets[5:]]
-        
-        # Build SED library setting
-        if self.use_build_sedlib.get():
-            params['build_sedlib'] = self.build_sedlib.get().split()[0]
-        
-        # Output SFH setting
-        if self.use_output_sfh.get():
-            params['output_SFH'] = [self.output_sfh_ntimes.get(), self.output_sfh_ilog.get()]
-        
-        return params
-
-    def generate_script(self, params):
-        script = """from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams, RenameParams, CosmologyParams, OutputSFHParams, SFROverParams, SNRmin1Params, SNRmin2Params
-import os
-import sys
-
-def run_bayesed():
-    bayesed = BayeSEDInterface(mpi_mode='1')
-
-    params = BayeSEDParams(
-"""
-        
-        # Basic parameters
-        basic_params = {
-            'input_type': 'input_type',
-            'input_file': 'input_file',
-            'outdir': 'outdir',
-            'verbose': 'verbose',
-            'save_bestfit': 'save_bestfit',
-            'filters': 'filters',
-            'filters_selected': 'filters_selected',
-            'suffix': 'suffix',
-        }
-        for key, param_name in basic_params.items():
-            if key in params:
-                value = params[key]
-                if isinstance(value, str):
-                    script += f"        {param_name}='{value}',\n"
-                else:
-                    script += f"        {param_name}={value},\n"
-        
-        # Boolean parameters
-        bool_params = {
-            'save_sample_par': 'save_sample_par',
-            'save_sample_obs': 'save_sample_obs',
-            'save_pos_sfh': 'save_pos_sfh',
-            'save_pos_spec': 'save_pos_spec',
-            'save_sample_spec': 'save_sample_spec',
-            'save_summary': 'save_summary',
-            'output_mock_spectra': 'output_mock_spectra',
-            'output_model_absolute_magnitude': 'output_model_absolute_magnitude',
-            'output_pos_obs': 'output_pos_obs',
-            'no_photometry_fit': 'no_photometry_fit',
-            'no_spectra_fit': 'no_spectra_fit',
-            'unweighted_samples': 'unweighted_samples',
-            'priors_only': 'priors_only',
-        }
-        for key, param_name in bool_params.items():
-            script += f"        {param_name}={params[key]},\n"
-        
-        # Output mock photometry
-        if params['output_mock_photometry'] is not None:
-            script += f"        output_mock_photometry={params['output_mock_photometry']},\n"
-        
-        # Galaxy models
-        model_classes = {
-            'ssp': ('SSPParams', ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'Nstep', 'i0', 'i1', 'i2', 'i3']),
-            'sfh': ('SFHParams', ['id', 'itype_sfh', 'itruncated', 'itype_ceh']),
-            'dal': ('DALParams', ['id', 'con_eml_tot', 'ilaw']),
-            'dem': ('GreybodyParams', ['igroup', 'id', 'name', 'iscalable', 'ithick', 'w_min', 'w_max', 'Nw'])
-        }
-        for model_type, (class_name, param_names) in model_classes.items():
-            if model_type in params and params[model_type]:
-                script += f"        {model_type}=[\n"
-                for instance in params[model_type]:
-                    script += f"            {class_name}(\n"
-                    for param_name, value in zip(param_names, instance):
-                        if isinstance(value, str):
-                            script += f"                {param_name}='{value}',\n"
-                        else:
-                            script += f"                {param_name}={value},\n"
-                    script += "            ),\n"
-                script += "        ],\n"
-        
-        # Add NP_SFH parameters if present
-        if 'np_sfh' in params:
-            script += "        np_sfh=NPSFHParams(\n"
-            np_sfh_param_names = ['prior_type', 'interp_method', 'num_bins', 'regul']
-            for param_name, value in zip(np_sfh_param_names, params['np_sfh']):
-                script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        
-        # AGN models
-        agn_classes = {
-            'AGN': ('AGNParams', ['igroup', 'id', 'AGN', 'iscalable', 'imodel', 'icloudy', 'suffix', 'w_min', 'w_max', 'Nw']),
-            'big_blue_bump': ('BigBlueBumpParams', ['igroup', 'id', 'name', 'iscalable', 'w_min', 'w_max', 'Nw']),
-            'lines1': ('LineParams', ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']),
-            'aknn': ('AKNNParams', ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha'])
-        }
-        for model_type, (class_name, param_names) in agn_classes.items():
-            if model_type in params and params[model_type]:
-                script += f"        {model_type}=[\n"
-                for instance in params[model_type]:
-                    script += f"            {class_name}(\n"
-                    for param_name, value in zip(param_names, instance):
-                        if isinstance(value, str):
-                            script += f"                {param_name}='{value}',\n"
-                        else:
-                            script += f"                {param_name}={value},\n"
-                    script += "            ),\n"
-                script += "        ],\n"
-        
-        # Kinematic parameters
-        if 'kin' in params and params['kin']:
-            script += "        kin=KinParams(\n"
-            kin_params = ['id', 'velscale', 'num_gauss_hermites_continuum', 'num_gauss_hermites_emission']
-            for param_name, value in zip(kin_params, params['kin']):
-                if value:
-                    script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        
-        # Advanced settings
-        advanced_classes = {
-            'multinest': ('MultiNestParams', ['INS', 'mmodal', 'ceff', 'nlive', 'efr', 'tol', 'updInt', 'Ztol', 'seed', 'fb', 'resume', 'outfile', 'logZero', 'maxiter', 'acpt']),
-            'NNLM': ('NNLMParams', ['method', 'Niter1', 'tol1', 'Niter2', 'tol2', 'p1', 'p2']),
-            'Ndumper': ('NdumperParams', ['max_number', 'iconverged_min', 'Xmin_squared_Nd']),
-            'gsl_integration_qag': ('GSLIntegrationQAGParams', ['epsabs', 'epsrel', 'limit']),
-            'gsl_multifit_robust': ('GSLMultifitRobustParams', ['type', 'tune'])
-        }
-        for setting, (class_name, param_names) in advanced_classes.items():
-            if setting in params and params[setting]:
-                script += f"        {setting}={class_name}(\n"
-                for param_name, value in zip(param_names, params[setting]):
-                    if value:
-                        script += f"            {param_name}={value},\n"
-                script += "        ),\n"
-        
-        # Cosmology parameters
-        if 'cosmology' in params:
-            script += "        cosmology=CosmologyParams(\n"
-            cosmology_params = ['H0', 'omigaA', 'omigam']
-            for param_name, value in zip(cosmology_params, params['cosmology']):
-                if value:
-                    script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        
-        # IGM model
-        if 'IGM' in params:
-            script += f"        IGM={params['IGM']},\n"
-        
-        # Redshift parameters
-        if 'z' in params:
-            script += "        z=ZParams(\n"
-            z_params = ['iprior_type', 'is_age', 'min', 'max', 'nbin']
-            for param_name, value in zip(z_params, params['z']):
-                if value:
-                    script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        
-        # SFR settings
-        if 'SFR_over' in params:
-            script += f"        SFR_over=SFROverParams(past_Myr1={params['SFR_over'].split(',')[0]}, past_Myr2={params['SFR_over'].split(',')[1]}),\n"
-        
-        # SNR settings
-        if 'SNRmin1' in params:
-            script += f"        SNRmin1=SNRmin1Params(phot={params['SNRmin1'].split(',')[0]}, spec={params['SNRmin1'].split(',')[1]}),\n"
-        if 'SNRmin2' in params:
-            script += f"        SNRmin2=SNRmin2Params(phot={params['SNRmin2'].split(',')[0]}, spec={params['SNRmin2'].split(',')[1]}),\n"
-        
-        # Systematic error settings
-        sys_err_params = ['iprior_type', 'is_age', 'min', 'max', 'nbin']
-        if 'sys_err_mod' in params:
-            script += "        sys_err_mod=SysErrParams(\n"
-            for param_name, value in zip(sys_err_params, params['sys_err_mod']):
-                if value:
-                    script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        if 'sys_err_obs' in params:
-            script += "        sys_err_obs=SysErrParams(\n"
-            for param_name, value in zip(sys_err_params, params['sys_err_obs']):
-                if value:
-                    script += f"            {param_name}={value},\n"
-            script += "        ),\n"
-        
-        # Build SED library setting
-        if 'build_sedlib' in params:
-            script += f"        build_sedlib={params['build_sedlib']},\n"
-        
-        # Output SFH setting
-        if 'output_SFH' in params:
-            script += f"        output_SFH=OutputSFHParams(ntimes={params['output_SFH'][0]}, ilog={params['output_SFH'][1]}),\n"
-        
-        script += """    )
-
-    print('Running BayeSED...')
-    bayesed.run(params)
-    print('BayeSED execution completed')
-
-if __name__ == '__main__':
-    run_bayesed()
-"""
-        
-        return script
 
 # Add the following tooltip class if not already present
 class CreateToolTip(object):

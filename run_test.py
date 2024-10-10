@@ -85,12 +85,12 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
             name='FeII',
             iscalable=1
         )]
-        params.kin = KinParams(
+        params.kin = [KinParams(
             id=3,
             velscale=10,
             num_gauss_hermites_continuum=2,
             num_gauss_hermites_emission=0
-        )
+        )]
 
     print(f"Running BayeSED for {obj} object...")
     bayesed.run(params)

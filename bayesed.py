@@ -414,7 +414,7 @@ class BayeSEDParams:
     multinest: Optional[MultiNestParams] = None
     gsl_integration_qag: Optional[GSLIntegrationQAGParams] = None
     gsl_multifit_robust: Optional[GSLMultifitRobustParams] = None
-    kin: Optional[KinParams] = None
+    kin: List[KinParams] = field(default_factory=list)
 
     # Other parameters
     rename: List[RenameParams] = field(default_factory=list)
@@ -746,7 +746,8 @@ class BayeSEDInterface:
             args.extend(['--IGM', str(params.IGM)])
         
         if params.kin:
-            args.extend(['--kin', self._format_kin_params(params.kin)])
+            for kin_param in params.kin:
+                args.extend(['--kin', self._format_kin_params(kin_param)])
         
         if params.logZero:
             args.extend(['--logZero', str(params.logZero)])
@@ -826,7 +827,8 @@ class BayeSEDInterface:
         if params.IGM is not None:
             args.extend(['--IGM', str(params.IGM)])
         if params.kin:
-            args.extend(['--kin', self._format_kin_params(params.kin)])
+            for kin_param in params.kin:
+                args.extend(['--kin', self._format_kin_params(kin_param)])
         if params.LineList:
             args.extend(['--LineList', self._format_LineList_params(params.LineList)])
         if params.logZero is not None:
@@ -918,8 +920,8 @@ class BayeSEDInterface:
     def _format_gsl_multifit_robust_params(self, gsl_multifit_robust_params):
         return f"{gsl_multifit_robust_params.type},{gsl_multifit_robust_params.tune}"
 
-    def _format_kin_params(self, KinParams):
-        return f"{KinParams.id},{KinParams.velscale},{KinParams.num_gauss_hermites_continuum},{KinParams.num_gauss_hermites_emission}"
+    def _format_kin_params(self, kin_params):
+        return f"{kin_params.id},{kin_params.velscale},{kin_params.num_gauss_hermites_continuum},{kin_params.num_gauss_hermites_emission}"
 
     def _format_LineList_params(self, LineList_params):
         return f"{LineList_params.file},{LineList_params.type}"
