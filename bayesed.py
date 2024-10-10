@@ -445,12 +445,14 @@ class BayeSEDParams:
     export: Optional[str] = None
 
 class BayeSEDInterface:
-    def __init__(self, mpi_mode='1', openmpi_mirror=None):
+    def __init__(self, mpi_mode='1', openmpi_mirror=None, np=None, Ntest=None):
         self.mpi_mode = f"mn_{mpi_mode}"
         self.openmpi_mirror = openmpi_mirror
+        self.np = np
+        self.Ntest = Ntest
         self._get_system_info()
         self.mpi_cmd = self._setup_openmpi()
-        self.num_processes = self._get_max_threads()
+        self.num_processes = self._get_max_threads() if np is None else np
         self.executable_path = self._get_executable()
 
     def _get_system_info(self):
@@ -551,23 +553,27 @@ class BayeSEDInterface:
         
         cmd = [self.mpi_cmd, '--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
         
+        # Add Ntest if specified
+        if self.Ntest is not None:
+            cmd.extend(['--Ntest', str(self.Ntest)])
+        
         print(f"Executing command: {' '.join(cmd)}")
         
         try:
             self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
             
             for line in iter(self.process.stdout.readline, ''):
-                print(line, end='', flush=True)  # Added 'flush=True' to ensure immediate output
+                print(line, end='', flush=True)
             
             self.process.wait()
             
             if self.process.returncode == 0:
-                print("BayeSED execution completed\n", flush=True)  # Added 'flush=True'
+                print("BayeSED execution completed\n", flush=True)
             else:
-                print(f"BayeSED execution failed, return code: {self.process.returncode}\n", flush=True)  # Added 'flush=True'
+                print(f"BayeSED execution failed, return code: {self.process.returncode}\n", flush=True)
         
         except Exception as e:
-            print(f"Error: {str(e)}\n", flush=True)  # Added 'flush=True'
+            print(f"Error: {str(e)}\n", flush=True)
 
     def _params_to_args(self, params):
         if isinstance(params, list):

@@ -3,8 +3,8 @@ import os
 import sys
 import subprocess
 
-def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
-    bayesed = BayeSEDInterface(mpi_mode='1')
+def run_bayesed_example(obj, input_dir='observation/test', output_dir='output', np=None, Ntest=None):
+    bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
     params = BayeSEDParams(
         input_type=0,  # 0: Input file contains observed photometric SEDs with flux in uJy
@@ -95,8 +95,8 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output'):
     print(f"Running BayeSED for {obj} object...")
     bayesed.run(params)
 
-def run_bayesed_test1(survey, obs_file):
-    bayesed = BayeSEDInterface(mpi_mode='1')
+def run_bayesed_test1(survey, obs_file, np=None, Ntest=None):
+    bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
     params = BayeSEDParams(
         input_type=1,  # 1: Input file contains observed photometric SEDs with AB magnitude
@@ -136,8 +136,8 @@ def run_bayesed_test1(survey, obs_file):
     print(f"Running BayeSED for survey: {survey}, observation file: {obs_file}")
     bayesed.run(params)
 
-def run_bayesed_test2():
-    bayesed = BayeSEDInterface(mpi_mode='1')
+def run_bayesed_test2(np=None, Ntest=None):
+    bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
     params = BayeSEDParams(
         input_type=0,
@@ -220,17 +220,31 @@ if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[2] == 'plot':
         plot = True
 
+    np = None
+    Ntest = None
+
+    # Check for np and Ntest arguments
+    if '--np' in sys.argv:
+        np_index = sys.argv.index('--np')
+        if np_index + 1 < len(sys.argv):
+            np = int(sys.argv[np_index + 1])
+    
+    if '--Ntest' in sys.argv:
+        ntest_index = sys.argv.index('--Ntest')
+        if ntest_index + 1 < len(sys.argv):
+            Ntest = int(sys.argv[ntest_index + 1])
+
     if obj == 'test1':
         surveys = ['CSST']
         obs_files = ['observation/test1/test_inoise1.txt']
         for survey in surveys:
             for obs_file in obs_files:
-                run_bayesed_test1(survey, obs_file)
+                run_bayesed_test1(survey, obs_file, np=np, Ntest=Ntest)
     elif obj == 'test2':
-        run_bayesed_test2()
+        run_bayesed_test2(np=np, Ntest=Ntest)
     else:
         # Run BayeSED example
-        run_bayesed_example(obj)
+        run_bayesed_example(obj, np=np, Ntest=Ntest)
 
     if plot:
         plot_results(obj, 'output')

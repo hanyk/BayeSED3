@@ -1528,9 +1528,12 @@ class BayeSEDGUI:
             
             self.update_output("Executing command: " + " ".join(command) + "\n")
             
+            np = self.mpi_processes.get().strip()
+            ntest = self.ntest.get().strip()
+            
             self.output_queue = queue.Queue()
             self.stop_output_thread = threading.Event()
-            threading.Thread(target=self.execute_command, args=(command,), daemon=True).start()
+            threading.Thread(target=self.execute_command, args=(command, np, ntest), daemon=True).start()
             self.master.after(100, self.check_output_queue)
 
             # Change button text to "Stop"
@@ -1570,7 +1573,7 @@ class BayeSEDGUI:
         
         self.update_output("BayeSED execution stopped by user.\n")
 
-    def execute_command(self, command):
+    def execute_command(self, command, np, ntest):
         try:
             # Use subprocess.STARTUPINFO to hide console window on Windows
             startupinfo = None
@@ -1578,15 +1581,8 @@ class BayeSEDGUI:
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
-            self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
-                                             universal_newlines=True, bufsize=1, startupinfo=startupinfo)
-            
-            for line in iter(self.process.stdout.readline, ''):
-                if self.stop_output_thread.is_set():
-                    break
-                self.output_queue.put(line)
-            
-            self.process.wait()
+            bayesed = BayeSEDInterface(mpi_mode='1', np=int(np) if np else None, Ntest=int(ntest) if ntest else None)
+            bayesed.run(command)
             
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
@@ -1863,7 +1859,19 @@ class BayeSEDGUI:
                 f.write("                     GSLIntegrationQAGParams, GSLMultifitRobustParams)\n\n")
 
                 f.write("def run_bayesed():\n")
-                f.write("    bayesed = BayeSEDInterface(mpi_mode='1')\n\n")
+                
+                # Get the number of MPI processes and Ntest
+                np = self.mpi_processes.get().strip()
+                ntest = self.ntest.get().strip()
+                
+                # Initialize BayeSEDInterface with np and Ntest
+                f.write(f"    bayesed = BayeSEDInterface(mpi_mode='1'")
+                if np:
+                    f.write(f", np={np}")
+                if ntest:
+                    f.write(f", Ntest={ntest}")
+                f.write(")\n\n")
+                
                 f.write("    params = BayeSEDParams(\n")
                 
                 # Basic settings
