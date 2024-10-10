@@ -1857,7 +1857,11 @@ class BayeSEDGUI:
         
         if filename:
             with open(filename, 'w') as f:
-                f.write("from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, AGNParams, BigBlueBumpParams, LineParams, AKNNParams, KinParams, CosmologyParams, ZParams\n\n")
+                f.write("from bayesed import (BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams,\n")
+                f.write("                     MultiNestParams, SysErrParams, AGNParams, BigBlueBumpParams, LineParams,\n")
+                f.write("                     AKNNParams, KinParams, CosmologyParams, ZParams, NNLMParams, NdumperParams,\n")
+                f.write("                     GSLIntegrationQAGParams, GSLMultifitRobustParams)\n\n")
+
                 f.write("def run_bayesed():\n")
                 f.write("    bayesed = BayeSEDInterface(mpi_mode='1')\n\n")
                 f.write("    params = BayeSEDParams(\n")
@@ -1904,11 +1908,6 @@ class BayeSEDGUI:
                         f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
                     f.write("],\n")
                 
-                # Advanced settings
-                if self.use_multinest.get():
-                    multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
-                    f.write(f"        multinest=MultiNestParams({', '.join([f'{k}={v}' for k, v in zip(self.multinest_widgets.keys(), multinest_values)])}),\n")
-                
                 if self.use_sys_err.get():
                     sys_err_mod_values = [widget.get() for widget in self.sys_err_widgets[:5]]
                     sys_err_obs_values = [widget.get() for widget in self.sys_err_widgets[5:]]
@@ -1928,64 +1927,111 @@ class BayeSEDGUI:
                     f.write("        unweighted_samples=True,\n")
                 if self.priors_only.get():
                     f.write("        priors_only=True,\n")
+                f.write("    )\n\n")  # Close the BayeSEDParams initialization
                 
                 # AGN settings
                 agn_settings = self.get_agn_settings()
                 if agn_settings:
-                    f.write("        # AGN components\n")
-                    agn_components = {
-                        'AGN': [],
-                        'big_blue_bump': [],
-                        'lines1': [],
-                        'aknn': [],
-                        'kin': []
-                    }
-
+                    f.write("    # AGN components\n")
                     for agn in agn_settings:
                         if agn['component_vars']['main_agn']:
-                            agn_components['AGN'].append(f"AGNParams(igroup={agn['agn_igroup']}, id={agn['agn_id']}, AGN='{agn['name']}', iscalable={agn['iscalable']}, imodel={agn['imodel'].split()[0]}, icloudy={agn['icloudy']}, suffix='{agn['suffix']}', w_min={agn['w_min']}, w_max={agn['w_max']}, Nw={agn['nw']})")
+                            f.write(f"    params.AGN = [AGNParams(igroup={agn['agn_igroup']}, id={agn['agn_id']}, name='{agn['name']}', iscalable={agn['iscalable']}, imodel={agn['imodel'].split()[0]}, icloudy={agn['icloudy']}, suffix='{agn['suffix']}', w_min={agn['w_min']}, w_max={agn['w_max']}, Nw={agn['nw']})]\n")
                         
                         if agn['component_vars']['bbb']:
-                            agn_components['big_blue_bump'].append(f"BigBlueBumpParams(igroup={agn['bbb_igroup']}, id={agn['bbb_id']}, name='{agn['bbb_name']}', iscalable=1, w_min={agn['bbb_w_min']}, w_max={agn['bbb_w_max']}, Nw={agn['bbb_nw']})")
+                            f.write(f"    params.big_blue_bump = [BigBlueBumpParams(igroup={agn['bbb_igroup']}, id={agn['bbb_id']}, name='{agn['bbb_name']}', iscalable=1, w_min={agn['bbb_w_min']}, w_max={agn['bbb_w_max']}, Nw={agn['bbb_nw']})]\n")
                         
                         if agn['component_vars']['blr']:
                             blr = agn['blr_widgets']
-                            agn_components['lines1'].append(f"LineParams(igroup={blr['igroup']}, id={blr['id']}, name='{blr['name']}', iscalable={blr['iscalable']}, file='{blr['file']}', R={blr['R']}, Nsample={blr['Nsample']}, Nkin={blr['Nkin']})")
+                            f.write(f"    params.lines1 = [LineParams(igroup={blr['igroup']}, id={blr['id']}, name='{blr['name']}', iscalable={blr['iscalable']}, file='{blr['file']}', R={blr['R']}, Nsample={blr['Nsample']}, Nkin={blr['Nkin']})]\n")
                         
                         if agn['component_vars']['feii']:
                             feii = agn['feii_widgets']
-                            agn_components['aknn'].append(f"AKNNParams(igroup={feii['igroup']}, id={feii['id']}, name='{feii['name']}', iscalable={feii['iscalable']}, k={feii['k']}, f_run={feii['f_run']}, eps={feii['eps']}, iRad={feii['iRad']}, iprep={feii['iprep']}, Nstep={feii['Nstep']}, alpha={feii['alpha']})")
+                            f.write(f"    params.aknn = [AKNNParams(igroup={feii['igroup']}, id={feii['id']}, name='{feii['name']}', iscalable={feii['iscalable']}, k={feii['k']}, f_run={feii['f_run']}, eps={feii['eps']}, iRad={feii['iRad']}, iprep={feii['iprep']}, Nstep={feii['Nstep']}, alpha={feii['alpha']})]\n")
                             kin = agn['kin_widgets']
-                            agn_components['kin'].append(f"KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']})")
+                            f.write(f"    params.kin = [KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']})]\n")
                         
                         if agn['component_vars']['nlr']:
                             nlr = agn['nlr_widgets']
-                            agn_components['lines1'].append(f"LineParams(igroup={nlr['igroup']}, id={nlr['id']}, name='{nlr['name']}', iscalable={nlr['iscalable']}, file='{nlr['file']}', R={nlr['R']}, Nsample={nlr['Nsample']}, Nkin={nlr['Nkin']})")
-
-                    for component, params in agn_components.items():
-                        if params:
-                            if component == 'kin':
-                                f.write(f"        kin=[{', '.join(params)}],\n")
-                            else:
-                                f.write(f"        {component}=[{', '.join(params)}],\n")
+                            f.write(f"    params.lines1.append(LineParams(igroup={nlr['igroup']}, id={nlr['id']}, name='{nlr['name']}', iscalable={nlr['iscalable']}, file='{nlr['file']}', R={nlr['R']}, Nsample={nlr['Nsample']}, Nkin={nlr['Nkin']}))\n")
 
                 # Cosmology settings
+                f.write("\n\n    # Cosmology settings\n")
                 if self.use_cosmology.get():
-                    f.write(f"        cosmology=CosmologyParams(H0={self.cosmology_params['H0'].get()}, omigaA={self.cosmology_params['omigaA'].get()}, omigam={self.cosmology_params['omigam'].get()}),\n")
-                
-                # IGM model
-                if self.use_igm.get():
-                    f.write(f"        IGM={self.igm_model.get()},\n")
-                
-                # Redshift parameters
-                if self.use_redshift.get():
-                    redshift_values = [widget.get() for widget in self.redshift_widgets]
-                    f.write(f"        z=ZParams(iprior_type={redshift_values[0]}, is_age={redshift_values[1]}, min={redshift_values[2]}, max={redshift_values[3]}, nbin={redshift_values[4]}),\n")
+                    f.write(f"    params.cosmology = CosmologyParams(\n")
+                    f.write(f"        H0={self.cosmology_params['H0'].get()},\n")
+                    f.write(f"        omigaA={self.cosmology_params['omigaA'].get()},\n")
+                    f.write(f"        omigam={self.cosmology_params['omigam'].get()}\n")
+                    f.write(f"    )\n\n")
 
-                f.write("    )\n\n")
-                f.write("    print('Running BayeSED...')\n")
+                # IGM model
+                f.write("    # IGM model\n")
+                if self.use_igm.get():
+                    f.write(f"    params.IGM = {self.igm_model.get()}\n\n")
+
+                # Redshift parameters
+                f.write("    # Redshift parameters\n")
+                if self.use_redshift.get():
+                    f.write(f"    params.z = ZParams(\n")
+                    f.write(f"        iprior_type={self.redshift_params['iprior_type'].get()},\n")
+                    f.write(f"        is_age={self.redshift_params['is_age'].get()},\n")
+                    f.write(f"        min={self.redshift_params['min'].get()},\n")
+                    f.write(f"        max={self.redshift_params['max'].get()},\n")
+                    f.write(f"        nbin={self.redshift_params['nbin'].get()}\n")
+                    f.write(f"    )\n\n")
+
+                # Advanced settings
+                if self.use_multinest.get():
+                    f.write("    params.multinest = MultiNestParams(\n")
+                    for i, (key, widget) in enumerate(self.multinest_widgets.items()):
+                        f.write(f"        {key}={widget.get()}")
+                        if i < len(self.multinest_widgets) - 1:
+                            f.write(",")
+                        f.write("\n")
+                    f.write("    )\n\n")
+
+                if self.use_nnlm.get():
+                    f.write("    params.NNLM = NNLMParams(\n")
+                    for i, (key, widget) in enumerate(self.nnlm_widgets.items()):
+                        f.write(f"        {key}={widget.get()}")
+                        if i < len(self.nnlm_widgets) - 1:
+                            f.write(",")
+                        f.write("\n")
+                    f.write("    )\n\n")
+
+                if self.use_ndumper.get():
+                    f.write("    params.Ndumper = NdumperParams(\n")
+                    for i, (key, widget) in enumerate(self.ndumper_widgets.items()):
+                        f.write(f"        {key}={widget.get()}")
+                        if i < len(self.ndumper_widgets) - 1:
+                            f.write(",")
+                        f.write("\n")
+                    f.write("    )\n\n")
+
+                if self.use_gsl.get():
+                    f.write("    params.gsl_integration_qag = GSLIntegrationQAGParams(\n")
+                    gsl_int_params = ["epsabs", "epsrel", "limit"]
+                    for i, key in enumerate(gsl_int_params):
+                        f.write(f"        {key}={self.gsl_widgets[f'integration_{key}'].get()}")
+                        if i < len(gsl_int_params) - 1:
+                            f.write(",")
+                        f.write("\n")
+                    f.write("    )\n")
+                    f.write("    params.gsl_multifit_robust = GSLMultifitRobustParams(\n")
+                    f.write(f"        type='{self.gsl_widgets['multifit_type'].get()}',\n")
+                    f.write(f"        tune={self.gsl_widgets['multifit_tune'].get()}\n")
+                    f.write("    )\n\n")
+
+                if self.use_misc.get():
+                    for key, widget in self.misc_widgets.items():
+                        value = widget.get()
+                        if value:
+                            if key == 'cl':
+                                f.write(f"    params.cl = '{value}'\n")
+                            else:
+                                f.write(f"    params.{key} = {value}\n")
+                    f.write("\n")
+
                 f.write("    bayesed.run(params)\n")
-                f.write("    print('BayeSED execution completed')\n\n")
                 f.write("if __name__ == '__main__':\n")
                 f.write("    run_bayesed()\n")
             

@@ -28,7 +28,7 @@ class AGNParams:
     """
     igroup: int  # Group ID
     id: int  # Model ID
-    AGN: str  # AGN model type (qsosed|agnsed|fagnsed|relagn|relqso|agnslim)
+    name: str  # AGN model type (qsosed|agnsed|fagnsed|relagn|relqso|agnslim)
     iscalable: int  # Whether the model is scalable (0: No, 1: Yes)
     imodel: int  # Model subtype
     icloudy: int  # Cloudy model flag
@@ -255,9 +255,9 @@ class MultiNestParams:
     """
     Parameters for MultiNest.
     """
-    INS: bool = True  # Importance Nested Sampling flag
-    mmodal: bool = False  # Multimodal flag
-    ceff: bool = False  # Constant efficiency mode flag
+    INS: int = 1  # Importance Nested Sampling flag
+    mmodal: int = 0  # Multimodal flag
+    ceff: int = 0  # Constant efficiency mode flag
     nlive: int = 100  # Number of live points
     efr: float = 0.1  # Sampling efficiency
     tol: float = 0.5  # Tolerance
@@ -265,8 +265,8 @@ class MultiNestParams:
     Ztol: float = -1e90  # Evidence tolerance
     seed: int = 1  # Random seed
     fb: int = 0  # Feedback level
-    resume: bool = False  # Resume from a previous run
-    outfile: bool = False  # Write output files
+    resume: int = 0  # Resume from a previous run
+    outfile: int = 0  # Write output files
     logZero: float = -1e90  # Log of Zero
     maxiter: int = 100000  # Maximum number of iterations
     acpt: float = 0.01  # Acceptance rate
