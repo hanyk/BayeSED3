@@ -21,7 +21,7 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         
         # Define a standard font
-        self.standard_font = ('Courier', 12)
+        self.standard_font = ('Helvetica', 12)
         
         # Apply the standard font to all ttk widgets
         style = ttk.Style()
@@ -58,6 +58,11 @@ class BayeSEDGUI:
         self.use_output_sfh = tk.BooleanVar(value=False)
         self.use_sys_err = tk.BooleanVar(value=False)
         self.sys_err_widgets = []
+        
+        # Add these lines to initialize use_dal, use_dem, and use_kin
+        self.use_dal = tk.BooleanVar(value=False)
+        self.use_dem = tk.BooleanVar(value=False)
+        self.use_kin = tk.BooleanVar(value=False)
         
         # Initialize other necessary variables
         self.redshift_widgets = []
@@ -229,7 +234,7 @@ class BayeSEDGUI:
         sys_err_content.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
         self.sys_err_widgets = []
-        for i, label in enumerate(["Model", "Obs"]):
+        for i, label in enumerate(["Mod", "Obs"]):
             ttk.Label(sys_err_content, text=f"{label}:").grid(row=i, column=0, sticky=tk.W, padx=(5, 2))
             widgets = []
             for j, param in enumerate(["iprior_type", "is_age", "min", "max", "nbin"]):
@@ -630,13 +635,15 @@ class BayeSEDGUI:
             if param == 'id':
                 sfh_id_widget = widget
                 sfh_id_widget.config(state='readonly')
+            else:
+                widget.config(state='normal')  # Ensure other widgets are editable
 
         # Add tooltips for SFH parameters
         sfh_tooltips = {
             "id": "Unique ID for the SFH component",
-            "itype_sfh": "SFH type (0-9)",
-            "itruncated": "Truncation flag (0: No, 1: Yes)",
-            "itype_ceh": "Chemical evolution history type",
+            "itype_sfh": "SFH type (0-9)\n0: Instantaneous burst\n1: Constant\n2: Exponentially declining\n3: Exponentially increasing\n4: Single burst of length tau\n5: Delayed\n6: Beta\n7: Lognormal\n8: double power-law\n9: Nonparametric",
+            "itruncated": "Truncation flag (0: Not truncated, 1: Truncated)",
+            "itype_ceh": "Chemical evolution history type (0: No CEH, 1: linear mapping model)",
             "np_prior_type": "Prior type for nonparametric SFH (0-7)",
             "np_interp_method": "Interpolation method for nonparametric SFH (0-3)",
             "np_num_bins": "Number of bins for nonparametric SFH",
@@ -663,8 +670,13 @@ class BayeSEDGUI:
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
         dal_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(dal_frame, text="DAL:").grid(row=0, column=0, sticky=tk.W)
-        
+        ttk.Checkbutton(dal_frame, text="DAL:", variable=self.use_dal, 
+                        command=lambda: self.toggle_component(dal_params_frame, self.use_dal.get())).grid(row=0, column=0, sticky='w')
+
+        dal_params_frame = ttk.Frame(dal_frame)
+        dal_params_frame.grid(row=0, column=1, sticky='ew')
+        dal_params_frame.grid_remove()  # Initially hide the frame
+
         dal_params = [
             ("id", str(new_id), 5),
             ("con_eml_tot", "2", 5, [
@@ -689,14 +701,14 @@ class BayeSEDGUI:
         dal_widgets = []
         for i, param_info in enumerate(dal_params):
             param, default, width = param_info[:3]
-            ttk.Label(dal_frame, text=f"{param}:").grid(row=0, column=2*i+1, sticky=tk.W, padx=2)
+            ttk.Label(dal_params_frame, text=f"{param}:").grid(row=0, column=2*i+1, sticky=tk.W, padx=2)
             if len(param_info) > 3:  # If there are options
-                widget = ttk.Combobox(dal_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
+                widget = ttk.Combobox(dal_params_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
                 widget.set(default)
                 tooltip = "\n".join(param_info[3])
                 CreateToolTip(widget, tooltip)
             else:
-                widget = ttk.Entry(dal_frame, width=width)
+                widget = ttk.Entry(dal_params_frame, width=width)
                 widget.insert(0, default)
             widget.grid(row=0, column=2*i+2, padx=2)
             dal_widgets.append(widget)
@@ -704,10 +716,19 @@ class BayeSEDGUI:
                 dal_id_widget = widget
                 dal_id_widget.config(state='readonly')
 
+        # Add tooltip for DAL checkbox
+        CreateToolTip(dal_frame.winfo_children()[0], "Dust Attenuation Law")
+
         # DEM settings
         dem_frame = ttk.Frame(instance_frame)
         dem_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(dem_frame, text="DEM:").pack(side=tk.LEFT, padx=(0, 5))
+
+        ttk.Checkbutton(dem_frame, text="DEM:", variable=self.use_dem, 
+                        command=lambda: self.toggle_component(dem_params_frame, self.use_dem.get())).grid(row=0, column=0, sticky='w')
+
+        dem_params_frame = ttk.Frame(dem_frame)
+        dem_params_frame.grid(row=0, column=1, sticky='ew')
+        dem_params_frame.grid_remove()  # Initially hide the frame
 
         dem_params = [
             ("id", str(new_dem_id), 5),  # DEM ID is always one more than the main ID
@@ -717,22 +738,20 @@ class BayeSEDGUI:
         ]
 
         dem_widgets = []
-        for param_info in dem_params:
+        for i, param_info in enumerate(dem_params):
             param, default, width = param_info[:3]
-            param_frame = ttk.Frame(dem_frame)
-            param_frame.pack(side=tk.LEFT, padx=(0, 5))
-            ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT)
+            ttk.Label(dem_params_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=2)
             if len(param_info) > 3:  # If there are options
-                widget = ttk.Combobox(param_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
+                widget = ttk.Combobox(dem_params_frame, values=[opt.split(":")[0] for opt in param_info[3]], width=width)
                 widget.set(default)
                 tooltip = "\n".join(param_info[3])
                 CreateToolTip(widget, tooltip)
                 if param == "imodel":
                     widget.bind("<<ComboboxSelected>>", lambda event, f=instance_frame: self.update_dem_params(event, f))
             else:
-                widget = ttk.Entry(param_frame, width=width)
+                widget = ttk.Entry(dem_params_frame, width=width)
                 widget.insert(0, default)
-            widget.pack(side=tk.LEFT)
+            widget.grid(row=0, column=i*2+1, padx=2)
             dem_widgets.append(widget)
             if param == 'id':
                 dem_id_widget = widget
@@ -749,26 +768,32 @@ class BayeSEDGUI:
 
         self.additional_dem_widgets = {}
         for model, params in self.additional_dem_params.items():
-            model_frame = ttk.Frame(dem_frame)
+            model_frame = ttk.Frame(dem_params_frame)
             model_widgets = []
-            for param, default, width in params:
-                param_frame = ttk.Frame(model_frame)
-                param_frame.pack(side=tk.LEFT, padx=(0, 5))
-                ttk.Label(param_frame, text=f"{param}:").pack(side=tk.LEFT)
-                widget = ttk.Entry(param_frame, width=width)
+            for j, (param, default, width) in enumerate(params):
+                ttk.Label(model_frame, text=f"{param}:").grid(row=0, column=j*2, sticky=tk.W, padx=2)
+                widget = ttk.Entry(model_frame, width=width)
                 widget.insert(0, default)
-                widget.pack(side=tk.LEFT)
+                widget.grid(row=0, column=j*2+1, padx=2)
                 model_widgets.append(widget)
             self.additional_dem_widgets[model] = (model_frame, model_widgets)
 
         # Show the initial model's widgets (Greybody by default)
-        self.additional_dem_widgets["0"][0].pack(side=tk.LEFT)
+        self.additional_dem_widgets["0"][0].grid(row=1, column=0, columnspan=len(dem_params)*2, sticky='ew')
+
+        # Add tooltip for DEM checkbox
+        CreateToolTip(dem_frame.winfo_children()[0], "Dust Emission Model")
 
         # KIN settings
         kin_frame = ttk.Frame(instance_frame)
         kin_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Label(kin_frame, text="KIN:").grid(row=0, column=0, sticky=tk.W)
-        
+        ttk.Checkbutton(kin_frame, text="KIN:", variable=self.use_kin, 
+                        command=lambda: self.toggle_component(kin_params_frame, self.use_kin.get())).grid(row=0, column=0, sticky='w')
+
+        kin_params_frame = ttk.Frame(kin_frame)
+        kin_params_frame.grid(row=0, column=1, sticky='ew')
+        kin_params_frame.grid_remove()  # Initially hide the frame
+
         kin_params = [
             ("id", 5),
             ("velscale", 5),
@@ -778,8 +803,8 @@ class BayeSEDGUI:
         
         kin_widgets = {}
         for i, (param, width) in enumerate(kin_params):
-            ttk.Label(kin_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
-            widget = ttk.Entry(kin_frame, width=width)
+            ttk.Label(kin_params_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            widget = ttk.Entry(kin_params_frame, width=width)
             widget.grid(row=0, column=i*2+2, sticky=tk.W, padx=2)
             kin_widgets[param] = widget
 
@@ -800,6 +825,9 @@ class BayeSEDGUI:
         for param, tooltip in kin_tooltips.items():
             CreateToolTip(kin_widgets[param], tooltip)
 
+        # Add tooltip for KIN checkbox
+        CreateToolTip(kin_frame.winfo_children()[0], "The Stellar and Gas Kinematics")
+
         # Create the instance dictionary
         new_instance = {
             'frame': instance_frame,
@@ -812,7 +840,10 @@ class BayeSEDGUI:
             'sfh_id': sfh_id_widget,
             'dal_id': dal_id_widget,
             'dem_id': dem_id_widget,
-            'kin_id': kin_widgets['id']
+            'kin_id': kin_widgets['id'],
+            'use_dal': self.use_dal,
+            'use_dem': self.use_dem,
+            'use_kin': self.use_kin
         }
 
         # Append the new instance to the list
@@ -1309,10 +1340,8 @@ class BayeSEDGUI:
             frame.grid_remove()
 
         for child in frame.winfo_children():
-            if state:
-                child.grid()
-            else:
-                child.grid_remove()
+            if isinstance(child, (ttk.Entry, ttk.Combobox)):
+                child.config(state="normal" if state else "disabled")
 
     # Update the get_agn_settings method to include the use_* flags
     def get_agn_settings(self):
@@ -1369,9 +1398,6 @@ class BayeSEDGUI:
         for instance in self.galaxy_instances:
             ssp_values = [widget.get() for widget in instance['ssp']]
             sfh_values = [widget.get() for widget in instance['sfh']]
-            dal_values = [widget.get() for widget in instance['dal']]
-            dem_values = [widget.get() for widget in instance['dem']]
-            kin_values = [widget.get() for widget in instance['kin'].values()]
             
             if all(ssp_values):
                 command.extend(["-ssp", ",".join(ssp_values)])
@@ -1381,47 +1407,53 @@ class BayeSEDGUI:
                 if int(sfh_values[1]) == 9:  # If itype_sfh is 9 (Nonparametric)
                     np_sfh_values = sfh_values[4:]  # np_prior_type, np_interp_method, np_num_bins, np_regul
                     command.extend(["--np_sfh", ",".join(np_sfh_values)])
-                
-            if all(dal_values):
-                command.extend(["--dal", ",".join(dal_values)])
             
-            if all(dem_values):
-                imodel = dem_values[1]  # The imodel value
-                igroup = ssp_values[0]  # Use SSP's igroup for DEM
-                additional_values = []
-                for widget in self.additional_dem_widgets[imodel][1]:
+            if instance['use_dal'].get():
+                dal_values = [widget.get() for widget in instance['dal']]
+                if all(dal_values):
+                    command.extend(["--dal", ",".join(dal_values)])
+            
+            if instance['use_dem'].get():
+                dem_values = [widget.get() for widget in instance['dem']]
+                if all(dem_values):
+                    imodel = dem_values[1]  # The imodel value
+                    igroup = ssp_values[0]  # Use SSP's igroup for DEM
+                    additional_values = []
+                    for widget in self.additional_dem_widgets[imodel][1]:
+                        try:
+                            additional_values.append(widget.get())
+                        except tk.TclError:
+                            print(f"Warning: Widget for DEM model {imodel} no longer exists.")
+                    all_dem_values = dem_values + additional_values
+                    
                     try:
-                        additional_values.append(widget.get())
-                    except tk.TclError:
-                        print(f"Warning: Widget for DEM model {imodel} no longer exists.")
-                all_dem_values = dem_values + additional_values
-                
-                try:
-                    if imodel == "0":  # Greybody
-                        if len(all_dem_values) >= 8:
-                            command.extend(["--greybody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
-                        else:
-                            print(f"Warning: Not enough values for Greybody model. Expected 8, got {len(all_dem_values)}.")
-                    elif imodel == "1":  # Blackbody
-                        if len(all_dem_values) >= 7:
-                            command.extend(["--blackbody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
-                        else:
-                            print(f"Warning: Not enough values for Blackbody model. Expected 7, got {len(all_dem_values)}.")
-                    elif imodel == "2":  # FANN
-                        if len(all_dem_values) >= 4:
-                            command.extend(["-a", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]}"])
-                        else:
-                            print(f"Warning: Not enough values for FANN model. Expected 4, got {len(all_dem_values)}.")
-                    elif imodel == "3":  # AKNN
-                        if len(all_dem_values) >= 11:
-                            command.extend(["-k", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]},{all_dem_values[8]},{all_dem_values[9]},{all_dem_values[10]}"])
-                        else:
-                            print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
-                except (KeyError, IndexError) as e:
-                    print(f"Error processing DEM model {imodel}: {str(e)}")
+                        if imodel == "0":  # Greybody
+                            if len(all_dem_values) >= 8:
+                                command.extend(["--greybody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
+                            else:
+                                print(f"Warning: Not enough values for Greybody model. Expected 8, got {len(all_dem_values)}.")
+                        elif imodel == "1":  # Blackbody
+                            if len(all_dem_values) >= 7:
+                                command.extend(["--blackbody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
+                            else:
+                                print(f"Warning: Not enough values for Blackbody model. Expected 7, got {len(all_dem_values)}.")
+                        elif imodel == "2":  # FANN
+                            if len(all_dem_values) >= 4:
+                                command.extend(["-a", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]}"])
+                            else:
+                                print(f"Warning: Not enough values for FANN model. Expected 4, got {len(all_dem_values)}.")
+                        elif imodel == "3":  # AKNN
+                            if len(all_dem_values) >= 11:
+                                command.extend(["-k", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]},{all_dem_values[8]},{all_dem_values[9]},{all_dem_values[10]}"])
+                            else:
+                                print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
+                    except (KeyError, IndexError) as e:
+                        print(f"Error processing DEM model {imodel}: {str(e)}")
 
-            if all(kin_values):
-                command.extend(['--kin', ','.join(kin_values)])
+            if instance['use_kin'].get():
+                kin_values = [widget.get() for widget in instance['kin'].values()]
+                if all(kin_values):
+                    command.extend(['--kin', ','.join(kin_values)])
 
         # AGN settings
         for agn in self.agn_instances:
@@ -1833,11 +1865,11 @@ class BayeSEDGUI:
 
         # Hide all additional parameter frames
         for model_frame, _ in self.additional_dem_widgets.values():
-            model_frame.pack_forget()
+            model_frame.grid_remove()
 
         # Show the frame for the selected model
         if imodel in self.additional_dem_widgets:
-            self.additional_dem_widgets[imodel][0].pack(side=tk.LEFT)
+            self.additional_dem_widgets[imodel][0].grid(row=1, column=0, columnspan=len(instance['dem']) * 2, sticky='ew')
 
         # Force the frame to update its layout
         frame.update_idletasks()
@@ -1999,14 +2031,16 @@ class BayeSEDGUI:
                     
                     f.write("        dal=[")
                     for instance in self.galaxy_instances:
-                        dal_values = [widget.get() for widget in instance['dal']]
-                        f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
+                        if instance['use_dal'].get():
+                            dal_values = [widget.get() for widget in instance['dal']]
+                            f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
                     f.write("],\n")
                     
                     f.write("        kin=[")
                     for instance in self.galaxy_instances:
-                        kin_values = [widget.get() for widget in instance['kin'].values()]
-                        f.write(f"KinParams(id={kin_values[0]}, velscale={kin_values[1]}, num_gauss_hermites_continuum={kin_values[2]}, num_gauss_hermites_emission={kin_values[3]}),")
+                        if instance['use_kin'].get():
+                            kin_values = [widget.get() for widget in instance['kin'].values()]
+                            f.write(f"KinParams(id={kin_values[0]}, velscale={kin_values[1]}, num_gauss_hermites_continuum={kin_values[2]}, num_gauss_hermites_emission={kin_values[3]}),")
                     f.write("],\n")
                 
                 if self.use_sys_err.get():
