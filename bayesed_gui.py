@@ -546,6 +546,11 @@ class BayeSEDGUI:
             dem_id_widget.insert(0, str(int(new_id) + 1))  # Increment the ID by 1 for DEM
             dem_id_widget.config(state='readonly')
 
+            kin_widgets['id'].config(state='normal')
+            kin_widgets['id'].delete(0, tk.END)
+            kin_widgets['id'].insert(0, new_id)
+            kin_widgets['id'].config(state='readonly')
+
         # SSP settings
         ssp_frame = ttk.Frame(instance_frame)
         ssp_frame.pack(fill=tk.X, padx=5, pady=2)
@@ -759,6 +764,42 @@ class BayeSEDGUI:
         # Show the initial model's widgets (Greybody by default)
         self.additional_dem_widgets["0"][0].pack(side=tk.LEFT)
 
+        # KIN settings
+        kin_frame = ttk.Frame(instance_frame)
+        kin_frame.pack(fill=tk.X, padx=5, pady=2)
+        ttk.Label(kin_frame, text="KIN:").grid(row=0, column=0, sticky=tk.W)
+        
+        kin_params = [
+            ("id", 5),
+            ("velscale", 5),
+            ("gh_cont", 5),
+            ("gh_emis", 5)
+        ]
+        
+        kin_widgets = {}
+        for i, (param, width) in enumerate(kin_params):
+            ttk.Label(kin_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            widget = ttk.Entry(kin_frame, width=width)
+            widget.grid(row=0, column=i*2+2, sticky=tk.W, padx=2)
+            kin_widgets[param] = widget
+
+        # Set default values and link ID
+        kin_widgets['id'].insert(0, ssp_id_widget.get())  # Use the same ID as SSP
+        kin_widgets['id'].config(state='readonly')
+        kin_widgets['velscale'].insert(0, "10")
+        kin_widgets['gh_cont'].insert(0, "0")
+        kin_widgets['gh_emis'].insert(0, "0")
+
+        # Add tooltips for KIN parameters
+        kin_tooltips = {
+            "id": "ID of the model (same as SSP, SFH, DAL)",
+            "velscale": "Velocity scale (km/s)",
+            "gh_cont": "Number of Gauss-Hermite terms for continuum",
+            "gh_emis": "Number of Gauss-Hermite terms for emission lines"
+        }
+        for param, tooltip in kin_tooltips.items():
+            CreateToolTip(kin_widgets[param], tooltip)
+
         # Create the instance dictionary
         new_instance = {
             'frame': instance_frame,
@@ -766,10 +807,12 @@ class BayeSEDGUI:
             'sfh': sfh_widgets,
             'dal': dal_widgets,
             'dem': dem_widgets,
+            'kin': kin_widgets,
             'ssp_id': ssp_id_widget,
             'sfh_id': sfh_id_widget,
             'dal_id': dal_id_widget,
-            'dem_id': dem_id_widget
+            'dem_id': dem_id_widget,
+            'kin_id': kin_widgets['id']
         }
 
         # Append the new instance to the list
@@ -1328,6 +1371,7 @@ class BayeSEDGUI:
             sfh_values = [widget.get() for widget in instance['sfh']]
             dal_values = [widget.get() for widget in instance['dal']]
             dem_values = [widget.get() for widget in instance['dem']]
+            kin_values = [widget.get() for widget in instance['kin'].values()]
             
             if all(ssp_values):
                 command.extend(["-ssp", ",".join(ssp_values)])
@@ -1375,6 +1419,9 @@ class BayeSEDGUI:
                             print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
                 except (KeyError, IndexError) as e:
                     print(f"Error processing DEM model {imodel}: {str(e)}")
+
+            if all(kin_values):
+                command.extend(['--kin', ','.join(kin_values)])
 
         # AGN settings
         for agn in self.agn_instances:
@@ -1915,6 +1962,12 @@ class BayeSEDGUI:
                         dal_values = [widget.get() for widget in instance['dal']]
                         f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
                     f.write("],\n")
+                    
+                    f.write("        kin=[")
+                    for instance in self.galaxy_instances:
+                        kin_values = [widget.get() for widget in instance['kin'].values()]
+                        f.write(f"KinParams(id={kin_values[0]}, velscale={kin_values[1]}, num_gauss_hermites_continuum={kin_values[2]}, num_gauss_hermites_emission={kin_values[3]}),")
+                    f.write("],\n")
                 
                 if self.use_sys_err.get():
                     sys_err_mod_values = [widget.get() for widget in self.sys_err_widgets[:5]]
@@ -1956,7 +2009,7 @@ class BayeSEDGUI:
                             feii = agn['feii_widgets']
                             f.write(f"    params.aknn = [AKNNParams(igroup={feii['igroup']}, id={feii['id']}, name='{feii['name']}', iscalable={feii['iscalable']}, k={feii['k']}, f_run={feii['f_run']}, eps={feii['eps']}, iRad={feii['iRad']}, iprep={feii['iprep']}, Nstep={feii['Nstep']}, alpha={feii['alpha']})]\n")
                             kin = agn['kin_widgets']
-                            f.write(f"    params.kin = [KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']})]\n")
+                            f.write(f"    params.kin.append(KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']}))\n")
                         
                         if agn['component_vars']['nlr']:
                             nlr = agn['nlr_widgets']

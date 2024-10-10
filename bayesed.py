@@ -445,7 +445,7 @@ class BayeSEDParams:
     export: Optional[str] = None
 
 class BayeSEDInterface:
-    def __init__(self, mpi_mode='1', openmpi_mirror=None, np=None, Ntest=None):
+    def __init__(self, mpi_mode='1', openmpi_mirror=None, np=None, Ntest=None, output_queue=None):
         self.mpi_mode = f"mn_{mpi_mode}"
         self.openmpi_mirror = openmpi_mirror
         self.np = np
@@ -748,17 +748,17 @@ class BayeSEDInterface:
             for inn_params in params.inn:
                 args.extend(['--inn', self._format_sedlib_params(inn_params)])
         
-        if params.IGM:
+        if params.IGM is not None:
             args.extend(['--IGM', str(params.IGM)])
         
         if params.kin:
             for kin_param in params.kin:
                 args.extend(['--kin', self._format_kin_params(kin_param)])
         
-        if params.logZero:
+        if params.logZero is not None:
             args.extend(['--logZero', str(params.logZero)])
         
-        if params.lw_max:
+        if params.lw_max is not None:
             args.extend(['--lw_max', str(params.lw_max)])
         
         if params.LineList:
@@ -767,7 +767,7 @@ class BayeSEDInterface:
         if params.make_catalog:
             args.extend(['--make_catalog', self._format_make_catalog_params(params.make_catalog)])
         
-        if params.niteration:
+        if params.niteration is not None:
             args.extend(['--niteration', str(params.niteration)])
         
         if params.no_photometry_fit:
@@ -786,10 +786,6 @@ class BayeSEDInterface:
         
         if params.export:
             args.extend(['--export', params.export])
-        
-        if params.import_files:
-            for import_file in params.import_files:
-                args.extend(['--import', import_file])
         
         if params.output_mock_spectra:
             args.append('--output_mock_spectra')
@@ -816,35 +812,6 @@ class BayeSEDInterface:
             args.append('--check')
         if params.cl:
             args.extend(['--cl', params.cl])
-        if params.filters:
-            args.extend(['--filters', params.filters])
-        if params.filters_selected:
-            args.extend(['--filters_selected', params.filters_selected])
-        if params.gsl_integration_qag:
-            args.extend(['--gsl_integration_qag', self._format_gsl_integration_qag_params(params.gsl_integration_qag)])
-        if params.gsl_multifit_robust:
-            args.extend(['--gsl_multifit_robust', self._format_gsl_multifit_robust_params(params.gsl_multifit_robust)])
-        if params.import_files:
-            for import_file in params.import_files:
-                args.extend(['--import', import_file])
-        if params.inn:
-            for inn_params in params.inn:
-                args.extend(['--inn', self._format_sedlib_params(inn_params)])
-        if params.IGM is not None:
-            args.extend(['--IGM', str(params.IGM)])
-        if params.kin:
-            for kin_param in params.kin:
-                args.extend(['--kin', self._format_kin_params(kin_param)])
-        if params.LineList:
-            args.extend(['--LineList', self._format_LineList_params(params.LineList)])
-        if params.logZero is not None:
-            args.extend(['--logZero', str(params.logZero)])
-        if params.lw_max is not None:
-            args.extend(['--lw_max', str(params.lw_max)])
-        if params.niteration is not None:
-            args.extend(['--niteration', str(params.niteration)])
-        if params.no_photometry_fit:
-            args.append('--no_photometry_fit')
         
         return args
 
