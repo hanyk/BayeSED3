@@ -21,7 +21,7 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         
         # Define a standard font
-        self.standard_font = ('Helvetica', 14)
+        self.standard_font = ('Courier', 12)
         
         # Apply the standard font to all ttk widgets
         style = ttk.Style()
@@ -67,7 +67,7 @@ class BayeSEDGUI:
 
         # Configure style for larger checkbuttons
         style = ttk.Style()
-        style.configure('Large.TCheckbutton', font=('Helvetica', 10))
+        style.configure('Large.TCheckbutton', font=('Courier', 10))
         
         self.create_widgets()
 
@@ -1562,18 +1562,11 @@ class BayeSEDGUI:
             command.extend(["--sys_err_mod", mod_values])
             command.extend(["--sys_err_obs", obs_values])
 
-        # Ntest
-        ntest = self.ntest.get().strip()
-        if ntest:
-            command.extend(["--Ntest", ntest])
-
         return command
 
     def run_bayesed(self):
         if self.run_button['text'] == "Run":
             command = self.generate_command()
-            
-            self.update_output("Executing command: " + " ".join(command) + "\n")
             
             np = self.mpi_processes.get().strip()
             ntest = self.ntest.get().strip()
@@ -1621,6 +1614,9 @@ class BayeSEDGUI:
         self.update_output("BayeSED execution stopped by user.\n")
 
     def execute_command(self, command, np, ntest):
+        import sys
+        import threading
+        
         try:
             # Use subprocess.STARTUPINFO to hide console window on Windows
             startupinfo = None
@@ -1629,7 +1625,46 @@ class BayeSEDGUI:
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             
             bayesed = BayeSEDInterface(mpi_mode='1', np=int(np) if np else None, Ntest=int(ntest) if ntest else None)
-            bayesed.run(command)
+            
+            # Prepare the command
+            mpi_command = [bayesed.mpi_cmd, '--use-hwthread-cpus']
+            if bayesed.np is not None:
+                mpi_command.extend(['-np', str(bayesed.np)])
+            mpi_command.append(bayesed.executable_path)
+            full_command = mpi_command + command
+            
+            # Show the full command in the output box
+            self.output_queue.put("Executing command: " + " ".join(full_command) + "\n")
+            
+            # Create a thread to read the output in real-time
+            def output_reader(stream, queue):
+                for line in iter(stream.readline, b''):
+                    queue.put(line.decode('utf-8', errors='replace'))  # Preserve all characters, including tabs
+                stream.close()
+            
+            # Start BayeSED process
+            process = subprocess.Popen(
+                full_command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                startupinfo=startupinfo
+            )
+            
+            # Start output reader thread
+            output_thread = threading.Thread(target=output_reader, args=(process.stdout, self.output_queue))
+            output_thread.daemon = True
+            output_thread.start()
+            
+            # Wait for the process to complete
+            process.wait()
+            
+            # Wait for the output thread to finish
+            output_thread.join()
+            
+            if process.returncode == 0:
+                self.output_queue.put("BayeSED execution completed\n")
+            else:
+                self.output_queue.put(f"BayeSED execution failed, return code: {process.returncode}\n")
             
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
@@ -1652,9 +1687,14 @@ class BayeSEDGUI:
 
     def update_output(self, text):
         self.output_text.config(state=tk.NORMAL)
+        
+        # Replace tabs with a fixed number of spaces
+        tab_size = 4  # You can adjust this value
+        text = text.replace('\t', ' ' * tab_size)
+        
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
-        self.output_text.config(state=tk.NORMAL, font=self.standard_font)  # Apply standard font to output text
+        self.output_text.config(state=tk.NORMAL, font=self.standard_font)  # Use the standard font
         self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
