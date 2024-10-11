@@ -2207,7 +2207,7 @@ class BayeSEDGUI:
         about_window = tk.Toplevel(self.master)
         about_window.title("About BayeSED")
         
-        window_width, window_height = 800, 600
+        window_width, window_height = 1200, 800  # Increased width to 1200 and height to 800
         screen_width, screen_height = self.master.winfo_screenwidth(), self.master.winfo_screenheight()
         x, y = (screen_width - window_width) // 2, (screen_height - window_height) // 2
         about_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
@@ -2255,27 +2255,27 @@ class BayeSEDGUI:
         # Description section
         description = ("BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation (parameter estimation and model comparison) of the spectral energy distributions (SEDs).")
         ttk.Label(content_frame, text="Description", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=description, wraplength=760, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=description, wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Features section
         features = (
-            "• Multi-component SED fitting for galaxies and AGNs\n"
+            "• Multi-component SED analysis for galaxies and AGNs\n"
             "• Bayesian parameter estimation and model comparison\n"
             "• Flexible stellar population synthesis modeling\n"
             "• Flexible dust attenuation and emission modeling\n"
             "• Flexible stellar and gas kinematics modeling\n"
             "• Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)\n"
             "• Non-parametric and parametric star formation history options\n"
-            "• Simultaneous fitting of photometric and spectroscopic data\n"
+            "• Simultaneous analysis of photometric and spectroscopic data\n"
             "• Intergalactic medium (IGM) absorption modeling\n"
             "• Machine learning techniques for SED model emulation\n"
             "• Parallel processing support for improved performance\n"
             "• User-friendly CLI, python script, and GUI interfaces"
         )
         ttk.Label(content_frame, text="Key Features", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=features, wraplength=760, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=features, wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
@@ -2288,16 +2288,16 @@ class BayeSEDGUI:
             "Its modular design allows for easy integration of new models and analysis techniques."
         )
         ttk.Label(content_frame, text="Technical Details", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=tech_details, wraplength=760, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=tech_details, wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Usage section
         usage_info = ("BayeSED3 can be used through this graphical interface or via command-line. "
                       "For detailed usage instructions and examples, please refer to the README file and the example scripts provided with the software package. "
-                      "The GUI provides an intuitive way to set up complex SED fitting scenarios with meaningful defaults, while the CLI and python script interfaces are more flexible and allows for batch processing and integration into larger workflows.")
+                      "The GUI provides an intuitive way to set up complex SED analysis scenarios with meaningful defaults, while the CLI and python script interfaces are more flexible and allows for batch processing and integration into larger workflows.")
         ttk.Label(content_frame, text="Usage", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=usage_info, wraplength=760, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=usage_info, wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
@@ -2318,13 +2318,13 @@ class BayeSEDGUI:
                          "Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39\n"
                          "Han, Y., et al. 2024a, in prep.")
         ttk.Label(content_frame, text="Citation", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=citation_info, wraplength=760, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=citation_info, wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Copyright section
         copyright_info = "© 2012-2024 BayeSED Team. All rights reserved."
-        ttk.Label(content_frame, text=copyright_info, font=("Helvetica", 10)).pack(pady=10)
+        ttk.Label(content_frame, text=copyright_info, font=("Helvetica", 14)).pack(pady=10)
 
         about_window.transient(self.master)
         about_window.grab_set()
