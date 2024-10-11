@@ -1034,68 +1034,61 @@ class BayeSEDGUI:
         agn_params_frame = ttk.Frame(main_agn_frame)
         agn_params_frame.grid(row=0, column=1, sticky='ew')
 
-        # Initialize AGN parameters
-        agn_igroup = ttk.Entry(agn_params_frame, width=8)
-        agn_id = ttk.Entry(agn_params_frame, width=8)
-        agn_name = ttk.Entry(agn_params_frame, width=12)
-        agn_scalable = ttk.Combobox(agn_params_frame, values=["0", "1"], width=5)
-        agn_imodel = ttk.Combobox(agn_params_frame, values=["0 (qsosed)", "1 (agnsed)", "2 (fagnsed)", "3 (relagn)", "4 (relqso)", "5 (agnslim)"], width=12)
-        agn_icloudy = ttk.Combobox(agn_params_frame, values=["0", "1"], width=5)
-        agn_suffix = ttk.Entry(agn_params_frame, width=12)
-        agn_w_min = ttk.Entry(agn_params_frame, width=8)
-        agn_w_max = ttk.Entry(agn_params_frame, width=8)
+        # Initialize AGN parameters with reduced widths
+        agn_igroup = ttk.Entry(agn_params_frame, width=5)
+        agn_id = ttk.Entry(agn_params_frame, width=5)
+        agn_name = ttk.Entry(agn_params_frame, width=10)
+        agn_scalable = ttk.Combobox(agn_params_frame, values=["0", "1"], width=3)
+        agn_imodel = ttk.Combobox(agn_params_frame, values=["0", "1", "2", "3", "4", "5"], width=3)
+        agn_icloudy = ttk.Combobox(agn_params_frame, values=["0", "1"], width=3)
+        agn_suffix = ttk.Entry(agn_params_frame, width=8)
+        agn_w_min = ttk.Entry(agn_params_frame, width=6)
+        agn_w_max = ttk.Entry(agn_params_frame, width=6)
         agn_nw = ttk.Entry(agn_params_frame, width=5)
 
-        # First row parameters: igroup, id, name, iscalable, imodel
-        ttk.Label(agn_params_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        # Layout AGN parameters in a single row
+        ttk.Label(agn_params_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=(0,2))
+        agn_igroup.grid(row=0, column=1, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=(0,2))
+        agn_id.grid(row=0, column=3, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=(0,2))
+        agn_name.grid(row=0, column=5, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="iscalable:").grid(row=0, column=6, sticky=tk.W, padx=(0,2))
+        agn_scalable.grid(row=0, column=7, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="imodel:").grid(row=0, column=8, sticky=tk.W, padx=(0,2))
+        agn_imodel.grid(row=0, column=9, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="icloudy:").grid(row=0, column=10, sticky=tk.W, padx=(0,2))
+        agn_icloudy.grid(row=0, column=11, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="suffix:").grid(row=0, column=12, sticky=tk.W, padx=(0,2))
+        agn_suffix.grid(row=0, column=13, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="w_min:").grid(row=0, column=14, sticky=tk.W, padx=(0,2))
+        agn_w_min.grid(row=0, column=15, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="w_max:").grid(row=0, column=16, sticky=tk.W, padx=(0,2))
+        agn_w_max.grid(row=0, column=17, sticky=tk.W, padx=(0,5))
+        ttk.Label(agn_params_frame, text="Nw:").grid(row=0, column=18, sticky=tk.W, padx=(0,2))
+        agn_nw.grid(row=0, column=19, sticky=tk.W, padx=(0,5))
+
+        # Set default values and add tooltips
         agn_igroup.insert(0, str(new_igroup))
-        CreateToolTip(agn_igroup, "Group ID for the AGN component")
-
-        ttk.Label(agn_params_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
-        agn_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
         agn_id.insert(0, str(new_id))
-        CreateToolTip(agn_id, "Unique ID for the AGN component")
-
-        ttk.Label(agn_params_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
-        agn_name.grid(row=0, column=5, sticky=tk.W, padx=5, pady=2)
         agn_name.insert(0, "AGN")
-        CreateToolTip(agn_name, "Name of the AGN component")
-
-        ttk.Label(agn_params_frame, text="iscalable:").grid(row=0, column=6, sticky=tk.W, padx=5, pady=2)
-        agn_scalable.grid(row=0, column=7, sticky=tk.W, padx=5, pady=2)
         agn_scalable.set("1")
-        CreateToolTip(agn_scalable, "Whether the component is scalable (0: No, 1: Yes)")
-
-        ttk.Label(agn_params_frame, text="imodel:").grid(row=0, column=8, sticky=tk.W, padx=5, pady=2)
-        agn_imodel.grid(row=0, column=9, sticky=tk.W, padx=5, pady=2)
-        agn_imodel.set("0 (qsosed)")
-        CreateToolTip(agn_imodel, "AGN model type (0: qsosed, 1: agnsed, 2: fagnsed, 3: relagn, 4: relqso, 5: agnslim)")
-
-        # Second row parameters: icloudy, suffix, w_min, w_max, Nw
-        ttk.Label(agn_params_frame, text="icloudy:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
-        agn_icloudy.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        agn_imodel.set("0")
         agn_icloudy.set("0")
-        CreateToolTip(agn_icloudy, "Whether to use Cloudy model (0: No, 1: Yes)")
-
-        ttk.Label(agn_params_frame, text="suffix:").grid(row=1, column=2, sticky=tk.W, padx=5, pady=2)
-        agn_suffix.grid(row=1, column=3, sticky=tk.W, padx=5, pady=2)
-        agn_suffix.insert(0, "disk")  # Set suffix to empty by default
-        CreateToolTip(agn_suffix, "Suffix for the AGN component name")
-
-        ttk.Label(agn_params_frame, text="w_min:").grid(row=1, column=4, sticky=tk.W, padx=5, pady=2)
-        agn_w_min.grid(row=1, column=5, sticky=tk.W, padx=5, pady=2)
+        agn_suffix.insert(0, "disk")
         agn_w_min.insert(0, "300.0")
-        CreateToolTip(agn_w_min, "Minimum wavelength (in microns)")
-
-        ttk.Label(agn_params_frame, text="w_max:").grid(row=1, column=6, sticky=tk.W, padx=5, pady=2)
-        agn_w_max.grid(row=1, column=7, sticky=tk.W, padx=5, pady=2)
         agn_w_max.insert(0, "1000.0")
-        CreateToolTip(agn_w_max, "Maximum wavelength (in microns)")
-
-        ttk.Label(agn_params_frame, text="Nw:").grid(row=1, column=8, sticky=tk.W, padx=5, pady=2)
-        agn_nw.grid(row=1, column=9, sticky=tk.W, padx=5, pady=2)
         agn_nw.insert(0, "200")
+
+        CreateToolTip(agn_igroup, "Group ID for the AGN component")
+        CreateToolTip(agn_id, "Unique ID for the AGN component")
+        CreateToolTip(agn_name, "Name of the AGN component")
+        CreateToolTip(agn_scalable, "Whether the component is scalable (0: No, 1: Yes)")
+        CreateToolTip(agn_imodel, "AGN model type (0: qsosed, 1: agnsed, 2: fagnsed, 3: relagn, 4: relqso, 5: agnslim)")
+        CreateToolTip(agn_icloudy, "Whether to use Cloudy model (0: No, 1: Yes)")
+        CreateToolTip(agn_suffix, "Suffix for the AGN component name")
+        CreateToolTip(agn_w_min, "Minimum wavelength (in microns)")
+        CreateToolTip(agn_w_max, "Maximum wavelength (in microns)")
         CreateToolTip(agn_nw, "Number of wavelength points")
 
         # BBB component
