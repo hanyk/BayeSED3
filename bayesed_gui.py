@@ -1227,7 +1227,7 @@ class BayeSEDGUI:
         for param, tooltip in feii_tooltips.items():
             CreateToolTip(feii_widgets[param], tooltip)
 
-        # Kinematic settings for FeII (optional)
+        # FeII Kinematic settings
         use_feii_kin = tk.BooleanVar(value=False)
         ttk.Checkbutton(feii_content_frame, text="Kin", variable=use_feii_kin, 
                         command=lambda: self.toggle_widgets(list(kin_widgets.values()), use_feii_kin.get())).grid(row=0, column=len(aknn_params)*2, sticky=tk.W, padx=(5,1))
@@ -1391,7 +1391,8 @@ class BayeSEDGUI:
             'nlr_frame': nlr_frame,
             'nlr_widgets': nlr_widgets,
             'tor_frame': tor_frame,
-            'tor_widgets': tor_widgets
+            'tor_widgets': tor_widgets,
+            'use_feii_kin': use_feii_kin
         }
 
         self.agn_instances.append(new_instance)
@@ -1474,272 +1475,337 @@ class BayeSEDGUI:
         self.output_text.delete(1.0, tk.END)
         self.output_text.config(state=tk.NORMAL)
 
-    def generate_command(self):
-        # Start with just the Python interpreter
-        command = []
-        
-        # Get the number of MPI processes if specified
-        np = self.mpi_processes.get().strip()
-        if np:
-            command.extend(["--np", np])
-        
-        # Basic settings
-        input_type = self.input_type.get().split()[0]
-        command.extend(["-i", f"{input_type},{self.input_file.get()}"])
-        command.extend(["--outdir", self.outdir.get()])
-        command.extend(["-v", self.verbose.get()])
-        
-        # Output settings (now part of Basic Settings)
-        if self.save_bestfit.get():
-            save_type = self.save_bestfit_type.get().split()[0]
-            command.extend(["--save_bestfit", save_type])
-        if self.save_sample_par.get():
-            command.append("--save_sample_par")
-        if self.save_sample_obs.get():
-            command.append("--save_sample_obs")
-        
-        # Add new save parameters to the command
-        if self.save_pos_sfh.get():
-            ngrid = self.save_pos_sfh_ngrid.get()
-            ilog = self.save_pos_sfh_ilog.get()
-            command.extend(["--save_pos_sfh", f"{ngrid},{ilog}"])
-        if self.save_pos_spec.get():
-            command.append("--save_pos_spec")
-        if self.save_sample_spec.get():
-            command.append("--save_sample_spec")
-        if self.save_summary.get():
-            command.append("--save_summary")
-        
-        # Galaxy instance settings
-        for instance in self.galaxy_instances:
-            ssp_values = [widget.get() for widget in instance['ssp']]
-            sfh_values = [widget.get() for widget in instance['sfh']]
-            
-            if all(ssp_values):
-                command.extend(["-ssp", ",".join(ssp_values)])
-                
-            if all(sfh_values):
-                command.extend(["--sfh", ",".join(sfh_values[:4])])  # id, itype_sfh, itruncated, itype_ceh
-                if int(sfh_values[1]) == 9:  # If itype_sfh is 9 (Nonparametric)
-                    np_sfh_values = sfh_values[4:]  # np_prior_type, np_interp_method, np_num_bins, np_regul
-                    command.extend(["--np_sfh", ",".join(np_sfh_values)])
-            
-            if instance['use_dal'].get():
-                dal_values = [widget.get() for widget in instance['dal']]
-                if all(dal_values):
-                    command.extend(["--dal", ",".join(dal_values)])
-            
-            if instance['use_dem'].get():
-                dem_values = [widget.get() for widget in instance['dem']]
-                if all(dem_values):
-                    imodel = dem_values[1]  # The imodel value
-                    igroup = ssp_values[0]  # Use SSP's igroup for DEM
-                    additional_values = []
-                    for widget in self.additional_dem_widgets[imodel][1]:
-                        try:
-                            additional_values.append(widget.get())
-                        except tk.TclError:
-                            print(f"Warning: Widget for DEM model {imodel} no longer exists.")
-                    all_dem_values = dem_values + additional_values
-                    
-                    try:
-                        if imodel == "0":  # Greybody
-                            if len(all_dem_values) >= 8:
-                                command.extend(["--greybody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
-                            else:
-                                print(f"Warning: Not enough values for Greybody model. Expected 8, got {len(all_dem_values)}.")
-                        elif imodel == "1":  # Blackbody
-                            if len(all_dem_values) >= 7:
-                                command.extend(["--blackbody", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]}"])
-                            else:
-                                print(f"Warning: Not enough values for Blackbody model. Expected 7, got {len(all_dem_values)}.")
-                        elif imodel == "2":  # FANN
-                            if len(all_dem_values) >= 4:
-                                command.extend(["-a", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]}"])
-                            else:
-                                print(f"Warning: Not enough values for FANN model. Expected 4, got {len(all_dem_values)}.")
-                        elif imodel == "3":  # AKNN
-                            if len(all_dem_values) >= 11:
-                                command.extend(["-k", f"{igroup},{all_dem_values[0]},{all_dem_values[2]},{all_dem_values[3]},{all_dem_values[4]},{all_dem_values[5]},{all_dem_values[6]},{all_dem_values[7]},{all_dem_values[8]},{all_dem_values[9]},{all_dem_values[10]}"])
-                            else:
-                                print(f"Warning: Not enough values for AKNN model. Expected 11, got {len(all_dem_values)}.")
-                    except (KeyError, IndexError) as e:
-                        print(f"Error processing DEM model {imodel}: {str(e)}")
-
-            if instance['use_kin'].get():
-                kin_values = [widget.get() for widget in instance['kin'].values()]
-                if all(kin_values):
-                    command.extend(['--kin', ','.join(kin_values)])
-
-        # AGN settings
-        for agn in self.agn_instances:
-            if agn['component_vars']['main_agn'].get():
-                agn_igroup = agn['agn_igroup'].get()
-                agn_id = agn['agn_id'].get()
-                agn_name = agn['name'].get()
-                agn_scalable = agn['iscalable'].get()
-                agn_imodel = agn['imodel'].get().split()[0]  # Extract the number from "x (desc)"
-                agn_icloudy = agn['icloudy'].get()
-                agn_suffix = agn['suffix'].get()
-                agn_w_min = agn['w_min'].get()
-                agn_w_max = agn['w_max'].get()
-                agn_nw = agn['nw'].get()
-        
-                if agn_igroup and agn_id and agn_name and agn_scalable and agn_imodel and agn_icloudy and agn_suffix and agn_w_min and agn_w_max and agn_nw:
-                    command.extend([
-                        "--AGN",
-                        f"{agn_igroup},{agn_id},{agn_name},{agn_scalable},{agn_imodel},{agn_icloudy},{agn_suffix},{agn_w_min},{agn_w_max},{agn_nw}"
-                    ])
-
-            if agn['component_vars']['bbb'].get():
-                bbb_id = int(agn['agn_id'].get()) + 1
-                command.extend([
-                    "-bbb",
-                    f"{bbb_id},{bbb_id},{agn['bbb_name'].get()},1,{agn['bbb_w_min'].get()},{agn['bbb_w_max'].get()},{agn['bbb_nw'].get()}"
-                ])
-
-            if agn['component_vars']['blr'].get():
-                blr_params = [agn['blr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
-                command.extend(["-ls1", ",".join(blr_params)])
-
-            if agn['component_vars']['feii'].get():
-                feii_params = [agn['feii_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']]
-                command.extend(["-k", ",".join(feii_params)])
-                kin_params = [agn['feii_widgets']['id'].get()] + [agn['kin_widgets'][p].get() for p in ['velscale', 'gh_cont', 'gh_emis']]
-                command.extend(["--kin", ",".join(kin_params)])
-
-            if agn['component_vars']['nlr'].get():
-                nlr_params = [agn['nlr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
-                command.extend(["-ls1", ",".join(nlr_params)])
-        
-            if agn['component_vars']['tor'].get():
-                tor = agn['tor_widgets']
-                if isinstance(tor['model_type'], ttk.Combobox):
-                    model_type = tor['model_type'].get()
-                else:
-                    model_type = tor['model_type']  # Assume it's already a string
-                
-                if model_type == "FANN":
-                    command.extend(["-a", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()}"])
-                else:  # AKNN
-                    command.extend(["-k", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()},{tor['k'].get()},{tor['f_run'].get()},{tor['eps'].get()},{tor['iRad'].get()},{tor['iprep'].get()},{tor['Nstep'].get()},{tor['alpha'].get()}"])
-        
-        # Advanced settings
-        if self.use_multinest.get():
-            multinest_values = [widget.get() for widget in self.multinest_widgets.values()]
-            command.extend(["--multinest", ",".join(multinest_values)])
-        
-        if self.use_nnlm.get():
-            nnlm_values = [widget.get() for widget in self.nnlm_widgets.values()]
-            if all(nnlm_values):
-                command.extend(["--NNLM", ",".join(nnlm_values)])
-
-        if self.use_ndumper.get():
-            ndumper_values = [widget.get() for widget in self.ndumper_widgets.values()]
-            if all(ndumper_values):
-                command.extend(["--Ndumper", ",".join(ndumper_values)])
-
-        if self.use_gsl.get():
-            gsl_integration_values = [self.gsl_widgets[p].get() for p in ["integration_epsabs", "integration_epsrel", "integration_limit"]]
-            if all(gsl_integration_values):
-                command.extend(["--gsl_integration_qag", ",".join(gsl_integration_values)])
-            
-            gsl_multifit_values = [self.gsl_widgets[p].get() for p in ["multifit_type", "multifit_tune"]]
-            if all(gsl_multifit_values):
-                command.extend(["--gsl_multifit_robust", ",".join(gsl_multifit_values)])
-
-        if self.use_misc.get():
-            for param, widget in self.misc_widgets.items():
-                value = widget.get()
-                if value:
-                    command.extend([f"--{param}", value])
-
-        # Add output options to the command
-        if self.output_mock_photometry.get():
-            output_type = self.output_mock_photometry_type.get().split()[0]
-            command.extend(["--output_mock_photometry", output_type])
-        if self.output_mock_spectra.get():
-            command.append("--output_mock_spectra")
-        if self.output_model_absolute_magnitude.get():
-            command.append("--output_model_absolute_magnitude")
-        if self.output_pos_obs.get():
-            command.append("--output_pos_obs")
-        if self.suffix.get():
-            command.extend(["--suffix", self.suffix.get()])
-
-        # Add cosmology parameters
-        if self.use_cosmology.get():
-            h0 = self.cosmology_params['H0'].get()
-            omigaA = self.cosmology_params['omigaA'].get()
-            omigam = self.cosmology_params['omigam'].get()
-            command.extend(["--cosmology", f"{h0},{omigaA},{omigam}"])
-
-        # Add IGM model
-        if self.use_igm.get():
-            command.extend(["--IGM", self.igm_model.get()])
-
-        # Add redshift parameters if enabled
-        if self.use_redshift.get():
-            redshift_values = [widget.get() for widget in self.redshift_widgets]
-            if all(redshift_values):
-                command.extend(["--z", ",".join(redshift_values)])
-
-        # Boolean options
-        if self.no_photometry_fit.get():
-            command.append("--no_photometry_fit")
-        if self.no_spectra_fit.get():
-            command.append("--no_spectra_fit")
-        if self.unweighted_samples.get():
-            command.append("--unweighted_samples")
-
-        # Add new parameters
-        if self.filters.get():
-            command.extend(["--filters", self.filters.get()])
-        if self.filters_selected.get():
-            command.extend(["--filters_selected", self.filters_selected.get()])
-        
-        if self.use_sfr.get():
-            command.extend(["--SFR_over", self.sfr_myr_entry.get()])
-        
-        if self.use_snr.get():
-            command.extend(["--SNRmin1", self.snrmin1.get()])
-            command.extend(["--SNRmin2", self.snrmin2.get()])
-        
-        if self.use_build_sedlib.get():
-            command.extend(["--build_sedlib", self.build_sedlib.get().split()[0]])
-        
-        if self.priors_only.get():
-            command.append("--priors_only")
-
-        # Output SFH
-        if self.use_output_sfh.get():
-            command.extend(["--output_SFH", f"{self.output_sfh_ntimes.get()},{self.output_sfh_ilog.get()}"])
-
-        # Systematic Error
-        if self.use_sys_err.get():
-            mod_values = ",".join([widget.get() for widget in self.sys_err_widgets[:5]])
-            obs_values = ",".join([widget.get() for widget in self.sys_err_widgets[5:]])
-            command.extend(["--sys_err_mod", mod_values])
-            command.extend(["--sys_err_obs", obs_values])
-
-        return command
-
     def run_bayesed(self):
         if self.run_button['text'] == "Run":
-            command = self.generate_command()
+            params = self.create_bayesed_params()
             
             np = self.mpi_processes.get().strip()
             ntest = self.ntest.get().strip()
             
             self.output_queue = queue.Queue()
             self.stop_output_thread = threading.Event()
-            threading.Thread(target=self.execute_command, args=(command, np, ntest), daemon=True).start()
+            threading.Thread(target=self.execute_bayesed, args=(params, np, ntest), daemon=True).start()
             self.master.after(100, self.check_output_queue)
 
             # Change button text to "Stop"
             self.run_button.config(text="Stop", command=self.stop_bayesed)
         else:
             self.stop_bayesed()
+
+    def execute_bayesed(self, params, np, ntest):
+        try:
+            bayesed = BayeSEDInterface(mpi_mode='1', np=int(np) if np else None, Ntest=int(ntest) if ntest else None)
+            
+            # Show the full command in the output box
+            self.output_queue.put("Executing BayeSED...\n")
+            
+            # Run BayeSED
+            bayesed.run(params)
+            
+            self.output_queue.put("BayeSED execution completed\n")
+            
+        except Exception as e:
+            self.output_queue.put(f"Error: {str(e)}\n")
+        
+        finally:
+            self.output_queue.put(None)  # Signal that the process has finished
+            # Change button text back to "Run"
+            self.master.after(0, lambda: self.run_button.config(text="Run", command=self.run_bayesed))
+
+    def create_bayesed_params(self):
+        params = BayeSEDParams(
+            input_type=int(self.input_type.get().split()[0]),
+            input_file=self.input_file.get(),
+            outdir=self.outdir.get(),
+            verbose=int(self.verbose.get()),
+            save_bestfit=int(self.save_bestfit_type.get().split()[0]) if self.save_bestfit.get() else 0,
+            save_sample_par=self.save_sample_par.get(),
+            save_sample_obs=self.save_sample_obs.get(),
+            filters=self.filters.get() or None,
+            filters_selected=self.filters_selected.get() or None,
+            no_photometry_fit=self.no_photometry_fit.get(),
+            no_spectra_fit=self.no_spectra_fit.get(),
+            unweighted_samples=self.unweighted_samples.get(),
+            priors_only=self.priors_only.get(),
+        )
+
+        # Initialize all list parameters as empty lists
+        params.ssp = []
+        params.sfh = []
+        params.dal = []
+        params.greybody = []
+        params.blackbody = []
+        params.fann = []
+        params.aknn = []
+        params.kin = []
+        params.AGN = []
+        params.big_blue_bump = []
+        params.lines1 = []  # This includes both BLR and NLR
+
+        # Galaxy instances
+        for instance in self.galaxy_instances:
+            ssp_values = [widget.get() for widget in instance['ssp']]
+            params.ssp.append(SSPParams(
+                igroup=int(ssp_values[0]),
+                id=int(ssp_values[1]),
+                name=ssp_values[2],
+                iscalable=int(ssp_values[3]),
+                k=int(ssp_values[4]),
+                f_run=int(ssp_values[5]),
+                Nstep=int(ssp_values[6]),
+                i0=int(ssp_values[7]),
+                i1=int(ssp_values[8]),
+                i2=int(ssp_values[9]),
+                i3=int(ssp_values[10])
+            ))
+
+            sfh_values = [widget.get() for widget in instance['sfh']]
+            params.sfh.append(SFHParams(
+                id=int(sfh_values[0]),
+                itype_sfh=int(sfh_values[1]),
+                itruncated=int(sfh_values[2]),
+                itype_ceh=int(sfh_values[3])
+            ))
+
+            if instance['use_dal'].get():
+                dal_values = [widget.get() for widget in instance['dal']]
+                params.dal.append(DALParams(
+                    id=int(dal_values[0]),
+                    con_eml_tot=int(dal_values[1]),
+                    ilaw=int(dal_values[2])
+                ))
+
+            if instance['use_dem'].get():
+                dem_values = [widget.get() for widget in instance['dem']]
+                imodel = dem_values[1]
+                
+                # Common parameters for all DEM models
+                dem_params = {
+                    'igroup': int(dem_values[0]),
+                    'id': int(dem_values[0]),  # Using the same value for id and igroup
+                    'name': dem_values[3],
+                    'iscalable': int(dem_values[2]) if dem_values[2].strip() else -2  # Default to -2 if empty
+                }
+
+                if imodel == "0":  # Greybody
+                    additional_params = self.additional_dem_widgets[imodel][1]
+                    params.greybody.append(GreybodyParams(
+                        **dem_params,
+                        ithick=int(additional_params[0].get() or 0),
+                        w_min=float(additional_params[1].get() or 1),
+                        w_max=float(additional_params[2].get() or 1000),
+                        Nw=int(additional_params[3].get() or 200)
+                    ))
+                elif imodel == "1":  # Blackbody
+                    additional_params = self.additional_dem_widgets[imodel][1]
+                    params.blackbody.append(BlackbodyParams(
+                        **dem_params,
+                        w_min=float(additional_params[0].get() or 1),
+                        w_max=float(additional_params[1].get() or 1000),
+                        Nw=int(additional_params[2].get() or 200)
+                    ))
+                elif imodel == "2":  # FANN
+                    params.fann.append(FANNParams(**dem_params))
+                elif imodel == "3":  # AKNN
+                    additional_params = self.additional_dem_widgets[imodel][1]
+                    params.aknn.append(AKNNParams(
+                        **dem_params,
+                        k=int(additional_params[0].get() or 1),
+                        f_run=int(additional_params[1].get() or 1),
+                        eps=float(additional_params[2].get() or 0),
+                        iRad=int(additional_params[3].get() or 0),
+                        iprep=int(additional_params[4].get() or 0),
+                        Nstep=int(additional_params[5].get() or 1),
+                        alpha=float(additional_params[6].get() or 0)
+                    ))
+
+            if instance['use_kin'].get():
+                kin_values = [widget.get() for widget in instance['kin'].values()]
+                params.kin.append(KinParams(
+                    id=int(kin_values[0]),
+                    velscale=int(kin_values[1]),
+                    num_gauss_hermites_continuum=int(kin_values[2]),
+                    num_gauss_hermites_emission=int(kin_values[3])
+                ))
+
+        # AGN instances
+        for agn in self.agn_instances:
+            if agn['component_vars']['main_agn'].get():
+                params.AGN.append(AGNParams(
+                    igroup=int(agn['agn_igroup'].get()),
+                    id=int(agn['agn_id'].get()),
+                    name=agn['name'].get(),
+                    iscalable=int(agn['iscalable'].get()),
+                    imodel=int(agn['imodel'].get().split()[0]),
+                    icloudy=int(agn['icloudy'].get()),
+                    suffix=agn['suffix'].get(),
+                    w_min=float(agn['w_min'].get()),
+                    w_max=float(agn['w_max'].get()),
+                    Nw=int(agn['nw'].get())
+                ))
+
+            if agn['component_vars']['bbb'].get():
+                params.big_blue_bump.append(BigBlueBumpParams(
+                    igroup=int(agn['bbb_igroup'].get()),
+                    id=int(agn['bbb_id'].get()),
+                    name=agn['bbb_name'].get(),
+                    iscalable=1,
+                    w_min=float(agn['bbb_w_min'].get()),
+                    w_max=float(agn['bbb_w_max'].get()),
+                    Nw=int(agn['bbb_nw'].get())
+                ))
+
+            if agn['component_vars']['blr'].get():
+                blr = agn['blr_widgets']
+                params.lines1.append(LineParams(
+                    igroup=int(blr['igroup'].get()),
+                    id=int(blr['id'].get()),
+                    name=blr['name'].get(),
+                    iscalable=int(blr['iscalable'].get()),
+                    file=blr['file'].get(),
+                    R=float(blr['R'].get()),
+                    Nsample=int(blr['Nsample'].get()),
+                    Nkin=int(blr['Nkin'].get())
+                ))
+
+            if agn['component_vars']['feii'].get():
+                feii = agn['feii_widgets']
+                feii_params = AKNNParams(
+                    igroup=int(feii['igroup'].get()),
+                    id=int(feii['id'].get()),
+                    name=feii['name'].get(),
+                    iscalable=int(feii['iscalable'].get()),
+                    k=int(feii['k'].get()),
+                    f_run=int(feii['f_run'].get()),
+                    eps=float(feii['eps'].get()),
+                    iRad=int(feii['iRad'].get()),
+                    iprep=int(feii['iprep'].get()),
+                    Nstep=int(feii['Nstep'].get()),
+                    alpha=float(feii['alpha'].get())
+                )
+                params.aknn.append(feii_params)
+
+                # Add FeII kinematic parameters if they are used
+                if agn['use_feii_kin'].get():
+                    kin_widgets = agn['kin_widgets']
+                    params.kin.append(KinParams(
+                        id=int(feii['id'].get()),  # Use the same ID as the FeII component
+                        velscale=int(kin_widgets['velscale'].get()),
+                        num_gauss_hermites_continuum=int(kin_widgets['gh_cont'].get() or 0),
+                        num_gauss_hermites_emission=int(kin_widgets['gh_emis'].get() or 0)
+                    ))
+
+            if agn['component_vars']['nlr'].get():
+                nlr = agn['nlr_widgets']
+                params.lines1.append(LineParams(
+                    igroup=int(nlr['igroup'].get()),
+                    id=int(nlr['id'].get()),
+                    name=nlr['name'].get(),
+                    iscalable=int(nlr['iscalable'].get()),
+                    file=nlr['file'].get(),
+                    R=float(nlr['R'].get()),
+                    Nsample=int(nlr['Nsample'].get()),
+                    Nkin=int(nlr['Nkin'].get())
+                ))
+
+            if agn['component_vars']['tor'].get():
+                tor = agn['tor_widgets']
+                if tor['model_type'].get() == "FANN":
+                    params.fann.append(FANNParams(
+                        igroup=int(tor['igroup'].get()),
+                        id=int(tor['id'].get()),
+                        name=tor['name'].get(),
+                        iscalable=int(tor['iscalable'].get())
+                    ))
+                else:  # AKNN
+                    params.aknn.append(AKNNParams(
+                        igroup=int(tor['igroup'].get()),
+                        id=int(tor['id'].get()),
+                        name=tor['name'].get(),
+                        iscalable=int(tor['iscalable'].get()),
+                        k=int(tor['k'].get()),
+                        f_run=int(tor['f_run'].get()),
+                        eps=float(tor['eps'].get()),
+                        iRad=int(tor['iRad'].get()),
+                        iprep=int(tor['iprep'].get()),
+                        Nstep=int(tor['Nstep'].get()),
+                        alpha=float(tor['alpha'].get())
+                    ))
+
+        # Advanced settings
+        if self.use_multinest.get():
+            params.multinest = MultiNestParams(**{param: float(widget.get()) for param, widget in self.multinest_widgets.items()})
+
+        if self.use_nnlm.get():
+            params.NNLM = NNLMParams(**{param: float(widget.get()) for param, widget in self.nnlm_widgets.items()})
+
+        if self.use_ndumper.get():
+            params.Ndumper = NdumperParams(**{param: float(widget.get()) for param, widget in self.ndumper_widgets.items()})
+
+        if self.use_gsl.get():
+            params.gsl_integration_qag = GSLIntegrationQAGParams(
+                epsabs=float(self.gsl_widgets['integration_epsabs'].get()),
+                epsrel=float(self.gsl_widgets['integration_epsrel'].get()),
+                limit=int(self.gsl_widgets['integration_limit'].get())
+            )
+            params.gsl_multifit_robust = GSLMultifitRobustParams(
+                type=self.gsl_widgets['multifit_type'].get(),
+                tune=float(self.gsl_widgets['multifit_tune'].get())
+            )
+
+        if self.use_misc.get():
+            for param, widget in self.misc_widgets.items():
+                value = widget.get()
+                if value:
+                    setattr(params, param, int(value) if param != 'cl' else value)
+
+        # Cosmology settings
+        if self.use_cosmology.get():
+            params.cosmology = CosmologyParams(
+                H0=float(self.cosmology_params['H0'].get()),
+                omigaA=float(self.cosmology_params['omigaA'].get()),
+                omigam=float(self.cosmology_params['omigam'].get())
+            )
+
+        # IGM model
+        if self.use_igm.get():
+            params.IGM = int(self.igm_model.get())
+
+        # Redshift parameters
+        if self.use_redshift.get():
+            params.z = ZParams(**{param: float(widget.get()) for param, widget in self.redshift_params.items()})
+
+        # Other settings
+        if self.use_sfr.get():
+            params.SFR_over = SFROverParams(
+                past_Myr1=float(self.sfr_myr_entry.get().split(',')[0]),
+                past_Myr2=float(self.sfr_myr_entry.get().split(',')[1])
+            )
+
+        if self.use_snr.get():
+            params.SNRmin1 = SNRmin1Params(
+                phot=float(self.snrmin1.get().split(',')[0]),
+                spec=float(self.snrmin1.get().split(',')[1])
+            )
+            params.SNRmin2 = SNRmin2Params(
+                phot=float(self.snrmin2.get().split(',')[0]),
+                spec=float(self.snrmin2.get().split(',')[1])
+            )
+
+        if self.use_build_sedlib.get():
+            params.build_sedlib = int(self.build_sedlib.get().split()[0])
+
+        if self.use_output_sfh.get():
+            params.output_SFH = OutputSFHParams(
+                ntimes=int(self.output_sfh_ntimes.get()),
+                ilog=int(self.output_sfh_ilog.get())
+            )
+
+        if self.use_sys_err.get():
+            params.sys_err_mod = SysErrParams(**{param: float(widget.get()) for param, widget in zip(['iprior_type', 'is_age', 'min', 'max', 'nbin'], self.sys_err_widgets[:5])})
+            params.sys_err_obs = SysErrParams(**{param: float(widget.get()) for param, widget in zip(['iprior_type', 'is_age', 'min', 'max', 'nbin'], self.sys_err_widgets[5:])})
+
+        return params
 
     def stop_bayesed(self):
         if hasattr(self, 'process') and self.process:
@@ -2100,8 +2166,7 @@ class BayeSEDGUI:
         
         if filename:
             with open(filename, 'w') as f:
-                f.write("from bayesed import *\n")
-
+                f.write("from bayesed import BayeSEDInterface, BayeSEDParams\n\n")
                 f.write("def run_bayesed():\n")
                 
                 # Get the number of MPI processes and Ntest
@@ -2116,195 +2181,19 @@ class BayeSEDGUI:
                     f.write(f", Ntest={ntest}")
                 f.write(")\n\n")
                 
+                # Create BayeSEDParams
+                params = self.create_bayesed_params()
+                
+                # Write BayeSEDParams to file
                 f.write("    params = BayeSEDParams(\n")
+                for field in params.__dataclass_fields__:
+                    value = getattr(params, field)
+                    if value is not None and value != []:
+                        f.write(f"        {field}={repr(value)},\n")
+                f.write("    )\n\n")
                 
-                # Basic settings
-                f.write(f"        input_type={self.input_type.get().split()[0]},\n")
-                f.write(f"        input_file='{self.input_file.get()}',\n")
-                f.write(f"        outdir='{self.outdir.get()}',\n")
-                f.write(f"        verbose={self.verbose.get()},\n")
-                
-                # Output settings
-                if self.save_bestfit.get():
-                    f.write(f"        save_bestfit={self.save_bestfit_type.get().split()[0]},\n")
-                if self.save_sample_par.get():
-                    f.write("        save_sample_par=True,\n")
-                if self.save_sample_obs.get():
-                    f.write("        save_sample_obs=True,\n")
-                if self.save_pos_sfh.get():
-                    f.write(f"        save_pos_sfh='{self.save_pos_sfh_ngrid.get()},{self.save_pos_sfh_ilog.get()}',\n")
-                if self.save_pos_spec.get():
-                    f.write("        save_pos_spec=True,\n")
-                if self.save_sample_spec.get():
-                    f.write("        save_sample_spec=True,\n")
-                if self.save_summary.get():
-                    f.write("        save_summary=True,\n")
-                
-                # Galaxy instance settings
-                if self.galaxy_instances:
-                    f.write("        ssp=[")
-                    for instance in self.galaxy_instances:
-                        ssp_values = [widget.get() for widget in instance['ssp']]
-                        f.write(f"SSPParams(igroup={ssp_values[0]}, id={ssp_values[1]}, name='{ssp_values[2]}', iscalable={ssp_values[3]}, k={ssp_values[4]}, f_run={ssp_values[5]}, Nstep={ssp_values[6]}, i0={ssp_values[7]}, i1={ssp_values[8]}, i2={ssp_values[9]}, i3={ssp_values[10]}),")
-                    f.write("],\n")
-                    
-                    f.write("        sfh=[")
-                    for instance in self.galaxy_instances:
-                        sfh_values = [widget.get() for widget in instance['sfh']]
-                        f.write(f"SFHParams(id={sfh_values[0]}, itype_sfh={sfh_values[1]}, itruncated={sfh_values[2]}, itype_ceh={sfh_values[3]}),")
-                    f.write("],\n")
-                    
-                    f.write("        dal=[")
-                    for instance in self.galaxy_instances:
-                        if instance['use_dal'].get():
-                            dal_values = [widget.get() for widget in instance['dal']]
-                            f.write(f"DALParams(id={dal_values[0]}, con_eml_tot={dal_values[1]}, ilaw={dal_values[2]}),")
-                    f.write("],\n")
-                    
-                    f.write("        kin=[")
-                    for instance in self.galaxy_instances:
-                        if instance['use_kin'].get():
-                            kin_values = [widget.get() for widget in instance['kin'].values()]
-                            f.write(f"KinParams(id={kin_values[0]}, velscale={kin_values[1]}, num_gauss_hermites_continuum={kin_values[2]}, num_gauss_hermites_emission={kin_values[3]}),")
-                    f.write("],\n")
-                
-                if self.use_sys_err.get():
-                    sys_err_mod_values = [widget.get() for widget in self.sys_err_widgets[:5]]
-                    sys_err_obs_values = [widget.get() for widget in self.sys_err_widgets[5:]]
-                    f.write(f"        sys_err_mod=SysErrParams(iprior_type={sys_err_mod_values[0]}, is_age={sys_err_mod_values[1]}, min={sys_err_mod_values[2]}, max={sys_err_mod_values[3]}, nbin={sys_err_mod_values[4]}),\n")
-                    f.write(f"        sys_err_obs=SysErrParams(iprior_type={sys_err_obs_values[0]}, is_age={sys_err_obs_values[1]}, min={sys_err_obs_values[2]}, max={sys_err_obs_values[3]}, nbin={sys_err_obs_values[4]}),\n")
-                
-                # Other settings
-                if self.filters.get():
-                    f.write(f"        filters='{self.filters.get()}',\n")
-                if self.filters_selected.get():
-                    f.write(f"        filters_selected='{self.filters_selected.get()}',\n")
-                if self.no_photometry_fit.get():
-                    f.write("        no_photometry_fit=True,\n")
-                if self.no_spectra_fit.get():
-                    f.write("        no_spectra_fit=True,\n")
-                if self.unweighted_samples.get():
-                    f.write("        unweighted_samples=True,\n")
-                if self.priors_only.get():
-                    f.write("        priors_only=True,\n")
-                f.write("    )\n\n")  # Close the BayeSEDParams initialization
-                
-                # AGN settings
-                agn_settings = self.get_agn_settings()
-                if agn_settings:
-                    f.write("    # AGN components\n")
-                    for agn in agn_settings:
-                        if agn['component_vars']['main_agn']:
-                            f.write(f"    params.AGN = [AGNParams(igroup={agn['agn_igroup']}, id={agn['agn_id']}, name='{agn['name']}', iscalable={agn['iscalable']}, imodel={agn['imodel'].split()[0]}, icloudy={agn['icloudy']}, suffix='{agn['suffix']}', w_min={agn['w_min']}, w_max={agn['w_max']}, Nw={agn['nw']})]\n")
-                        
-                        if agn['component_vars']['bbb']:
-                            f.write(f"    params.big_blue_bump = [BigBlueBumpParams(igroup={agn['bbb_igroup']}, id={agn['bbb_id']}, name='{agn['bbb_name']}', iscalable=1, w_min={agn['bbb_w_min']}, w_max={agn['bbb_w_max']}, Nw={agn['bbb_nw']})]\n")
-                        
-                        if agn['component_vars']['blr']:
-                            blr = agn['blr_widgets']
-                            f.write(f"    params.lines1 = [LineParams(igroup={blr['igroup']}, id={blr['id']}, name='{blr['name']}', iscalable={blr['iscalable']}, file='{blr['file']}', R={blr['R']}, Nsample={blr['Nsample']}, Nkin={blr['Nkin']})]\n")
-                        
-                        if agn['component_vars']['feii']:
-                            feii = agn['feii_widgets']
-                            f.write(f"    params.aknn = [AKNNParams(igroup={feii['igroup']}, id={feii['id']}, name='{feii['name']}', iscalable={feii['iscalable']}, k={feii['k']}, f_run={feii['f_run']}, eps={feii['eps']}, iRad={feii['iRad']}, iprep={feii['iprep']}, Nstep={feii['Nstep']}, alpha={feii['alpha']})]\n")
-                            kin = agn['kin_widgets']
-                            f.write(f"    params.kin.append(KinParams(id={feii['id']}, velscale={kin['velscale']}, num_gauss_hermites_continuum={kin['gh_cont']}, num_gauss_hermites_emission={kin['gh_emis']}))\n")
-                        
-                        if agn['component_vars']['nlr']:
-                            nlr = agn['nlr_widgets']
-                            f.write(f"    params.lines1.append(LineParams(igroup={nlr['igroup']}, id={nlr['id']}, name='{nlr['name']}', iscalable={nlr['iscalable']}, file='{nlr['file']}', R={nlr['R']}, Nsample={nlr['Nsample']}, Nkin={nlr['Nkin']}))\n")
-                        
-                        if agn['component_vars']['tor']:
-                            tor = agn['tor_widgets']
-                            if isinstance(tor['model_type'], ttk.Combobox):
-                                model_type = tor['model_type'].get()
-                            else:
-                                model_type = tor['model_type']  # Assume it's already a string
-                            
-                            if model_type == "FANN":
-                                f.write(f"    params.fann.append(FANNParams(igroup={tor['igroup']}, id={tor['id']}, name='{tor['name']}', iscalable={tor['iscalable']}))\n")
-                            else:  # AKNN
-                                f.write(f"    params.aknn.append(AKNNParams(igroup={tor['igroup']}, id={tor['id']}, name='{tor['name']}', iscalable={tor['iscalable']}, k={tor['k']}, f_run={tor['f_run']}, eps={tor['eps']}, iRad={tor['iRad']}, iprep={tor['iprep']}, Nstep={tor['Nstep']}, alpha={tor['alpha']}))\n")
-
-                # Cosmology settings
-                f.write("\n\n    # Cosmology settings\n")
-                if self.use_cosmology.get():
-                    f.write(f"    params.cosmology = CosmologyParams(\n")
-                    f.write(f"        H0={self.cosmology_params['H0'].get()},\n")
-                    f.write(f"        omigaA={self.cosmology_params['omigaA'].get()},\n")
-                    f.write(f"        omigam={self.cosmology_params['omigam'].get()}\n")
-                    f.write(f"    )\n\n")
-
-                # IGM model
-                f.write("    # IGM model\n")
-                if self.use_igm.get():
-                    f.write(f"    params.IGM = {self.igm_model.get()}\n\n")
-
-                # Redshift parameters
-                f.write("    # Redshift parameters\n")
-                if self.use_redshift.get():
-                    f.write(f"    params.z = ZParams(\n")
-                    f.write(f"        iprior_type={self.redshift_params['iprior_type'].get()},\n")
-                    f.write(f"        is_age={self.redshift_params['is_age'].get()},\n")
-                    f.write(f"        min={self.redshift_params['min'].get()},\n")
-                    f.write(f"        max={self.redshift_params['max'].get()},\n")
-                    f.write(f"        nbin={self.redshift_params['nbin'].get()}\n")
-                    f.write(f"    )\n\n")
-
-                # Advanced settings
-                if self.use_multinest.get():
-                    f.write("    params.multinest = MultiNestParams(\n")
-                    for i, (key, widget) in enumerate(self.multinest_widgets.items()):
-                        f.write(f"        {key}={widget.get()}")
-                        if i < len(self.multinest_widgets) - 1:
-                            f.write(",")
-                        f.write("\n")
-                    f.write("    )\n\n")
-
-                if self.use_nnlm.get():
-                    f.write("    params.NNLM = NNLMParams(\n")
-                    for i, (key, widget) in enumerate(self.nnlm_widgets.items()):
-                        f.write(f"        {key}={widget.get()}")
-                        if i < len(self.nnlm_widgets) - 1:
-                            f.write(",")
-                        f.write("\n")
-                    f.write("    )\n\n")
-
-                if self.use_ndumper.get():
-                    f.write("    params.Ndumper = NdumperParams(\n")
-                    for i, (key, widget) in enumerate(self.ndumper_widgets.items()):
-                        f.write(f"        {key}={widget.get()}")
-                        if i < len(self.ndumper_widgets) - 1:
-                            f.write(",")
-                        f.write("\n")
-                    f.write("    )\n\n")
-
-                if self.use_gsl.get():
-                    f.write("    params.gsl_integration_qag = GSLIntegrationQAGParams(\n")
-                    gsl_int_params = ["epsabs", "epsrel", "limit"]
-                    for i, key in enumerate(gsl_int_params):
-                        f.write(f"        {key}={self.gsl_widgets[f'integration_{key}'].get()}")
-                        if i < len(gsl_int_params) - 1:
-                            f.write(",")
-                        f.write("\n")
-                    f.write("    )\n")
-                    f.write("    params.gsl_multifit_robust = GSLMultifitRobustParams(\n")
-                    f.write(f"        type='{self.gsl_widgets['multifit_type'].get()}',\n")
-                    f.write(f"        tune={self.gsl_widgets['multifit_tune'].get()}\n")
-                    f.write("    )\n\n")
-
-                if self.use_misc.get():
-                    for key, widget in self.misc_widgets.items():
-                        value = widget.get()
-                        if value:
-                            if key == 'cl':
-                                f.write(f"    params.cl = '{value}'\n")
-                            else:
-                                f.write(f"    params.{key} = {value}\n")
-                    f.write("\n")
-
                 f.write("    bayesed.run(params)\n")
-                f.write("if __name__ == '__main__':\n")
+                f.write("\nif __name__ == '__main__':\n")
                 f.write("    run_bayesed()\n")
             
             messagebox.showinfo("Save Successful", f"Script saved to {filename}")
