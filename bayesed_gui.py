@@ -87,11 +87,6 @@ class BayeSEDGUI:
         self.use_sys_err = tk.BooleanVar(value=False)
         self.sys_err_widgets = []
         
-        # Add these lines to initialize use_dal, use_dem, and use_kin
-        self.use_dal = tk.BooleanVar(value=False)
-        self.use_dem = tk.BooleanVar(value=False)
-        self.use_kin = tk.BooleanVar(value=False)
-        
         # Initialize other necessary variables
         self.redshift_widgets = []
         
@@ -694,11 +689,16 @@ class BayeSEDGUI:
         # Call the function initially to set the correct state
         toggle_np_sfh_params()
 
+        # Create instance-specific BooleanVar variables
+        use_dal = tk.BooleanVar(value=False)
+        use_dem = tk.BooleanVar(value=False)
+        use_kin = tk.BooleanVar(value=False)
+
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
         dal_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Checkbutton(dal_frame, text="DAL:", variable=self.use_dal, 
-                        command=lambda: self.toggle_component(dal_params_frame, self.use_dal.get())).grid(row=0, column=0, sticky='w')
+        ttk.Checkbutton(dal_frame, text="DAL:", variable=use_dal, 
+                        command=lambda: self.toggle_component(dal_params_frame, use_dal.get())).grid(row=0, column=0, sticky='w')
 
         dal_params_frame = ttk.Frame(dal_frame)
         dal_params_frame.grid(row=0, column=1, sticky='ew')
@@ -750,8 +750,8 @@ class BayeSEDGUI:
         dem_frame = ttk.Frame(instance_frame)
         dem_frame.pack(fill=tk.X, padx=5, pady=2)
 
-        ttk.Checkbutton(dem_frame, text="DEM:", variable=self.use_dem, 
-                        command=lambda: self.toggle_component(dem_params_frame, self.use_dem.get())).grid(row=0, column=0, sticky='w')
+        ttk.Checkbutton(dem_frame, text="DEM:", variable=use_dem, 
+                        command=lambda: self.toggle_component(dem_params_frame, use_dem.get())).grid(row=0, column=0, sticky='w')
 
         dem_params_frame = ttk.Frame(dem_frame)
         dem_params_frame.grid(row=0, column=1, sticky='ew')
@@ -814,8 +814,8 @@ class BayeSEDGUI:
         # KIN settings
         kin_frame = ttk.Frame(instance_frame)
         kin_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Checkbutton(kin_frame, text="KIN:", variable=self.use_kin, 
-                        command=lambda: self.toggle_component(kin_params_frame, self.use_kin.get())).grid(row=0, column=0, sticky='w')
+        ttk.Checkbutton(kin_frame, text="KIN:", variable=use_kin, 
+                        command=lambda: self.toggle_component(kin_params_frame, use_kin.get())).grid(row=0, column=0, sticky='w')
 
         kin_params_frame = ttk.Frame(kin_frame)
         kin_params_frame.grid(row=0, column=1, sticky='ew')
@@ -868,9 +868,9 @@ class BayeSEDGUI:
             'dal_id': dal_id_widget,
             'dem_id': dem_id_widget,
             'kin_id': kin_widgets['id'],
-            'use_dal': self.use_dal,
-            'use_dem': self.use_dem,
-            'use_kin': self.use_kin
+            'use_dal': use_dal,
+            'use_dem': use_dem,
+            'use_kin': use_kin
         }
 
         # Append the new instance to the list
