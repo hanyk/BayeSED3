@@ -1198,16 +1198,16 @@ class BayeSEDGUI:
 
         # AKNN parameters
         aknn_params = [
-            ("igroup", 5), ("id", 5), ("name", 10), ("iscalable", 5),
-            ("k", 5), ("f_run", 5), ("eps", 5), ("iRad", 5),
-            ("iprep", 5), ("Nstep", 5), ("alpha", 5)
+            ("igroup", 3), ("id", 3), ("name", 3), ("iscalable", 3),
+            ("k", 3), ("f_run", 3), ("eps", 3), ("iRad", 3),
+            ("iprep", 3), ("Nstep", 3), ("alpha", 3)
         ]
 
         feii_widgets = {}
         for i, (param, width) in enumerate(aknn_params):
-            ttk.Label(feii_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=2)
+            ttk.Label(feii_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=1)
             widget = ttk.Entry(feii_content_frame, width=width)
-            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=1)
             feii_widgets[param] = widget
 
         # Set default values
@@ -1237,22 +1237,19 @@ class BayeSEDGUI:
         for param, tooltip in feii_tooltips.items():
             CreateToolTip(feii_widgets[param], tooltip)
 
-        # Kinematic settings for FeII
-        kin_frame = ttk.Frame(feii_content_frame)
-        kin_frame.grid(row=1, column=0, columnspan=len(aknn_params)*2, sticky=tk.W, pady=5)
+        # Kinematic settings for FeII (optional)
+        use_feii_kin = tk.BooleanVar(value=False)
+        ttk.Checkbutton(feii_content_frame, text="Kin", variable=use_feii_kin, 
+                        command=lambda: self.toggle_widgets(list(kin_widgets.values()), use_feii_kin.get())).grid(row=0, column=len(aknn_params)*2, sticky=tk.W, padx=(5,1))
 
-        ttk.Label(kin_frame, text="Kinematics:").pack(side=tk.LEFT, padx=(0, 5))
-        kin_params = [("velscale", 5), ("gh_cont", 5), ("gh_emis", 5)]
+        kin_params = [("velscale", 3), ("gh_cont", 3), ("gh_emis", 3)]
         kin_widgets = {}
-        for param, width in kin_params:
-            ttk.Label(kin_frame, text=f"{param}:").pack(side=tk.LEFT, padx=(0, 2))
-            widget = ttk.Entry(kin_frame, width=width)
-            widget.pack(side=tk.LEFT, padx=(0, 5))
+        for i, (param, width) in enumerate(kin_params):
+            ttk.Label(feii_content_frame, text=f"{param}:").grid(row=0, column=len(aknn_params)*2 + 1 + i*2, sticky=tk.W, padx=1)
+            widget = ttk.Entry(feii_content_frame, width=width)
+            widget.grid(row=0, column=len(aknn_params)*2 + 2 + i*2, sticky=tk.W, padx=1)
             kin_widgets[param] = widget
-
-        kin_widgets['velscale'].insert(0, "10")
-        kin_widgets['gh_cont'].insert(0, "2")
-        kin_widgets['gh_emis'].insert(0, "0")
+            widget.insert(0, "10" if param == "velscale" else "2" if param == "gh_cont" else "0")
 
         # Add tooltips for FeII kinematic parameters
         kin_tooltips = {
@@ -1262,6 +1259,9 @@ class BayeSEDGUI:
         }
         for param, tooltip in kin_tooltips.items():
             CreateToolTip(kin_widgets[param], tooltip)
+
+        # Initially disable kinematic widgets
+        self.toggle_widgets(list(kin_widgets.values()), False)
 
         # NLR component
         nlr_frame = ttk.Frame(instance_frame)
@@ -1317,8 +1317,8 @@ class BayeSEDGUI:
         tor_content_frame.grid(row=0, column=1, sticky='ew')
 
         tor_params = [
-            ("igroup", 3), ("id", 3), ("name", 6), ("iscalable", 3),
-            ("model_type", 6), ("k", 3), ("f_run", 3), ("eps", 3),
+            ("igroup", 3), ("id", 3), ("name", 8), ("iscalable", 3),
+            ("model_type", 4), ("k", 3), ("f_run", 3), ("eps", 3),
             ("iRad", 3), ("iprep", 3), ("Nstep", 3), ("alpha", 3)
         ]
 
