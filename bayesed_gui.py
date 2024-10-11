@@ -6,13 +6,10 @@ import queue
 import sys
 from PIL import Image, ImageDraw, ImageTk, ImageFont
 import pyperclip
-import json
 import os
 import psutil
-import signal
-import traceback
 from datetime import datetime
-from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams
+from bayesed import *
 import webbrowser
 
 class CreateToolTip(object):
@@ -1432,12 +1429,12 @@ class BayeSEDGUI:
             if isinstance(child, (ttk.Entry, ttk.Combobox)):
                 child.config(state="normal" if state else "disabled")
 
-    # Update the get_agn_settings method to include the use_* flags
     def get_agn_settings(self):
         return [
             {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else 
                    widget.get() if isinstance(widget, tk.BooleanVar) else 
-                   {k: v.get() for k, v in widget.items()} if isinstance(widget, dict) else None)
+                   {k: v.get() if hasattr(v, 'get') else v for k, v in widget.items()} if isinstance(widget, dict) else 
+                   widget)
              for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame', 'tor_frame']}
             for instance in self.agn_instances
         ]
@@ -1617,7 +1614,12 @@ class BayeSEDGUI:
         
             if agn['component_vars']['tor'].get():
                 tor = agn['tor_widgets']
-                if tor['model_type'].get() == "FANN":
+                if isinstance(tor['model_type'], ttk.Combobox):
+                    model_type = tor['model_type'].get()
+                else:
+                    model_type = tor['model_type']  # Assume it's already a string
+                
+                if model_type == "FANN":
                     command.extend(["-a", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()}"])
                 else:  # AKNN
                     command.extend(["-k", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()},{tor['k'].get()},{tor['f_run'].get()},{tor['eps'].get()},{tor['iRad'].get()},{tor['iprep'].get()},{tor['Nstep'].get()},{tor['alpha'].get()}"])
@@ -2098,10 +2100,7 @@ class BayeSEDGUI:
         
         if filename:
             with open(filename, 'w') as f:
-                f.write("from bayesed import (BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams,\n")
-                f.write("                     MultiNestParams, SysErrParams, AGNParams, BigBlueBumpParams, LineParams,\n")
-                f.write("                     AKNNParams, KinParams, CosmologyParams, ZParams, NNLMParams, NdumperParams,\n")
-                f.write("                     GSLIntegrationQAGParams, GSLMultifitRobustParams)\n\n")
+                f.write("from bayesed import *\n")
 
                 f.write("def run_bayesed():\n")
                 
@@ -2217,10 +2216,15 @@ class BayeSEDGUI:
                         
                         if agn['component_vars']['tor']:
                             tor = agn['tor_widgets']
-                            if tor['model_type'].get() == "FANN":
-                                f.write(f"    params.fann.append(FANNParams(igroup={tor['igroup'].get()}, id={tor['id'].get()}, name='{tor['name'].get()}', iscalable={tor['iscalable'].get()}))\n")
+                            if isinstance(tor['model_type'], ttk.Combobox):
+                                model_type = tor['model_type'].get()
+                            else:
+                                model_type = tor['model_type']  # Assume it's already a string
+                            
+                            if model_type == "FANN":
+                                f.write(f"    params.fann.append(FANNParams(igroup={tor['igroup']}, id={tor['id']}, name='{tor['name']}', iscalable={tor['iscalable']}))\n")
                             else:  # AKNN
-                                f.write(f"    params.aknn.append(AKNNParams(igroup={tor['igroup'].get()}, id={tor['id'].get()}, name='{tor['name'].get()}', iscalable={tor['iscalable'].get()}, k={tor['k'].get()}, f_run={tor['f_run'].get()}, eps={tor['eps'].get()}, iRad={tor['iRad'].get()}, iprep={tor['iprep'].get()}, Nstep={tor['Nstep'].get()}, alpha={tor['alpha'].get()}))\n")
+                                f.write(f"    params.aknn.append(AKNNParams(igroup={tor['igroup']}, id={tor['id']}, name='{tor['name']}', iscalable={tor['iscalable']}, k={tor['k']}, f_run={tor['f_run']}, eps={tor['eps']}, iRad={tor['iRad']}, iprep={tor['iprep']}, Nstep={tor['Nstep']}, alpha={tor['alpha']}))\n")
 
                 # Cosmology settings
                 f.write("\n\n    # Cosmology settings\n")
