@@ -2262,14 +2262,14 @@ class BayeSEDGUI:
         # Features section
         features = (
             "• Multi-component SED analysis for galaxies and AGNs\n"
-            "• Bayesian parameter estimation and model comparison\n"
             "• Flexible stellar population synthesis modeling\n"
             "• Flexible dust attenuation and emission modeling\n"
             "• Flexible stellar and gas kinematics modeling\n"
-            "• Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)\n"
             "• Non-parametric and parametric star formation history options\n"
-            "• Simultaneous analysis of photometric and spectroscopic data\n"
+            "• Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)\n"
             "• Intergalactic medium (IGM) absorption modeling\n"
+            "• Handling of both photometric and spectroscopic data\n"
+            "• Bayesian parameter estimation and model comparison\n"
             "• Machine learning techniques for SED model emulation\n"
             "• Parallel processing support for improved performance\n"
             "• User-friendly CLI, python script, and GUI interfaces"
