@@ -1009,8 +1009,8 @@ class BayeSEDGUI:
         new_id = max_id + 2  # Increment by 2 to ensure uniqueness
         new_igroup = max_igroup + 1  # Increment igroup by 5 for a new AGN instance
         if len(self.agn_instances) > 0:
-            new_id = new_id + 3
-            new_igroup = new_igroup + 4
+            new_id = new_id + 4
+            new_igroup = new_igroup + 5
         
         instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {len(self.agn_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -1021,7 +1021,8 @@ class BayeSEDGUI:
             'bbb': tk.BooleanVar(value=False),
             'blr': tk.BooleanVar(value=False),
             'feii': tk.BooleanVar(value=False),
-            'nlr': tk.BooleanVar(value=False)
+            'nlr': tk.BooleanVar(value=False),
+            'tor': tk.BooleanVar(value=False)
         }
 
         # Main AGN component
@@ -1306,12 +1307,73 @@ class BayeSEDGUI:
         for param, tooltip in nlr_tooltips.items():
             CreateToolTip(nlr_widgets[param], tooltip)
 
+        # TOR component
+        tor_frame = ttk.Frame(instance_frame)
+        tor_frame.grid(row=5, column=0, sticky='ew', padx=5, pady=2)
+        ttk.Checkbutton(tor_frame, text="TOR", variable=component_vars['tor'], 
+                        command=lambda: self.toggle_component(tor_content_frame, component_vars['tor'].get())).grid(row=0, column=0, sticky='w')
+
+        tor_content_frame = ttk.Frame(tor_frame)
+        tor_content_frame.grid(row=0, column=1, sticky='ew')
+
+        tor_params = [
+            ("igroup", 3), ("id", 3), ("name", 6), ("iscalable", 3),
+            ("model_type", 6), ("k", 3), ("f_run", 3), ("eps", 3),
+            ("iRad", 3), ("iprep", 3), ("Nstep", 3), ("alpha", 3)
+        ]
+
+        tor_widgets = {}
+        for i, (param, width) in enumerate(tor_params):
+            ttk.Label(tor_content_frame, text=f"{param}:").grid(row=0, column=i*2, sticky=tk.W, padx=1)
+            if param == "model_type":
+                widget = ttk.Combobox(tor_content_frame, values=["FANN", "AKNN"], width=width)
+                widget.set("FANN")
+                widget.bind("<<ComboboxSelected>>", lambda e, widgets=tor_widgets: self.toggle_tor_params(widgets))
+            else:
+                widget = ttk.Entry(tor_content_frame, width=width)
+            widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=1)
+            tor_widgets[param] = widget
+
+        # Set default values for TOR widgets
+        tor_widgets['igroup'].insert(0, str(new_igroup + 5))
+        tor_widgets['id'].insert(0, str(int(agn_id.get()) + 5))
+        tor_widgets['name'].insert(0, "clumpy201410tor")
+        tor_widgets['iscalable'].insert(0, "1")
+        tor_widgets['k'].insert(0, "1")
+        tor_widgets['f_run'].insert(0, "1")
+        tor_widgets['eps'].insert(0, "0")
+        tor_widgets['iRad'].insert(0, "0")
+        tor_widgets['iprep'].insert(0, "0")
+        tor_widgets['Nstep'].insert(0, "1")
+        tor_widgets['alpha'].insert(0, "0")
+
+        # Add tooltips for TOR parameters
+        tor_tooltips = {
+            "igroup": "Group ID for the TOR component",
+            "id": "Unique ID for the TOR component",
+            "name": "Name of the TOR component",
+            "iscalable": "Whether the component is scalable (0: No, 1: Yes)",
+            "model_type": "Type of TOR model (FANN or AKNN)",
+            "k": "Number of nearest neighbors (for AKNN)",
+            "f_run": "Fraction of points to use in the running average",
+            "eps": "Epsilon parameter (for AKNN)",
+            "iRad": "Radial basis function flag (for AKNN)",
+            "iprep": "Preprocessing flag (for AKNN)",
+            "Nstep": "Number of steps (for AKNN)",
+            "alpha": "Alpha parameter (for AKNN)"
+        }
+        for param, tooltip in tor_tooltips.items():
+            CreateToolTip(tor_widgets[param], tooltip)
+
+        # Initialize the TOR parameters visibility
+        self.toggle_tor_params(tor_widgets)
+
         # Add delete button
         delete_button = ttk.Button(instance_frame, text="Delete", command=lambda: self.delete_AGN_instance(instance_frame))
-        delete_button.grid(row=5, column=0, sticky='e', padx=5, pady=5)
+        delete_button.grid(row=6, column=0, sticky='e', padx=5, pady=5)
 
         # Update the instance dictionary
-        self.agn_instances.append({
+        new_instance = {
             'frame': instance_frame,
             'component_vars': component_vars,
             'agn_igroup': agn_igroup,
@@ -1337,13 +1399,19 @@ class BayeSEDGUI:
             'feii_widgets': feii_widgets,
             'kin_widgets': kin_widgets,
             'nlr_frame': nlr_frame,
-            'nlr_widgets': nlr_widgets
-        })
+            'nlr_widgets': nlr_widgets,
+            'tor_frame': tor_frame,
+            'tor_widgets': tor_widgets
+        }
+
+        self.agn_instances.append(new_instance)
 
         # Initialize the component visibilities
         for component, var in component_vars.items():
             if component == 'main_agn':
                 self.toggle_component(agn_params_frame, var.get())
+            elif component == 'tor':
+                self.toggle_component(tor_content_frame, var.get())
             else:
                 self.toggle_component(locals()[f"{component}_content_frame"], var.get())
 
@@ -1354,6 +1422,7 @@ class BayeSEDGUI:
         blr_frame.grid_columnconfigure(1, weight=1)
         feii_frame.grid_columnconfigure(1, weight=1)
         nlr_frame.grid_columnconfigure(1, weight=1)
+        tor_frame.grid_columnconfigure(1, weight=1)
 
     # Add this new method to toggle component visibility
     def toggle_component(self, frame, state):
@@ -1376,9 +1445,39 @@ class BayeSEDGUI:
             {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else 
                    widget.get() if isinstance(widget, tk.BooleanVar) else 
                    {k: v.get() for k, v in widget.items()} if isinstance(widget, dict) else None)
-             for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame']}
+             for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame', 'tor_frame']}
             for instance in self.agn_instances
         ]
+
+    def toggle_tor_params(self, tor_widgets):
+        model_type = tor_widgets['model_type'].get()
+        common_params = ['igroup', 'id', 'name', 'iscalable', 'model_type']
+        aknn_params = ['k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']
+        
+        for i, (param, widget) in enumerate(tor_widgets.items()):
+            try:
+                label_widget = widget.master.grid_slaves(row=0, column=i*2)[0]
+            except (KeyError, IndexError):
+                # If we can't find the label widget, we'll create a new one
+                label_widget = ttk.Label(widget.master, text=f"{param}:")
+                label_widget.grid(row=0, column=i*2, sticky=tk.W, padx=1)
+                widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=1)
+
+            if param in common_params:
+                widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=1)
+                widget.config(state="normal")
+                label_widget.grid(row=0, column=i*2, sticky=tk.W, padx=1)
+            elif param in aknn_params:
+                if model_type == "AKNN":
+                    widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=1)
+                    widget.config(state="normal")
+                    label_widget.grid(row=0, column=i*2, sticky=tk.W, padx=1)
+                else:
+                    widget.grid_remove()
+                    label_widget.grid_remove()
+
+        # Adjust the layout after toggling
+        tor_widgets['model_type'].master.update_idletasks()
 
     def clear_output(self):
         self.output_text.config(state=tk.NORMAL)
@@ -1522,6 +1621,13 @@ class BayeSEDGUI:
             if agn['component_vars']['nlr'].get():
                 nlr_params = [agn['nlr_widgets'][p].get() for p in ['igroup', 'id', 'name', 'iscalable', 'file', 'R', 'Nsample', 'Nkin']]
                 command.extend(["-ls1", ",".join(nlr_params)])
+        
+            if agn['component_vars']['tor'].get():
+                tor = agn['tor_widgets']
+                if tor['model_type'].get() == "FANN":
+                    command.extend(["-a", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()}"])
+                else:  # AKNN
+                    command.extend(["-k", f"{tor['igroup'].get()},{tor['id'].get()},{tor['name'].get()},{tor['iscalable'].get()},{tor['k'].get()},{tor['f_run'].get()},{tor['eps'].get()},{tor['iRad'].get()},{tor['iprep'].get()},{tor['Nstep'].get()},{tor['alpha'].get()}"])
         
         # Advanced settings
         if self.use_multinest.get():
@@ -2115,6 +2221,13 @@ class BayeSEDGUI:
                         if agn['component_vars']['nlr']:
                             nlr = agn['nlr_widgets']
                             f.write(f"    params.lines1.append(LineParams(igroup={nlr['igroup']}, id={nlr['id']}, name='{nlr['name']}', iscalable={nlr['iscalable']}, file='{nlr['file']}', R={nlr['R']}, Nsample={nlr['Nsample']}, Nkin={nlr['Nkin']}))\n")
+                        
+                        if agn['component_vars']['tor']:
+                            tor = agn['tor_widgets']
+                            if tor['model_type'].get() == "FANN":
+                                f.write(f"    params.fann.append(FANNParams(igroup={tor['igroup'].get()}, id={tor['id'].get()}, name='{tor['name'].get()}', iscalable={tor['iscalable'].get()}))\n")
+                            else:  # AKNN
+                                f.write(f"    params.aknn.append(AKNNParams(igroup={tor['igroup'].get()}, id={tor['id'].get()}, name='{tor['name'].get()}', iscalable={tor['iscalable'].get()}, k={tor['k'].get()}, f_run={tor['f_run'].get()}, eps={tor['eps'].get()}, iRad={tor['iRad'].get()}, iprep={tor['iprep'].get()}, Nstep={tor['Nstep'].get()}, alpha={tor['alpha'].get()}))\n")
 
                 # Cosmology settings
                 f.write("\n\n    # Cosmology settings\n")
