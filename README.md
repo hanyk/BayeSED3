@@ -1,13 +1,13 @@
-# BayeSED
+# BayeSED3
 
-BayeSED is a general tool for the full Bayesian interpretation of the spectral energy distributions (SEDs) of galaxies. Given the multi-band photometries and spectrum of galaxies, it can be used for the Bayesian parameter estimation by posteriori probability distributions (PDFs) and the Bayesian SED model comparison by Bayesian evidence. Except for the build-in SED models (stellar population synthesis models, blackbody, greybody and powerlaw), other SED models can be emulated with machine learning techniques. The linear combination of all selected SED model components will then be used for the full Bayesian interpretation of the observational SEDs of galaxies.
+BayeSED3 is a general tool for the full Bayesian interpretation of the spectral energy distributions (SEDs) of galaxies. Given the multi-band photometries and spectrum of galaxies, it can be used for the Bayesian parameter estimation by posteriori probability distributions (PDFs) and the Bayesian SED model comparison by Bayesian evidence. Except for the build-in SED models (stellar population synthesis models, blackbody, greybody and powerlaw), other SED models can be emulated with machine learning techniques. The linear combination of all selected SED model components will then be used for the full Bayesian interpretation of the observational SEDs of galaxies.
 
 
 ## Installation Instructions
 
 1. Install OpenMPI (if not already installed)
 
-   The BayeSED interface will automatically download and install OpenMPI 4.1.6. If you want to install it manually, follow these steps:
+   The BayeSED3 interface will automatically download and install OpenMPI 4.1.6. If you want to install it manually, follow these steps:
 
    ```
    cd BayeSED3
@@ -46,15 +46,15 @@ BayeSED is a general tool for the full Bayesian interpretation of the spectral e
 
 2. Custom runs
 
-   You can modify the `run_test.py` file to customize BayeSED's running parameters.
+   You can modify the `run_test.py` file to customize BayeSED3's running parameters.
 
 ## File Descriptions
 
-- `bayesed.py`: Main interface class for BayeSED
-- `run_test.py`: Script to run BayeSED examples
+- `bayesed.py`: Main interface class for BayeSED3
+- `run_test.py`: Script to run BayeSED3 examples
 - `requirements.txt`: List of Python dependencies
 - `observation/test/`: Contains test data and configuration files
-- `bin/`: Contains BayeSED executables for different platforms
+- `bin/`: Contains BayeSED3 executables for different platforms
 
 ## Notes
 

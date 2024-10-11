@@ -49,7 +49,7 @@ class BayeSEDGUI:
         master.geometry("1400x800")
         
         # Define a standard font
-        self.standard_font = ('Helvetica', 12)
+        self.standard_font = ('Helvetica', 14)
         
         # Apply the standard font to all ttk widgets
         style = ttk.Style()
@@ -97,10 +97,6 @@ class BayeSEDGUI:
         
         # Create and set the icon
         self.create_icon()
-
-        # Configure style for larger checkbuttons
-        style = ttk.Style()
-        style.configure('Large.TCheckbutton', font=('Courier', 10))
         
         self.create_widgets()
 
@@ -129,6 +125,9 @@ class BayeSEDGUI:
             pass
 
     def create_widgets(self):
+        # Create the About button first
+        self.create_about_button()
+
         # 创建一个主框架来容纳所有元素
         main_frame = ttk.Frame(self.master)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -142,7 +141,6 @@ class BayeSEDGUI:
         self.create_AGN_tab()
         self.create_cosmology_tab()
         self.create_advanced_tab()
-        self.create_about_tab()
 
     def create_basic_tab(self):
         basic_frame = ttk.Frame(self.notebook)
@@ -2201,96 +2199,140 @@ class BayeSEDGUI:
             
             messagebox.showinfo("Save Successful", f"Script saved to {filename}")
 
-    def create_about_tab(self):
-        about_frame = ttk.Frame(self.notebook)
-        self.notebook.add(about_frame, text="About")
+    def create_about_button(self):
+        about_button = ttk.Button(self.master, text="About", command=self.show_about_window)
+        about_button.pack(side=tk.TOP, anchor=tk.NE, padx=10, pady=10)
 
-        canvas = tk.Canvas(about_frame)
-        scrollbar = ttk.Scrollbar(about_frame, orient="vertical", command=canvas.yview)
+    def show_about_window(self):
+        about_window = tk.Toplevel(self.master)
+        about_window.title("About BayeSED")
+        
+        window_width, window_height = 800, 600
+        screen_width, screen_height = self.master.winfo_screenwidth(), self.master.winfo_screenheight()
+        x, y = (screen_width - window_width) // 2, (screen_height - window_height) // 2
+        about_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+        main_frame = ttk.Frame(about_window)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
         scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((canvas.winfo_width()//2, 0), window=scrollable_frame, anchor="n")
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        content_frame = ttk.Frame(scrollable_frame)
-        content_frame.pack(expand=True, fill="both")
+        main_frame.grid_rowconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(0, weight=1)
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
 
-        # BayeSED logo
+        content_frame = ttk.Frame(scrollable_frame)
+        content_frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+        # Header section
+        header_frame = ttk.Frame(content_frame)
+        header_frame.pack(fill="x", pady=10)
+
         try:
             logo = Image.open("BayeSED3.jpg")
-            logo = logo.resize((200, 200), Image.LANCZOS)
+            logo = logo.resize((100, 100), Image.LANCZOS)
             logo_photo = ImageTk.PhotoImage(logo)
-            logo_label = ttk.Label(content_frame, image=logo_photo)
+            logo_label = ttk.Label(header_frame, image=logo_photo)
             logo_label.image = logo_photo
-            logo_label.pack(pady=10)
+            logo_label.pack(side="left", padx=(0, 20))
         except Exception as e:
             print(f"Error loading logo: {e}")
 
-        ttk.Label(content_frame, text="BayeSED", font=("Helvetica", 24, "bold")).pack(pady=5)
-        ttk.Label(content_frame, text="Version 3.0", font=("Helvetica", 16)).pack()
+        title_frame = ttk.Frame(header_frame)
+        title_frame.pack(side="left")
+        ttk.Label(title_frame, text="BayeSED3", font=("Helvetica", 24, "bold")).pack(anchor="w")
+        # ttk.Label(title_frame, text="Version 3.0", font=("Helvetica", 16)).pack(anchor="w")
 
-        description = ("BayeSED is a general tool for the full Bayesian interpretation of the spectral energy distributions (SEDs) of galaxies. "
-                       "It allows for comprehensive analysis of SEDs of galaxies and AGNs, incorporating various components such as stellar populations, "
-                       "dust attenuation, dust emission, and AGN contributions. BayeSED performs full Bayesian parameter estimation and model comparison, "
-                       "providing robust results with well-quantified uncertainties.")
-        ttk.Label(content_frame, text=description, wraplength=1200, justify="center").pack(pady=20, padx=20)
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
-        features = ("Key Features:\n"
-                    "• Multi-component SED fitting for galaxies and AGNs\n"
-                    "• Bayesian parameter estimation with posterior probability distributions (PDFs)\n"
-                    "• Bayesian model comparison using Bayesian evidence\n"
-                    "• Support for various stellar population synthesis models\n"
-                    "• Flexible dust attenuation and emission models\n"
-                    "• AGN component modeling (including BBB, BLR, NLR, and FeII emission)\n"
-                    "• Non-parametric and parametric star formation history modeling\n"
-                    "• Handling of both photometric and spectroscopic data\n"
-                    "• MPI support for parallel processing and improved performance\n"
-                    "• Machine learning techniques for SED model emulation\n"
-                    "• Comprehensive output options for detailed analysis")
-        ttk.Label(content_frame, text=features, wraplength=1200, justify="center").pack(pady=10, padx=20)
+        # Description section
+        description = ("BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation (parameter estimation and model comparison) of the spectral energy distributions (SEDs).")
+        ttk.Label(content_frame, text="Description", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
+        ttk.Label(content_frame, text=description, wraplength=760, justify="left").pack(pady=(0, 10))
 
-        tech_details = ("Technical Details:\n"
-                        "BayeSED is implemented in Python with a C++ backend for optimal performance. "
-                        "It utilizes OpenMPI for parallel processing and supports both single-threaded (bayesed_mn_1) and multi-threaded (bayesed_mn_n) modes. "
-                        "The tool is available for Linux and macOS (x86_64), with ARM support on macOS via Rosetta 2, and Windows support through WSL. "
-                        "BayeSED employs advanced sampling techniques, including MultiNest and MCMC, for efficient exploration of high-dimensional parameter spaces.")
-        ttk.Label(content_frame, text=tech_details, wraplength=1200, justify="center").pack(pady=10, padx=20)
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
-        usage_info = ("Usage:\n"
-                      "BayeSED can be used through this graphical interface or via command-line. "
+        # Features section
+        features = (
+            "• Multi-component SED fitting for galaxies and AGNs\n"
+            "• Bayesian parameter estimation and model comparison\n"
+            "• Flexible stellar population synthesis modeling\n"
+            "• Flexible dust attenuation and emission modeling\n"
+            "• Flexible stellar and gas kinematics modeling\n"
+            "• Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)\n"
+            "• Non-parametric and parametric star formation history options\n"
+            "• Simultaneous fitting of photometric and spectroscopic data\n"
+            "• Intergalactic medium (IGM) absorption modeling\n"
+            "• Machine learning techniques for SED model emulation\n"
+            "• Parallel processing support for improved performance\n"
+            "• User-friendly CLI, python script, and GUI interfaces"
+        )
+        ttk.Label(content_frame, text="Key Features", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
+        ttk.Label(content_frame, text=features, wraplength=760, justify="left").pack(pady=(0, 10))
+
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # Technical Details section
+        tech_details = (
+            "BayeSED3 is built with a hybrid architecture, combining Python's flexibility with C++'s performance. "
+            "It leverages OpenMPI for distributed computing, supporting both single-object and multi-object analysis modes. "
+            "The software employs the MultiNest algorithm for efficient exploration of high-dimensional parameter spaces. "
+            "BayeSED3 is compatible with Linux and macOS (x86_64 and ARM via Rosetta 2), with Windows support through WSL. "
+            "Its modular design allows for easy integration of new models and analysis techniques."
+        )
+        ttk.Label(content_frame, text="Technical Details", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
+        ttk.Label(content_frame, text=tech_details, wraplength=760, justify="left").pack(pady=(0, 10))
+
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # Usage section
+        usage_info = ("BayeSED3 can be used through this graphical interface or via command-line. "
                       "For detailed usage instructions and examples, please refer to the README file and the example scripts provided with the software package. "
-                      "The GUI provides an intuitive way to set up complex SED fitting scenarios, while the command-line interface allows for batch processing and integration into larger workflows.")
-        ttk.Label(content_frame, text=usage_info, wraplength=1200, justify="center").pack(pady=10, padx=20)
+                      "The GUI provides an intuitive way to set up complex SED fitting scenarios with meaningful defaults, while the CLI and python script interfaces are more flexible and allows for batch processing and integration into larger workflows.")
+        ttk.Label(content_frame, text="Usage", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
+        ttk.Label(content_frame, text=usage_info, wraplength=760, justify="left").pack(pady=(0, 10))
 
-        def open_website(event):
-            webbrowser.open_new("https://github.com/JohannesBuchner/BayeSED")
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
-        website_label = ttk.Label(content_frame, text="Visit BayeSED Website", foreground="blue", cursor="hand2")
-        website_label.pack(pady=10)
-        website_label.bind("<Button-1>", open_website)
+        # Website button
+        def open_website():
+            webbrowser.open_new("https://github.com/hanyk/BayeSED3")
 
-        citation_info = ("Citation:\n"
-                         "If you use BayeSED in your research, please cite:\n"
+        website_button = ttk.Button(content_frame, text="Visit BayeSED Website", command=open_website)
+        website_button.pack(pady=10)
+
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # Citation section
+        citation_info = ("If you use BayeSED3 in your research, please cite:\n"
                          "Han, Y., & Han, Z. 2012, ApJ, 749, 123\n"
                          "Han, Y., & Han, Z. 2014, ApJS, 215, 2\n"
                          "Han, Y., & Han, Z. 2019, ApJS, 240, 3\n"
-                         "Han, Y., et al. 2024, in prep.")
-        ttk.Label(content_frame, text=citation_info, wraplength=1200, justify="center").pack(pady=10, padx=20)
+                         "Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39\n"
+                         "Han, Y., et al. 2024a, in prep.")
+        ttk.Label(content_frame, text="Citation", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
+        ttk.Label(content_frame, text=citation_info, wraplength=760, justify="left").pack(pady=(0, 10))
 
-        copyright_info = "© 2023 BayeSED Team. All rights reserved."
+        ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
+
+        # Copyright section
+        copyright_info = "© 2012-2024 BayeSED Team. All rights reserved."
         ttk.Label(content_frame, text=copyright_info, font=("Helvetica", 10)).pack(pady=10)
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # Configure the content_frame to center its contents
-        content_frame.pack_configure(expand=True)
-        for child in content_frame.winfo_children():
-            child.pack_configure(expand=True)
+        about_window.transient(self.master)
+        about_window.grab_set()
+        self.master.wait_window(about_window)
 
 if __name__ == "__main__":
     root = tk.Tk()
     gui = BayeSEDGUI(root)
     root.protocol("WM_DELETE_WINDOW", lambda: (gui.stop_execution(), root.destroy()))
     root.mainloop()
+
