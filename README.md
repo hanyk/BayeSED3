@@ -86,7 +86,7 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 - `observation/test/`: Contains test data and configuration files
 - `bin/`: Contains BayeSED3 executables for different platforms
 - `nets/`: Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
-- `data/`: Contains various data files used by BayeSED3, such as filter curves, SED templates, and other necessary data for SED modeling
+- `data/`: other data files used by BayeSED3
 
 ## System Compatibility
 
@@ -113,4 +113,4 @@ If you use BayeSED3 in your research, please cite:
 
 ## More Information
 
-For more information about MultiNest, please refer to the [README_multinest.txt](README_multinest.txt) file.
+For more information about [MultiNest](https://github.com/JohannesBuchner/MultiNest), please refer to the [README_multinest.txt](README_multinest.txt) file.
