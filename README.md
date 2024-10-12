@@ -53,9 +53,9 @@ BayeSED3 is a sophisticated tool for the full Bayesian interpretation of spectra
 
 ## Usage
 
-You can also use BayeSED3 as a Python module in your scripts. Refer to `run_test.py` for examples.
-
 ### Python Script
+
+You can also use BayeSED3 as a Python module in your scripts. Refer to `run_test.py` for examples.
 
 1. Run examples
    ```
