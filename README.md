@@ -22,12 +22,12 @@ BayeSED3 is a sophisticated tool for the full Bayesian interpretation of spectra
 1. Clone the repository:
    ```
    git clone https://github.com/hanyk/BayeSED3.git
-   cd BayeSED3
    ```
 
 2. Install OpenMPI (if not already installed):
    BayeSED3 will automatically download and install OpenMPI 4.1.6. For manual installation:
    ```
+   cd BayeSED3
    wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
    tar xzvf openmpi-4.1.6.tar.gz
    cd openmpi-4.1.6
@@ -100,7 +100,16 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Contributions
 
-Issues and pull requests are welcome. Please ensure tests are updated before submitting a pull request.
+Issues and pull requests are welcome. Please make sure to update tests before submitting a pull request.
+
+## Citation
+
+If you use BayeSED3 in your research, please cite:
+- Han, Y., & Han, Z. 2012, ApJ, 749, 123
+- Han, Y., & Han, Z. 2014, ApJS, 215, 2
+- Han, Y., & Han, Z. 2019, ApJS, 240, 3
+- Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39
+- Han, Y., et al. 2024a, in prep.
 
 ## More Information
 
