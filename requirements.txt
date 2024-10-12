@@ -1,10 +1,18 @@
-numpy
-h5py
-astropy
-matplotlib
-GetDist
-requests
-tqdm
-#specutils
-#PyAstronomy
-#sfdmap2
+numpy>=1.20.0
+h5py>=3.1.0
+astropy>=4.2
+matplotlib>=3.3.0
+GetDist>=1.3.0
+requests>=2.25.0
+tqdm>=4.60.0
+Pillow>=8.0.0  # For image processing in the GUI
+pyperclip>=1.8.0  # For clipboard operations in the GUI
+psutil>=5.8.0  # For process management
+
+# Optional dependencies (uncomment if needed)
+# specutils>=1.3
+# PyAstronomy>=0.16.0
+# sfdmap2>=0.1.1
+
+# GUI-specific dependencies
+tkinter  # Usually comes with Python, but may need to be installed separately on some systems

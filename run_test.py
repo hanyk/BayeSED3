@@ -7,7 +7,7 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output', 
     bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
     params = BayeSEDParams(
-        input_type=0,  # 0: Input file contains observed photometric SEDs with flux in uJy
+        input_type=0,  # 0: flux in uJy
         input_file=f'{input_dir}/{obj}.txt',
         outdir=output_dir,
         save_bestfit=0,  # 0: Save the best fitting result in fits format

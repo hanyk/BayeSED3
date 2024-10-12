@@ -31,7 +31,7 @@ class CreateToolTip(object):
         self.tooltip.wm_geometry(f"+{x}+{y}")
         label = tk.Label(self.tooltip, text=self.text, justify='left',
                          background='#FFFFDD', relief='solid', borderwidth=1,
-                         font=("Arial", "10", "normal"))
+                         font=("Arial", "12", "normal"))
         label.pack(ipadx=1)
 
     def hide_tooltip(self, event=None):
@@ -42,7 +42,7 @@ class CreateToolTip(object):
 class BayeSEDGUI:
     def __init__(self, master):
         self.master = master
-        master.title("BayeSED GUI")
+        master.title("BayeSED3 GUI")
         master.geometry("1400x800")
         
         # Define a standard font
@@ -792,18 +792,26 @@ class BayeSEDGUI:
 
         self.additional_dem_widgets = {}
         for model, params in self.additional_dem_params.items():
-            model_frame = ttk.Frame(dem_params_frame)
             model_widgets = []
             for j, (param, default, width) in enumerate(params):
-                ttk.Label(model_frame, text=f"{param}:").grid(row=0, column=j*2, sticky=tk.W, padx=2)
-                widget = ttk.Entry(model_frame, width=width)
+                label = ttk.Label(dem_params_frame, text=f"{param}:")
+                label.grid(row=0, column=len(dem_params)*2 + j*2, sticky=tk.W, padx=2)
+                widget = ttk.Entry(dem_params_frame, width=width)
                 widget.insert(0, default)
-                widget.grid(row=0, column=j*2+1, padx=2)
-                model_widgets.append(widget)
-            self.additional_dem_widgets[model] = (model_frame, model_widgets)
+                widget.grid(row=0, column=len(dem_params)*2 + j*2 + 1, padx=2)
+                model_widgets.append((label, widget))
+            self.additional_dem_widgets[model] = model_widgets
 
-        # Show the initial model's widgets (Greybody by default)
-        self.additional_dem_widgets["0"][0].grid(row=1, column=0, columnspan=len(dem_params)*2, sticky='ew')
+        # Initially hide all additional parameters and their labels
+        for widgets in self.additional_dem_widgets.values():
+            for label, widget in widgets:
+                label.grid_remove()
+                widget.grid_remove()
+
+        # Show the initial model's widgets and labels (Greybody by default)
+        for label, widget in self.additional_dem_widgets["0"]:
+            label.grid()
+            widget.grid()
 
         # Add tooltip for DEM checkbox
         CreateToolTip(dem_frame.winfo_children()[0], "Dust Emission Model")
@@ -821,8 +829,8 @@ class BayeSEDGUI:
         kin_params = [
             ("id", 5),
             ("velscale", 5),
-            ("gh_cont", 5),
-            ("gh_emis", 5)
+            ("gh_con", 5),
+            ("gh_eml", 5)
         ]
         
         kin_widgets = {}
@@ -836,15 +844,15 @@ class BayeSEDGUI:
         kin_widgets['id'].insert(0, ssp_id_widget.get())  # Use the same ID as SSP
         kin_widgets['id'].config(state='readonly')
         kin_widgets['velscale'].insert(0, "10")
-        kin_widgets['gh_cont'].insert(0, "0")
-        kin_widgets['gh_emis'].insert(0, "0")
+        kin_widgets['gh_con'].insert(0, "0")
+        kin_widgets['gh_eml'].insert(0, "0")
 
         # Add tooltips for KIN parameters
         kin_tooltips = {
             "id": "ID of the model (same as SSP, SFH, DAL)",
             "velscale": "Velocity scale (km/s)",
-            "gh_cont": "Number of Gauss-Hermite terms for continuum",
-            "gh_emis": "Number of Gauss-Hermite terms for emission lines"
+            "gh_con": "Number of Gauss-Hermite terms for continuum",
+            "gh_eml": "Number of Gauss-Hermite terms for emission lines"
         }
         for param, tooltip in kin_tooltips.items():
             CreateToolTip(kin_widgets[param], tooltip)
@@ -1232,20 +1240,20 @@ class BayeSEDGUI:
         ttk.Checkbutton(feii_content_frame, text="Kin", variable=use_feii_kin, 
                         command=lambda: self.toggle_widgets(list(kin_widgets.values()), use_feii_kin.get())).grid(row=0, column=len(aknn_params)*2, sticky=tk.W, padx=(5,1))
 
-        kin_params = [("velscale", 3), ("gh_cont", 3), ("gh_emis", 3)]
+        kin_params = [("velscale", 3), ("gh_con", 3), ("gh_eml", 3)]
         kin_widgets = {}
         for i, (param, width) in enumerate(kin_params):
             ttk.Label(feii_content_frame, text=f"{param}:").grid(row=0, column=len(aknn_params)*2 + 1 + i*2, sticky=tk.W, padx=1)
             widget = ttk.Entry(feii_content_frame, width=width)
             widget.grid(row=0, column=len(aknn_params)*2 + 2 + i*2, sticky=tk.W, padx=1)
             kin_widgets[param] = widget
-            widget.insert(0, "10" if param == "velscale" else "2" if param == "gh_cont" else "0")
+            widget.insert(0, "10" if param == "velscale" else "2" if param == "gh_con" else "0")
 
         # Add tooltips for FeII kinematic parameters
         kin_tooltips = {
             "velscale": "Velocity scale for FeII (km/s)",
-            "gh_cont": "Number of Gauss-Hermite terms for continuum",
-            "gh_emis": "Number of Gauss-Hermite terms for emission"
+            "gh_con": "Number of Gauss-Hermite terms for continuum",
+            "gh_eml": "Number of Gauss-Hermite terms for emission"
         }
         for param, tooltip in kin_tooltips.items():
             CreateToolTip(kin_widgets[param], tooltip)
@@ -1588,7 +1596,7 @@ class BayeSEDGUI:
                 }
 
                 if imodel == "0":  # Greybody
-                    additional_params = self.additional_dem_widgets[imodel][1]
+                    additional_params = [widget for _, widget in self.additional_dem_widgets[imodel]]
                     params.greybody.append(GreybodyParams(
                         **dem_params,
                         ithick=int(additional_params[0].get() or 0),
@@ -1597,7 +1605,7 @@ class BayeSEDGUI:
                         Nw=int(additional_params[3].get() or 200)
                     ))
                 elif imodel == "1":  # Blackbody
-                    additional_params = self.additional_dem_widgets[imodel][1]
+                    additional_params = [widget for _, widget in self.additional_dem_widgets[imodel]]
                     params.blackbody.append(BlackbodyParams(
                         **dem_params,
                         w_min=float(additional_params[0].get() or 1),
@@ -1607,7 +1615,7 @@ class BayeSEDGUI:
                 elif imodel == "2":  # FANN
                     params.fann.append(FANNParams(**dem_params))
                 elif imodel == "3":  # AKNN
-                    additional_params = self.additional_dem_widgets[imodel][1]
+                    additional_params = [widget for _, widget in self.additional_dem_widgets[imodel]]
                     params.aknn.append(AKNNParams(
                         **dem_params,
                         k=int(additional_params[0].get() or 1),
@@ -1624,8 +1632,8 @@ class BayeSEDGUI:
                 params.kin.append(KinParams(
                     id=int(kin_values[0]),
                     velscale=int(kin_values[1]),
-                    num_gauss_hermites_continuum=int(kin_values[2]),
-                    num_gauss_hermites_emission=int(kin_values[3])
+                    num_gauss_hermites_con=int(kin_values[2]),
+                    num_gauss_hermites_eml=int(kin_values[3])
                 ))
 
         # AGN instances
@@ -1691,8 +1699,8 @@ class BayeSEDGUI:
                     params.kin.append(KinParams(
                         id=int(feii['id'].get()),  # Use the same ID as the FeII component
                         velscale=int(kin_widgets['velscale'].get()),
-                        num_gauss_hermites_continuum=int(kin_widgets['gh_cont'].get() or 0),
-                        num_gauss_hermites_emission=int(kin_widgets['gh_emis'].get() or 0)
+                        num_gauss_hermites_con=int(kin_widgets['gh_con'].get() or 0),
+                        num_gauss_hermites_eml=int(kin_widgets['gh_eml'].get() or 0)
                     ))
 
             if agn['component_vars']['nlr'].get():
@@ -2057,13 +2065,17 @@ class BayeSEDGUI:
 
         imodel = event.widget.get() if event else instance['dem'][1].get()
 
-        # Hide all additional parameter frames
-        for model_frame, _ in self.additional_dem_widgets.values():
-            model_frame.grid_remove()
+        # Hide all additional parameter widgets and their labels
+        for widgets in self.additional_dem_widgets.values():
+            for label, widget in widgets:
+                label.grid_remove()
+                widget.grid_remove()
 
-        # Show the frame for the selected model
+        # Show the widgets and labels for the selected model
         if imodel in self.additional_dem_widgets:
-            self.additional_dem_widgets[imodel][0].grid(row=1, column=0, columnspan=len(instance['dem']) * 2, sticky='ew')
+            for label, widget in self.additional_dem_widgets[imodel]:
+                label.grid()
+                widget.grid()
 
         # Force the frame to update its layout
         frame.update_idletasks()
@@ -2204,7 +2216,7 @@ class BayeSEDGUI:
 
     def show_about_window(self):
         about_window = tk.Toplevel(self.master)
-        about_window.title("About BayeSED")
+        about_window.title("About BayeSED3")
         
         window_width, window_height = 1200, 800  # Increased width to 1200 and height to 800
         screen_width, screen_height = self.master.winfo_screenwidth(), self.master.winfo_screenheight()
@@ -2252,7 +2264,7 @@ class BayeSEDGUI:
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Description section
-        description = ("BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation (parameter estimation and model comparison) of the spectral energy distributions (SEDs).")
+        description = ("BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation (parameter estimation and model comparison) of spectral energy distributions (SEDs).")
         ttk.Label(content_frame, text="Description", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
         ttk.Label(content_frame, text=description, wraplength=1160, justify="left").pack(pady=(0, 10))
 
@@ -2274,7 +2286,7 @@ class BayeSEDGUI:
             "• User-friendly CLI, python script, and GUI interfaces"
         )
         ttk.Label(content_frame, text="Key Features", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
-        ttk.Label(content_frame, text=features, wraplength=1160, justify="left").pack(pady=(0, 10))
+        ttk.Label(content_frame, text=features,font=("Helvetica", 16), wraplength=1160, justify="left").pack(pady=(0, 10))
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
@@ -2292,7 +2304,7 @@ class BayeSEDGUI:
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Usage section
-        usage_info = ("BayeSED3 can be used through this graphical interface or via command-line. "
+        usage_info = ("BayeSED3 can be used through this graphical interface, via python script or command-line. "
                       "For detailed usage instructions and examples, please refer to the README file and the example scripts provided with the software package. "
                       "The GUI provides an intuitive way to set up complex SED analysis scenarios with meaningful defaults, while the CLI and python script interfaces are more flexible and allows for batch processing and integration into larger workflows.")
         ttk.Label(content_frame, text="Usage", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
@@ -2304,7 +2316,7 @@ class BayeSEDGUI:
         def open_website():
             webbrowser.open_new("https://github.com/hanyk/BayeSED3")
 
-        website_button = ttk.Button(content_frame, text="Visit BayeSED Website", command=open_website)
+        website_button = ttk.Button(content_frame, text="Website: https://github.com/hanyk/BayeSED3", command=open_website)
         website_button.pack(pady=10)
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
@@ -2322,7 +2334,7 @@ class BayeSEDGUI:
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
 
         # Copyright section
-        copyright_info = "© 2012-2024 BayeSED Team. All rights reserved."
+        copyright_info = "© 2012-2024 BayeSED3 Team. All rights reserved."
         ttk.Label(content_frame, text=copyright_info, font=("Helvetica", 14)).pack(pady=10)
 
         about_window.transient(self.master)
