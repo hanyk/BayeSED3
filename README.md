@@ -85,6 +85,8 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 - `requirements.txt`: List of Python dependencies
 - `observation/test/`: Contains test data and configuration files
 - `bin/`: Contains BayeSED3 executables for different platforms
+- `nets/`: Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (ANN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
+- `data/`: Contains various data files used by BayeSED3, such as filter curves, SED templates, and other necessary data for SED modeling
 
 ## System Compatibility
 
