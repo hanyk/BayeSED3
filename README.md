@@ -4,18 +4,18 @@ BayeSED3 is a sophisticated tool for the full Bayesian interpretation of spectra
 
 ## Features
 
-- Multi-component SED analysis for galaxies and AGNs
-- Flexible stellar population synthesis modeling
-- Dust attenuation and emission modeling
-- Stellar and gas kinematics modeling
-- Non-parametric and parametric star formation history options
-- Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)
-- Intergalactic medium (IGM) absorption modeling
-- Handling of both photometric and spectroscopic data
-- Bayesian parameter estimation and model comparison
-- Machine learning techniques for SED model emulation
-- Parallel processing support for improved performance
-- User-friendly CLI, Python script, and GUI interfaces
+• Multi-component SED analysis for galaxies and AGNs
+• Flexible stellar population synthesis modeling
+• Flexible dust attenuation and emission modeling
+• Flexible stellar and gas kinematics modeling
+• Non-parametric and parametric star formation history options
+• Comprehensive AGN component modeling (Accretion disk, BLR, NLR, Torus)
+• Intergalactic medium (IGM) absorption modeling
+• Handling of both photometric and spectroscopic data
+• Bayesian parameter estimation and model comparison
+• Machine learning techniques for SED model emulation
+• Parallel processing support for improved performance
+• User-friendly CLI, python script, and GUI interfaces
 
 ## Installation Instructions
 
