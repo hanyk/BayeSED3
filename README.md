@@ -2,6 +2,10 @@
 
 <p align="center">
   <img src="BayeSED3.jpg" alt="BayeSED3 Logo" width="200"/>
+  <br>
+  <em>"With four parameters I can fit an elephant, and with five I can make him wiggle his trunk."</em>
+  <br>
+  <small>- Attributed to John von Neumann</small>
 </p>
 
 BayeSED3 is a sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs Bayesian parameter estimation using posteriori probability distributions (PDFs) and Bayesian SED model comparison using Bayesian evidence. BayeSED3 supports various built-in SED models and can emulate other SED models using machine learning techniques.
