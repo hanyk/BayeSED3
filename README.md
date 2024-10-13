@@ -41,15 +41,15 @@ BayeSED3 is a sophisticated tool for the full Bayesian interpretation of spectra
    pip install -r requirements.txt
    ```
 
-4. Install HDF5 (optional):
-   - macOS: `brew install hdf5`
-   - Linux: `apt install h5utils`
+4. Install HDF5 utilities (optional):
+   - Ubuntu/Debian: `sudo apt-get install h5utils`
+   - Fedora: `sudo dnf install hdf5-tools`
+   - macOS (with Homebrew): `brew install h5utils`
 
 5. Install tkinter (for GUI):
    - Ubuntu/Debian: `sudo apt-get install python3-tk`
    - Fedora: `sudo dnf install python3-tkinter`
    - macOS (with Homebrew): `brew install python-tk`
-   - Windows: tkinter is usually included with Python installations
 
 ## Usage
 
