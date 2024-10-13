@@ -10,7 +10,7 @@
 
 BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs Bayesian parameter estimation using posteriori probability distributions (PDFs) and Bayesian SED model comparison using Bayesian evidence. BayeSED3 supports various built-in SED models and can emulate other SED models using machine learning techniques.
 
-## Features
+## Key Features
 
 - Multi-component SED analysis for galaxies and AGNs
 - Flexible stellar population synthesis modeling
