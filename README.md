@@ -1,4 +1,4 @@
-# BayeSED3
+# BayeSED3: The ultimate version of BayeSED
 
 <p align="center">
   <img src="BayeSED3.jpg" alt="BayeSED3 Logo" width="200"/>
