@@ -23,7 +23,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Bayesian parameter estimation and model comparison
 - Machine learning techniques for SED model emulation
 - Parallel processing support for improved performance
-- User-friendly CLI, Python script, and GUI interfaces
+- User-friendly CLI, Python script and GUI interfaces
 
 ## Installation Instructions
 

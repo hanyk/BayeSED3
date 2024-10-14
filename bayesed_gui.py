@@ -2283,7 +2283,7 @@ class BayeSEDGUI:
             "• Bayesian parameter estimation and model comparison\n"
             "• Machine learning techniques for SED model emulation\n"
             "• Parallel processing support for improved performance\n"
-            "• User-friendly CLI, python script, and GUI interfaces"
+            "• User-friendly CLI, python script and GUI interfaces"
         )
         ttk.Label(content_frame, text="Key Features", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))
         ttk.Label(content_frame, text=features,font=("Helvetica", 16), wraplength=1160, justify="left").pack(pady=(0, 10))
