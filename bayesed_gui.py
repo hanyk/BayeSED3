@@ -2272,7 +2272,7 @@ class BayeSEDGUI:
 
         # Features section
         features = (
-            "• Multi-component SED analysis for galaxies and AGNs\n"
+            "• Multi-component SED synthesis and analysis for galaxies and AGNs\n"
             "• Flexible stellar population synthesis modeling\n"
             "• Flexible dust attenuation and emission modeling\n"
             "• Flexible stellar and gas kinematics modeling\n"

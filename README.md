@@ -12,7 +12,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 ## Key Features
 
-- Multi-component SED analysis for galaxies and AGNs
+- Multi-component SED synthesis and analysis of galaxies and AGNs
 - Flexible stellar population synthesis modeling
 - Flexible dust attenuation and emission modeling
 - Flexible stellar and gas kinematics modeling
