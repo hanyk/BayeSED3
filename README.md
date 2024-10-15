@@ -1,4 +1,4 @@
-# BayeSED3: The ultimate version of BayeSED
+# BayeSED3: A code for Bayesian SED synthesis and analysis of galaxies and AGNs
 
 <p align="center">
   <img src="BayeSED3.jpg" alt="BayeSED3 Logo" width="200"/>

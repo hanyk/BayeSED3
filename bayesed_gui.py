@@ -2258,7 +2258,7 @@ class BayeSEDGUI:
 
         title_frame = ttk.Frame(header_frame)
         title_frame.pack(side="left")
-        ttk.Label(title_frame, text="BayeSED3: The ultimate version of BayeSED", font=("Helvetica", 24, "bold")).pack(anchor="w")
+        ttk.Label(title_frame, text="BayeSED3: A code for Bayesian SED synthesis and analysis of galaxies and AGNs", font=("Helvetica", 24, "bold")).pack(anchor="w")
         # ttk.Label(title_frame, text="Version 3.0", font=("Helvetica", 16)).pack(anchor="w")
 
         ttk.Separator(content_frame, orient="horizontal").pack(fill="x", pady=10)
