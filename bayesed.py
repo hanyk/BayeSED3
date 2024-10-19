@@ -486,20 +486,32 @@ class BayeSEDInterface:
         
         # If the correct version of OpenMPI is not found, proceed with the installation
         if not os.path.exists(install_dir):
-            print(f"Downloading OpenMPI {openmpi_version}...")
-            response = requests.get(openmpi_url, stream=True)
-            total_size = int(response.headers.get('content-length', 0))
+            # Check if the tarball already exists and is complete
+            if os.path.exists(openmpi_file):
+                print(f"OpenMPI {openmpi_version} tarball already exists. Checking if it's complete...")
+                try:
+                    with tarfile.open(openmpi_file, 'r:gz') as tar:
+                        tar.getmembers()  # This will raise an exception if the file is incomplete
+                    print("Existing tarball is complete. Skipping download.")
+                except Exception as e:
+                    print(f"Existing tarball is incomplete or corrupted. Re-downloading: {e}")
+                    os.remove(openmpi_file)
             
-            with open(openmpi_file, 'wb') as file, tqdm(
-                desc=openmpi_file,
-                total=total_size,
-                unit='iB',
-                unit_scale=True,
-                unit_divisor=1024,
-            ) as progress_bar:
-                for data in response.iter_content(chunk_size=1024):
-                    size = file.write(data)
-                    progress_bar.update(size)
+            if not os.path.exists(openmpi_file):
+                print(f"Downloading OpenMPI {openmpi_version}...")
+                response = requests.get(openmpi_url, stream=True)
+                total_size = int(response.headers.get('content-length', 0))
+                
+                with open(openmpi_file, 'wb') as file, tqdm(
+                    desc=openmpi_file,
+                    total=total_size,
+                    unit='iB',
+                    unit_scale=True,
+                    unit_divisor=1024,
+                ) as progress_bar:
+                    for data in response.iter_content(chunk_size=1024):
+                        size = file.write(data)
+                        progress_bar.update(size)
             
             print("Extracting OpenMPI...")
             with tarfile.open(openmpi_file, 'r:gz') as tar:
@@ -513,7 +525,6 @@ class BayeSEDInterface:
             os.chdir("..")
             
             print("Cleaning up temporary files...")
-            os.remove(openmpi_file)
             shutil.rmtree(openmpi_dir)
         
         mpirun_path = os.path.join(install_dir, "bin", "mpirun")
