@@ -39,7 +39,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
    wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
    tar xzvf openmpi-4.1.6.tar.gz
    cd openmpi-4.1.6
-   ./configure --prefix=../openmpi
+   ./configure --prefix=$PWD/../openmpi
    make
    make install
    ```
@@ -84,6 +84,8 @@ Launch the GUI:
 python bayesed_gui.py
 ```
 The GUI provides an intuitive way to set up complex SED analysis scenarios with meaningful defaults.
+
+![BayeSED3 GUI](BayeSED3_GUI.png)
 
 ## File Descriptions
 

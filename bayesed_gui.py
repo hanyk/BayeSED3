@@ -2178,7 +2178,15 @@ class BayeSEDGUI:
         
         if filename:
             with open(filename, 'w') as f:
-                f.write("from bayesed import BayeSEDInterface, BayeSEDParams\n\n")
+                f.write("from bayesed import BayeSEDInterface, BayeSEDParams\n")
+                f.write("from bayesed import FANNParams, AGNParams, BlackbodyParams, BigBlueBumpParams, GreybodyParams\n")
+                f.write("from bayesed import AKNNParams, LineParams, LuminosityParams, NPSFHParams, PolynomialParams\n")
+                f.write("from bayesed import PowerlawParams, RBFParams, SFHParams, SSPParams, SEDLibParams, SysErrParams\n")
+                f.write("from bayesed import ZParams, NNLMParams, NdumperParams, OutputSFHParams, MultiNestParams\n")
+                f.write("from bayesed import SFROverParams, SNRmin1Params, SNRmin2Params, GSLIntegrationQAGParams\n")
+                f.write("from bayesed import GSLMultifitRobustParams, KinParams, LineListParams, MakeCatalogParams\n")
+                f.write("from bayesed import CloudyParams, CosmologyParams, DALParams, RDFParams, TemplateParams\n\n")
+
                 f.write("def run_bayesed():\n")
                 
                 # Get the number of MPI processes and Ntest
