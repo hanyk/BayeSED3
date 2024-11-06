@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+mock="observation/test3/"
+ssp="bc2003_hr_stelib_chab_neb_300r"
+ineb="1"
+itype="$1" #phot spec both
+outdir="test3"
+isave="--SFR_over 100 --save_bestfit 0 --save_sample_par"
+Ntest="--Ntest 1"
+NNLM="--NNLM 1,10000,0,10,0.01,0.025,0.975 --SNRmin1 0,3"
+bayesed="./bin/mac/bayesed_mn_1 $NNLM -v 2"
+mpirun="./openmpi/bin/mpirun"
+iverbose=2
+
+ifit=""
+if [ "$itype" == 'phot' ]
+then
+    ifit="--no_spectra_fit"
+fi
+if [ "$itype" == 'spec' ]
+
+then
+    ifit="--no_photometry_fit"
+fi
+
+mkdir -p "$outdir"
+efr=0.1
+nlive=40
+multinest="--multinest 1,0,0,$nlive,$efr,0.5,10000,-1e90,1,$iverbose,0,0,-1e90,100000,0.01"
+for galaxy in STARFORMING PASSIVE
+do
+    $mpirun $bayesed $Ntest -i 1,$mock/test_"$galaxy".txt --filters $mock/filters_bassmzl.txt --filters_selected $mock/filters_selected_csst.txt --ssp 0,0,"$ssp",0,1,1,0,0,"$ineb",0,0 --sfh 0,2,0,1 --dal 0,2,8 $multinest --outdir $outdir $ifit $isave --rdf -1,0 --suffix _"$itype"
+    for i in $outdir/*$galaxy*/*/*_"$itype"*.fits;do (python3 observation/test3/plot_bestfit.py $i);done
+done
+

@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams, RenameParams
+from bayesed import BayeSEDInterface, BayeSEDParams, SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams, BigBlueBumpParams, AKNNParams, LineParams, ZParams, GreybodyParams, FANNParams, KinParams, RenameParams, NNLMParams, SNRmin1Params, RDFParams
 import os
 import sys
 import subprocess
@@ -184,6 +184,52 @@ def run_bayesed_test2(np=None, Ntest=None):
     print("Running BayeSED for test2...")
     bayesed.run(params)
 
+def run_bayesed_test3(itype, np=None, Ntest=None):
+    bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
+
+    params = BayeSEDParams(
+        input_type=1,
+        input_file='observation/test3/test_STARFORMING.txt',
+        outdir='test3',
+        save_bestfit=0,  # 0: Save the best fitting result in fits format
+        save_sample_par=True,
+        multinest=MultiNestParams(
+            nlive=40,
+            efr=0.1,
+            updInt=1000,
+            fb=2
+        ),
+        filters='observation/test3/filters_bassmzl.txt',
+        filters_selected='observation/test3/filters_selected_csst.txt',
+        ssp=[SSPParams(
+            igroup=0,
+            id=0,
+            name='bc2003_hr_stelib_chab_neb_300r',
+            iscalable=0,
+            i1=1
+        )],
+        sfh=[SFHParams(
+            id=0,
+            itype_sfh=2,
+            itype_ceh=1
+        )],
+        dal=[DALParams(
+            id=0,
+            ilaw=8
+        )],
+        NNLM= NNLMParams(1,1000,0.0,10,0.01,0.025,0.975),
+        SNRmin1=SNRmin1Params(0,3),
+        rdf=RDFParams(-1,0),
+        suffix=f'_{itype}',
+    )
+    if itype == 'phot':
+        params.no_spectra_fit=True
+    if itype == 'spec':
+        params.no_photometry_fit=True
+
+    print("Running BayeSED for test3...")
+    bayesed.run(params)
+
 def plot_results(obj, output_dir):
     if obj in ['gal', 'qso']:
         plot_script = 'observation/test/plot_bestfit.py'
@@ -194,6 +240,9 @@ def plot_results(obj, output_dir):
     elif obj == 'test2':
         plot_script = 'observation/test2/plot_bestfit.py'
         search_dir = 'test2'
+    elif obj == 'test3':
+        plot_script = 'observation/test3/plot_bestfit.py'
+        search_dir = 'test3'
     else:
         print(f"Cannot find appropriate plotting script for object {obj}")
         return
@@ -217,9 +266,12 @@ if __name__ == "__main__":
 
     obj = sys.argv[1]
     plot = False
+    itype='spec'
     if len(sys.argv) > 2 and sys.argv[2] == 'plot':
         plot = True
 
+    if len(sys.argv) > 3:
+        itype=sys.argv[3]
     np = None
     Ntest = None
 
@@ -242,6 +294,8 @@ if __name__ == "__main__":
                 run_bayesed_test1(survey, obs_file, np=np, Ntest=Ntest)
     elif obj == 'test2':
         run_bayesed_test2(np=np, Ntest=Ntest)
+    elif obj == 'test3':
+        run_bayesed_test3(itype,np=np, Ntest=Ntest)
     else:
         # Run BayeSED example
         run_bayesed_example(obj, np=np, Ntest=Ntest)

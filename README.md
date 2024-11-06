@@ -65,13 +65,18 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 1. Run examples
    ```
-   #Spectroscopic SED analysis
+   #SDSS spectroscopic SED analysis
    python run_test.py gal plot
    python run_test.py qso plot
 
-   #Photometric SED analysis
+   #photometric SED analysis
    python run_test.py test1 plot
    python run_test.py test2 plot
+
+   #mock CSST photometric and/or spectroscopic SED analysis
+   python run_test.py test3 plot phot
+   python run_test.py test3 plot spec
+   python run_test.py test3 plot both
    ```
 
 2. Custom runs:

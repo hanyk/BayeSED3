@@ -824,6 +824,9 @@ class BayeSEDInterface:
         if params.cl:
             args.extend(['--cl', params.cl])
         
+        if params.save_sample_par:
+            args.append('--save_sample_par')
+        
         return args
 
     def _format_fann_params(self, fann_params):
@@ -938,6 +941,8 @@ def main():
     parser.add_argument('--outdir', type=str, default='result', help='Output directory')
     parser.add_argument('--save_bestfit', type=int, default=0, help='Save best fit')
     parser.add_argument('-v', '--verbose', type=int, default=2, help='Verbosity level')
+    parser.add_argument('--save_sample_par', action='store_true', 
+                       help='Save the posterior sample of parameters')
     # Add other parameters of BayeSEDParams...
 
     args, unknown = parser.parse_known_args()
