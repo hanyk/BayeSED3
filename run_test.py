@@ -270,7 +270,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 2 and sys.argv[2] == 'plot':
         plot = True
 
-    if len(sys.argv) > 3:
+    if obj == 'test3' and len(sys.argv) > 3:
         itype=sys.argv[3]
     np = None
     Ntest = None
