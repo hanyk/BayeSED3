@@ -44,16 +44,16 @@ class BayeSEDGUI:
         self.master = master
         master.title("BayeSED3 GUI")
         master.geometry("1400x800")
-        
+
         # Define a standard font
         self.standard_font = ('Helvetica', 14)
-        
+
         # Apply the standard font to all ttk widgets
         style = ttk.Style()
         style.configure('.', font=self.standard_font)
-        
+
         self.galaxy_count = -1  # Start from -1, so the first instance will be 0
-        
+
         # Initialize instances lists
         self.galaxy_instances = []
         self.agn_instances = []
@@ -61,12 +61,12 @@ class BayeSEDGUI:
         self.igm_model = tk.StringVar()
         self.redshift_widgets = []
         self.redshift_params = {}
-        
+
         # Initialize BooleanVar for checkboxes
         self.use_cosmology = tk.BooleanVar(value=False)
         self.use_igm = tk.BooleanVar(value=False)
         self.use_redshift = tk.BooleanVar(value=False)
-        
+
         # Initialize BooleanVar for Advanced Settings checkboxes
         self.use_multinest = tk.BooleanVar(value=False)
         self.use_nnlm = tk.BooleanVar(value=False)
@@ -83,13 +83,13 @@ class BayeSEDGUI:
         self.use_output_sfh = tk.BooleanVar(value=False)
         self.use_sys_err = tk.BooleanVar(value=False)
         self.sys_err_widgets = []
-        
+
         # Initialize other necessary variables
         self.redshift_widgets = []
-        
+
         # Create and set the icon
         self.create_icon()
-        
+
         self.create_widgets()
 
         self.output_queue = queue.Queue()
@@ -102,13 +102,13 @@ class BayeSEDGUI:
         try:
             # Load the provided icon
             image = Image.open("BayeSED3.jpg")
-            
+
             # Resize the image to 128x128 for a higher resolution icon
             image = image.resize((128, 128), Image.LANCZOS)
-            
+
             # Convert the image to PhotoImage
             photo = ImageTk.PhotoImage(image)
-            
+
             # Set the window icon
             self.master.iconphoto(False, photo)
         except Exception as e:
@@ -165,6 +165,8 @@ class BayeSEDGUI:
         ttk.Button(input_frame, text="Browse", command=self.browse_input_file).grid(row=0, column=2, padx=5, pady=2)
         CreateToolTip(self.input_file, "Input file containing observed photometric and/or spectroscopic SEDs")
 
+        self.input_file.insert(0, "observation/test/gal.txt")  # Set your default input file path here
+
         # Input Type
         ttk.Label(input_frame, text="Input Type:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         self.input_type = ttk.Combobox(input_frame, values=["0 (flux in uJy)", "1 (AB magnitude)"], width=15)
@@ -176,7 +178,7 @@ class BayeSEDGUI:
         ttk.Label(input_frame, text="Output Directory:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
         self.outdir = ttk.Entry(input_frame, width=40)
         self.outdir.grid(row=2, column=1, sticky=tk.EW, padx=5, pady=2)
-        self.outdir.insert(0, "result")
+        self.outdir.insert(0, "output")
         ttk.Button(input_frame, text="Browse", command=self.browse_outdir).grid(row=2, column=2, padx=5, pady=2)
         CreateToolTip(self.outdir, "Output directory for all results")
 
@@ -217,7 +219,7 @@ class BayeSEDGUI:
         snr_frame = ttk.Frame(input_frame)
         snr_frame.grid(row=9, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Checkbutton(snr_frame, variable=self.use_snr, 
+        ttk.Checkbutton(snr_frame, variable=self.use_snr,
                         command=lambda: self.toggle_widgets([self.snrmin1, self.snrmin2], self.use_snr.get()),
                         text="SNR Settings").pack(side=tk.LEFT, padx=5)
         CreateToolTip(snr_frame.winfo_children()[-1], "Enable/disable SNR settings")
@@ -230,7 +232,7 @@ class BayeSEDGUI:
         self.snrmin1.insert(0, "0,0")
         self.snrmin1.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         CreateToolTip(self.snrmin1, "The minimal SNR of data (phot,spec) to be used for determining scaling")
-        
+
         ttk.Label(snr_content, text="SNRmin2 (phot,spec):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         self.snrmin2 = ttk.Entry(snr_content, width=10)
         self.snrmin2.insert(0, "0,0")
@@ -244,7 +246,7 @@ class BayeSEDGUI:
         sys_err_frame = ttk.Frame(input_frame)
         sys_err_frame.grid(row=10, column=0, columnspan=3, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Checkbutton(sys_err_frame, variable=self.use_sys_err, 
+        ttk.Checkbutton(sys_err_frame, variable=self.use_sys_err,
                         command=lambda: self.toggle_widgets(self.sys_err_widgets, self.use_sys_err.get()),
                         text="Systematic Error").pack(side=tk.LEFT)
         CreateToolTip(sys_err_frame.winfo_children()[-1], "Set priors for systematic errors of model and observation")
@@ -326,13 +328,13 @@ class BayeSEDGUI:
         self.save_pos_sfh = tk.BooleanVar()
         ttk.Checkbutton(save_pos_sfh_frame, text="Save Posterior SFH", variable=self.save_pos_sfh).pack(side=tk.LEFT)
         CreateToolTip(save_pos_sfh_frame.winfo_children()[-1], "Save the posterior distribution of SFH from t=0 to t=tage")
-        
+
         ttk.Label(save_pos_sfh_frame, text="Ngrid:").pack(side=tk.LEFT, padx=(5, 2))
         self.save_pos_sfh_ngrid = ttk.Entry(save_pos_sfh_frame, width=5)
         self.save_pos_sfh_ngrid.pack(side=tk.LEFT)
         self.save_pos_sfh_ngrid.insert(0, "100")
         CreateToolTip(self.save_pos_sfh_ngrid, "Number of grid points for SFH")
-        
+
         ttk.Label(save_pos_sfh_frame, text="ilog:").pack(side=tk.LEFT, padx=(5, 2))
         self.save_pos_sfh_ilog = ttk.Combobox(save_pos_sfh_frame, values=["0", "1"], width=3)
         self.save_pos_sfh_ilog.pack(side=tk.LEFT)
@@ -390,7 +392,7 @@ class BayeSEDGUI:
         build_sed_frame = ttk.Frame(output_frame)
         build_sed_frame.grid(row=4, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Checkbutton(build_sed_frame, variable=self.use_build_sedlib, 
+        ttk.Checkbutton(build_sed_frame, variable=self.use_build_sedlib,
                         command=lambda: self.toggle_widgets([self.build_sedlib], self.use_build_sedlib.get()),
                         text="Build SED Library").pack(side=tk.LEFT)
         CreateToolTip(build_sed_frame.winfo_children()[-1], "Build a SED library using the employed models")
@@ -408,7 +410,7 @@ class BayeSEDGUI:
         sfr_frame = ttk.Frame(output_frame)
         sfr_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Checkbutton(sfr_frame, variable=self.use_sfr, 
+        ttk.Checkbutton(sfr_frame, variable=self.use_sfr,
                         command=lambda: self.toggle_widgets([self.sfr_myr_entry], self.use_sfr.get()),
                         text="Output SFR over").pack(side=tk.LEFT)
         CreateToolTip(sfr_frame.winfo_children()[-1], "Compute average SFR over the past given Myrs")
@@ -426,7 +428,7 @@ class BayeSEDGUI:
         sfh_frame = ttk.Frame(output_frame)
         sfh_frame.grid(row=7, column=0, columnspan=2, sticky=tk.W, padx=5, pady=2)
 
-        ttk.Checkbutton(sfh_frame, variable=self.use_output_sfh, 
+        ttk.Checkbutton(sfh_frame, variable=self.use_output_sfh,
                         command=lambda: self.toggle_widgets([self.output_sfh_ntimes, self.output_sfh_ilog], self.use_output_sfh.get()),
                         text="Output SFH").pack(side=tk.LEFT)
         CreateToolTip(sfh_frame.winfo_children()[-1], "Output the SFH over the past tage year")
@@ -489,7 +491,7 @@ class BayeSEDGUI:
         plot_frame.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
 
         ttk.Button(plot_frame, text="Plot", command=self.plot_bestfit).pack(side=tk.LEFT)
-        
+
         self.fits_file = ttk.Entry(plot_frame, width=40)  # Increased width from 20 to 40
         self.fits_file.pack(side=tk.LEFT, padx=(5, 0), fill=tk.X, expand=True)
         CreateToolTip(self.fits_file, "Path to the FITS file to plot")
@@ -545,11 +547,11 @@ class BayeSEDGUI:
         for instance in self.agn_instances:
             max_id = max(max_id, int(instance['agn_id'].get()))
             max_igroup = max(max_igroup, int(instance['agn_igroup'].get()))
-        
+
         new_id = max_id + 2  # Increment by 2 to leave room for DEM ID
         new_dem_id = new_id + 1  # DEM ID is always one more than the main ID
         new_igroup = max_igroup + 1  # Increment igroup by 1
-        
+
         instance_frame = ttk.LabelFrame(self.galaxy_instances_frame, text=f"CSP {len(self.galaxy_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -579,7 +581,7 @@ class BayeSEDGUI:
         ssp_frame = ttk.Frame(instance_frame)
         ssp_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Label(ssp_frame, text="SSP:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-        
+
         ssp_params = [
             ("igroup", str(new_igroup), 5),
             ("id", str(new_id), 5),
@@ -593,7 +595,7 @@ class BayeSEDGUI:
             ("i2", "0", 5),
             ("i3", "0", 5)
         ]
-        
+
         ssp_widgets = []
         for i, (param, default, width) in enumerate(ssp_params):
             ttk.Label(ssp_frame, text=f"{param}:").grid(row=0, column=2*i+1, sticky=tk.W, padx=2)
@@ -613,7 +615,7 @@ class BayeSEDGUI:
         sfh_frame = ttk.Frame(instance_frame)
         sfh_frame.pack(fill=tk.X, padx=5, pady=2)
         ttk.Label(sfh_frame, text="SFH:").grid(row=0, column=0, sticky=tk.W)
-        
+
         sfh_params = [
             ("id", str(new_id), 5),
             ("itype_sfh", "2", 5, [
@@ -635,9 +637,9 @@ class BayeSEDGUI:
             ("np_num_bins", "10", 5),
             ("np_regul", "100", 5)
         ]
-        
+
         sfh_widgets = []
-        
+
         for i, param_info in enumerate(sfh_params):
             param, default, width = param_info[:3]
             ttk.Label(sfh_frame, text=f"{param}:").grid(row=0, column=2*i+1, sticky=tk.W, padx=2)
@@ -694,7 +696,7 @@ class BayeSEDGUI:
         # DAL settings
         dal_frame = ttk.Frame(instance_frame)
         dal_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Checkbutton(dal_frame, text="DAL:", variable=use_dal, 
+        ttk.Checkbutton(dal_frame, text="DAL:", variable=use_dal,
                         command=lambda: self.toggle_component(dal_params_frame, use_dal.get())).grid(row=0, column=0, sticky='w')
 
         dal_params_frame = ttk.Frame(dal_frame)
@@ -721,7 +723,7 @@ class BayeSEDGUI:
                 "9: Star-forming (Reddy+2015)"
             ])
         ]
-        
+
         dal_widgets = []
         for i, param_info in enumerate(dal_params):
             param, default, width = param_info[:3]
@@ -747,7 +749,7 @@ class BayeSEDGUI:
         dem_frame = ttk.Frame(instance_frame)
         dem_frame.pack(fill=tk.X, padx=5, pady=2)
 
-        ttk.Checkbutton(dem_frame, text="DEM:", variable=use_dem, 
+        ttk.Checkbutton(dem_frame, text="DEM:", variable=use_dem,
                         command=lambda: self.toggle_component(dem_params_frame, use_dem.get())).grid(row=0, column=0, sticky='w')
 
         dem_params_frame = ttk.Frame(dem_frame)
@@ -786,7 +788,7 @@ class BayeSEDGUI:
             "0": [("ithick", "0", 3), ("w_min", "1", 5), ("w_max", "1000", 5), ("Nw", "200", 5)],  # Greybody
             "1": [("w_min", "1", 5), ("w_max", "1000", 5), ("Nw", "200", 5)],  # Blackbody
             "2": [],  # FANN (no additional parameters)
-            "3": [("k", "1", 3), ("f_run", "1", 3), ("eps", "0", 5), ("iRad", "0", 3), 
+            "3": [("k", "1", 3), ("f_run", "1", 3), ("eps", "0", 5), ("iRad", "0", 3),
                   ("iprep", "0", 3), ("Nstep", "1", 3), ("alpha", "0", 5)]  # AKNN
         }
 
@@ -819,7 +821,7 @@ class BayeSEDGUI:
         # KIN settings
         kin_frame = ttk.Frame(instance_frame)
         kin_frame.pack(fill=tk.X, padx=5, pady=2)
-        ttk.Checkbutton(kin_frame, text="KIN:", variable=use_kin, 
+        ttk.Checkbutton(kin_frame, text="KIN:", variable=use_kin,
                         command=lambda: self.toggle_component(kin_params_frame, use_kin.get())).grid(row=0, column=0, sticky='w')
 
         kin_params_frame = ttk.Frame(kin_frame)
@@ -832,7 +834,7 @@ class BayeSEDGUI:
             ("gh_con", 5),
             ("gh_eml", 5)
         ]
-        
+
         kin_widgets = {}
         for i, (param, width) in enumerate(kin_params):
             ttk.Label(kin_params_frame, text=f"{param}:").grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
@@ -844,8 +846,8 @@ class BayeSEDGUI:
         kin_widgets['id'].insert(0, ssp_id_widget.get())  # Use the same ID as SSP
         kin_widgets['id'].config(state='readonly')
         kin_widgets['velscale'].insert(0, "10")
-        kin_widgets['gh_con'].insert(0, "0")
-        kin_widgets['gh_eml'].insert(0, "0")
+        kin_widgets['gh_con'].insert(0, "2")
+        kin_widgets['gh_eml'].insert(0, "2")
 
         # Add tooltips for KIN parameters
         kin_tooltips = {
@@ -964,15 +966,15 @@ class BayeSEDGUI:
     def create_advanced_section(self, parent, title, variable, columns):
         frame = ttk.Frame(parent)
         frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        ttk.Checkbutton(frame, variable=variable, 
+
+        ttk.Checkbutton(frame, variable=variable,
                         command=lambda: self.toggle_widgets(frame.winfo_children()[1].winfo_children(), variable.get())).pack(side=tk.LEFT, padx=5)
-        
+
         content = ttk.LabelFrame(frame, text=f"{title} Settings")
         content.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
+
         content.columnconfigure(tuple(range(columns * 2)), weight=1)
-        
+
         return content, columns  # Return both the content frame and the number of columns
 
     def create_param_widgets(self, parent, params, columns):
@@ -1010,13 +1012,13 @@ class BayeSEDGUI:
         for instance in self.agn_instances:
             max_id = max(max_id, int(instance['agn_id'].get()))
             max_igroup = max(max_igroup, int(instance['agn_igroup'].get()))
-        
+
         new_id = max_id + 2  # Increment by 2 to ensure uniqueness
         new_igroup = max_igroup + 1  # Increment igroup by 5 for a new AGN instance
         if len(self.agn_instances) > 0:
             new_id = new_id + 4
             new_igroup = new_igroup + 5
-        
+
         instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {len(self.agn_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -1033,7 +1035,7 @@ class BayeSEDGUI:
         # Main AGN component
         main_agn_frame = ttk.Frame(instance_frame)
         main_agn_frame.grid(row=0, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(main_agn_frame, text="Main", variable=component_vars['main_agn'], 
+        ttk.Checkbutton(main_agn_frame, text="Main", variable=component_vars['main_agn'],
                         command=lambda: self.toggle_component(agn_params_frame, component_vars['main_agn'].get())).grid(row=0, column=0, sticky='w')
 
         agn_params_frame = ttk.Frame(main_agn_frame)
@@ -1099,7 +1101,7 @@ class BayeSEDGUI:
         # BBB component
         bbb_frame = ttk.Frame(instance_frame)
         bbb_frame.grid(row=1, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(bbb_frame, text="BBB", variable=component_vars['bbb'], 
+        ttk.Checkbutton(bbb_frame, text="BBB", variable=component_vars['bbb'],
                         command=lambda: self.toggle_component(bbb_content_frame, component_vars['bbb'].get())).grid(row=0, column=0, sticky='w')
 
         bbb_content_frame = ttk.Frame(bbb_frame)
@@ -1144,7 +1146,7 @@ class BayeSEDGUI:
         # BLR component
         blr_frame = ttk.Frame(instance_frame)
         blr_frame.grid(row=2, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(blr_frame, text="BLR", variable=component_vars['blr'], 
+        ttk.Checkbutton(blr_frame, text="BLR", variable=component_vars['blr'],
                         command=lambda: self.toggle_component(blr_content_frame, component_vars['blr'].get())).grid(row=0, column=0, sticky='w')
 
         blr_content_frame = ttk.Frame(blr_frame)
@@ -1188,7 +1190,7 @@ class BayeSEDGUI:
         # FeII component
         feii_frame = ttk.Frame(instance_frame)
         feii_frame.grid(row=3, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(feii_frame, text="FeII", variable=component_vars['feii'], 
+        ttk.Checkbutton(feii_frame, text="FeII", variable=component_vars['feii'],
                         command=lambda: self.toggle_component(feii_content_frame, component_vars['feii'].get())).grid(row=0, column=0, sticky='w')
 
         feii_content_frame = ttk.Frame(feii_frame)
@@ -1237,7 +1239,7 @@ class BayeSEDGUI:
 
         # FeII Kinematic settings
         use_feii_kin = tk.BooleanVar(value=False)
-        ttk.Checkbutton(feii_content_frame, text="Kin", variable=use_feii_kin, 
+        ttk.Checkbutton(feii_content_frame, text="Kin", variable=use_feii_kin,
                         command=lambda: self.toggle_widgets(list(kin_widgets.values()), use_feii_kin.get())).grid(row=0, column=len(aknn_params)*2, sticky=tk.W, padx=(5,1))
 
         kin_params = [("velscale", 3), ("gh_con", 3), ("gh_eml", 3)]
@@ -1264,7 +1266,7 @@ class BayeSEDGUI:
         # NLR component
         nlr_frame = ttk.Frame(instance_frame)
         nlr_frame.grid(row=4, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(nlr_frame, text="NLR", variable=component_vars['nlr'], 
+        ttk.Checkbutton(nlr_frame, text="NLR", variable=component_vars['nlr'],
                         command=lambda: self.toggle_component(nlr_content_frame, component_vars['nlr'].get())).grid(row=0, column=0, sticky='w')
 
         nlr_content_frame = ttk.Frame(nlr_frame)
@@ -1308,7 +1310,7 @@ class BayeSEDGUI:
         # TOR component
         tor_frame = ttk.Frame(instance_frame)
         tor_frame.grid(row=5, column=0, sticky='ew', padx=5, pady=2)
-        ttk.Checkbutton(tor_frame, text="TOR", variable=component_vars['tor'], 
+        ttk.Checkbutton(tor_frame, text="TOR", variable=component_vars['tor'],
                         command=lambda: self.toggle_component(tor_content_frame, component_vars['tor'].get())).grid(row=0, column=0, sticky='w')
 
         tor_content_frame = ttk.Frame(tor_frame)
@@ -1428,7 +1430,7 @@ class BayeSEDGUI:
         if frame is None:
             print(f"Warning: Frame is None. Skipping.")
             return
-        
+
         if state:
             frame.grid()
         else:
@@ -1440,9 +1442,9 @@ class BayeSEDGUI:
 
     def get_agn_settings(self):
         return [
-            {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else 
-                   widget.get() if isinstance(widget, tk.BooleanVar) else 
-                   {k: v.get() if hasattr(v, 'get') else v for k, v in widget.items()} if isinstance(widget, dict) else 
+            {key: (widget.get() if isinstance(widget, (ttk.Entry, ttk.Combobox)) else
+                   widget.get() if isinstance(widget, tk.BooleanVar) else
+                   {k: v.get() if hasattr(v, 'get') else v for k, v in widget.items()} if isinstance(widget, dict) else
                    widget)
              for key, widget in instance.items() if key not in ['frame', 'bbb_frame', 'blr_frame', 'nlr_frame', 'feii_frame', 'tor_frame']}
             for instance in self.agn_instances
@@ -1452,7 +1454,7 @@ class BayeSEDGUI:
         model_type = tor_widgets['model_type'].get()
         common_params = ['igroup', 'id', 'name', 'iscalable', 'model_type']
         aknn_params = ['k', 'f_run', 'eps', 'iRad', 'iprep', 'Nstep', 'alpha']
-        
+
         for i, (param, widget) in enumerate(tor_widgets.items()):
             try:
                 label_widget = widget.master.grid_slaves(row=0, column=i*2)[0]
@@ -1486,10 +1488,10 @@ class BayeSEDGUI:
     def run_bayesed(self):
         if self.run_button['text'] == "Run":
             params = self.create_bayesed_params()
-            
+
             np = self.mpi_processes.get().strip()
             ntest = self.ntest.get().strip()
-            
+
             self.output_queue = queue.Queue()
             self.stop_output_thread = threading.Event()
             threading.Thread(target=self.execute_bayesed, args=(params, np, ntest), daemon=True).start()
@@ -1503,18 +1505,18 @@ class BayeSEDGUI:
     def execute_bayesed(self, params, np, ntest):
         try:
             bayesed = BayeSEDInterface(mpi_mode='1', np=int(np) if np else None, Ntest=int(ntest) if ntest else None)
-            
+
             # Show the full command in the output box
             self.output_queue.put("Executing BayeSED...\n")
-            
+
             # Run BayeSED
             bayesed.run(params)
-            
+
             self.output_queue.put("BayeSED execution completed\n")
-            
+
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
-        
+
         finally:
             self.output_queue.put(None)  # Signal that the process has finished
             # Change button text back to "Run"
@@ -1586,7 +1588,7 @@ class BayeSEDGUI:
             if instance['use_dem'].get():
                 dem_values = [widget.get() for widget in instance['dem']]
                 imodel = dem_values[1]
-                
+
                 # Common parameters for all DEM models
                 dem_params = {
                     'igroup': int(dem_values[0]),
@@ -1823,7 +1825,7 @@ class BayeSEDGUI:
             for child in children:
                 child.terminate()
             parent.terminate()
-            
+
             # If using MPI, terminate all MPI processes
             np = self.mpi_processes.get().strip()
             if np:
@@ -1834,48 +1836,48 @@ class BayeSEDGUI:
                             proc.terminate()
                 except Exception as e:
                     print(f"Error terminating MPI processes: {e}")
-            
+
             # Wait for all processes to actually terminate
             gone, alive = psutil.wait_procs(children + [parent], timeout=3)
             for p in alive:
                 p.kill()  # Force kill if still alive
-        
+
         self.stop_output_thread.set()
-        
+
         # Change button text back to "Run"
         self.run_button.config(text="Run", command=self.run_bayesed)
-        
+
         self.update_output("BayeSED execution stopped by user.\n")
 
     def execute_command(self, command, np, ntest):
         import sys
         import threading
-        
+
         try:
             # Use subprocess.STARTUPINFO to hide console window on Windows
             startupinfo = None
             if sys.platform.startswith('win'):
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            
+
             bayesed = BayeSEDInterface(mpi_mode='1', np=int(np) if np else None, Ntest=int(ntest) if ntest else None)
-            
+
             # Prepare the command
             mpi_command = [bayesed.mpi_cmd, '--use-hwthread-cpus']
             if bayesed.np is not None:
                 mpi_command.extend(['-np', str(bayesed.np)])
             mpi_command.append(bayesed.executable_path)
             full_command = mpi_command + command
-            
+
             # Show the full command in the output box
             self.output_queue.put("Executing command: " + " ".join(full_command) + "\n")
-            
+
             # Create a thread to read the output in real-time
             def output_reader(stream, queue):
                 for line in iter(stream.readline, b''):
                     queue.put(line.decode('utf-8', errors='replace'))  # Preserve all characters, including tabs
                 stream.close()
-            
+
             # Start BayeSED process
             process = subprocess.Popen(
                 full_command,
@@ -1883,26 +1885,26 @@ class BayeSEDGUI:
                 stderr=subprocess.STDOUT,
                 startupinfo=startupinfo
             )
-            
+
             # Start output reader thread
             output_thread = threading.Thread(target=output_reader, args=(process.stdout, self.output_queue))
             output_thread.daemon = True
             output_thread.start()
-            
+
             # Wait for the process to complete
             process.wait()
-            
+
             # Wait for the output thread to finish
             output_thread.join()
-            
+
             if process.returncode == 0:
                 self.output_queue.put("BayeSED execution completed\n")
             else:
                 self.output_queue.put(f"BayeSED execution failed, return code: {process.returncode}\n")
-            
+
         except Exception as e:
             self.output_queue.put(f"Error: {str(e)}\n")
-        
+
         finally:
             self.output_queue.put(None)  # Signal that the process has finished
             # Change button text back to "Run"
@@ -1921,18 +1923,18 @@ class BayeSEDGUI:
 
     def update_output(self, text):
         self.output_text.config(state=tk.NORMAL)
-        
+
         # Replace tabs with a fixed number of spaces
         tab_size = 4  # You can adjust this value
         text = text.replace('\t', ' ' * tab_size)
-        
+
         self.output_text.insert(tk.END, text)
         self.output_text.see(tk.END)
         self.output_text.config(state=tk.NORMAL, font=self.standard_font)  # Use the standard font
         self.output_text.update_idletasks()  # Force update of the widget
 
     def browse_input_file(self):
-        filename = filedialog.askopenfilename(initialdir=os.getcwd())
+        filename = filedialog.askopenfilename(initialdir= os.path.join(os.getcwd(), "observation"))
         if filename:
             self.input_file.delete(0, tk.END)
             self.input_file.insert(0, os.path.relpath(filename))
@@ -1951,7 +1953,7 @@ class BayeSEDGUI:
         cosmo_frame = ttk.Frame(cosmology_frame)
         cosmo_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Checkbutton(cosmo_frame, variable=self.use_cosmology, 
+        ttk.Checkbutton(cosmo_frame, variable=self.use_cosmology,
                         command=lambda: self.toggle_widgets(list(self.cosmology_params.values()), self.use_cosmology.get())).pack(side=tk.LEFT, padx=5)
 
         cosmo_content = ttk.LabelFrame(cosmo_frame, text="Cosmology Parameters")
@@ -1977,7 +1979,7 @@ class BayeSEDGUI:
         igm_frame = ttk.Frame(cosmology_frame)
         igm_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Checkbutton(igm_frame, variable=self.use_igm, 
+        ttk.Checkbutton(igm_frame, variable=self.use_igm,
                         command=lambda: self.toggle_widgets(self.igm_radiobuttons, self.use_igm.get())).pack(side=tk.LEFT, padx=5)
 
         igm_content = ttk.LabelFrame(igm_frame, text="IGM Model")
@@ -1999,7 +2001,7 @@ class BayeSEDGUI:
         redshift_frame = ttk.Frame(cosmology_frame)
         redshift_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Checkbutton(redshift_frame, variable=self.use_redshift, 
+        ttk.Checkbutton(redshift_frame, variable=self.use_redshift,
                         command=self.toggle_redshift_widgets).pack(side=tk.LEFT, padx=5)
 
         redshift_content = ttk.LabelFrame(redshift_frame, text="Redshift Parameters")
@@ -2115,7 +2117,7 @@ class BayeSEDGUI:
             output_dir = self.outdir.get()
             fits_file = self.fits_file.get()
             full_path = os.path.join(output_dir, fits_file)
-            
+
             if not os.path.exists(full_path):
                 messagebox.showerror("Error", f"FITS file not found: {full_path}")
                 return
@@ -2123,7 +2125,7 @@ class BayeSEDGUI:
             full_path = self.full_fits_path
 
         plot_script = "plot/plot_bestfit.py"
-        
+
         # Check if filter files exist
         filter_file = self.filters.get()
         filter_names_file = self.filters_selected.get()
@@ -2145,7 +2147,7 @@ class BayeSEDGUI:
         if not output_dir:
             messagebox.showerror("Error", "Please set an output directory in the input settings first.")
             return
-        
+
         if not os.path.isdir(output_dir):
             messagebox.showerror("Error", f"The specified output directory does not exist: {output_dir}")
             return
@@ -2165,17 +2167,17 @@ class BayeSEDGUI:
     def save_script(self):
         # Get the current timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         # Create a default filename with timestamp
         default_filename = f"bayesed_script_{timestamp}.py"
-        
+
         # Open a file dialog to choose where to save the script
         filename = filedialog.asksaveasfilename(
             defaultextension=".py",
             filetypes=[("Python files", "*.py"), ("All files", "*.*")],
             initialfile=default_filename
         )
-        
+
         if filename:
             with open(filename, 'w') as f:
                 f.write("from bayesed import BayeSEDInterface, BayeSEDParams\n")
@@ -2188,11 +2190,11 @@ class BayeSEDGUI:
                 f.write("from bayesed import CloudyParams, CosmologyParams, DALParams, RDFParams, TemplateParams\n\n")
 
                 f.write("def run_bayesed():\n")
-                
+
                 # Get the number of MPI processes and Ntest
                 np = self.mpi_processes.get().strip()
                 ntest = self.ntest.get().strip()
-                
+
                 # Initialize BayeSEDInterface with np and Ntest
                 f.write(f"    bayesed = BayeSEDInterface(mpi_mode='1'")
                 if np:
@@ -2200,10 +2202,10 @@ class BayeSEDGUI:
                 if ntest:
                     f.write(f", Ntest={ntest}")
                 f.write(")\n\n")
-                
+
                 # Create BayeSEDParams
                 params = self.create_bayesed_params()
-                
+
                 # Write BayeSEDParams to file
                 f.write("    params = BayeSEDParams(\n")
                 for field in params.__dataclass_fields__:
@@ -2211,11 +2213,11 @@ class BayeSEDGUI:
                     if value is not None and value != []:
                         f.write(f"        {field}={repr(value)},\n")
                 f.write("    )\n\n")
-                
+
                 f.write("    bayesed.run(params)\n")
                 f.write("\nif __name__ == '__main__':\n")
                 f.write("    run_bayesed()\n")
-            
+
             messagebox.showinfo("Save Successful", f"Script saved to {filename}")
 
     def create_about_button(self):
@@ -2225,7 +2227,7 @@ class BayeSEDGUI:
     def show_about_window(self):
         about_window = tk.Toplevel(self.master)
         about_window.title("About BayeSED3")
-        
+
         window_width, window_height = 1200, 800  # Increased width to 1200 and height to 800
         screen_width, screen_height = self.master.winfo_screenwidth(), self.master.winfo_screenheight()
         x, y = (screen_width - window_width) // 2, (screen_height - window_height) // 2

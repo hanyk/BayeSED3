@@ -302,8 +302,8 @@ class GSLMultifitRobustParams:
 class KinParams:
     id: int  # Model ID
     velscale: int = 10  # Velocity scale
-    num_gauss_hermites_continuum: int = 0  # Number of Gauss-Hermite terms for continuum
-    num_gauss_hermites_emission: int = 0  # Number of Gauss-Hermite terms for emission lines
+    num_gauss_hermites_con: int = 0  # Number of Gauss-Hermite terms for continuum 
+    num_gauss_hermites_eml: int = 0  # Number of Gauss-Hermite terms for emission lines
 
 @dataclass
 class LineListParams:
@@ -908,7 +908,7 @@ class BayeSEDInterface:
         return f"{gsl_multifit_robust_params.type},{gsl_multifit_robust_params.tune}"
 
     def _format_kin_params(self, kin_params):
-        return f"{kin_params.id},{kin_params.velscale},{kin_params.num_gauss_hermites_continuum},{kin_params.num_gauss_hermites_emission}"
+        return f"{kin_params.id},{kin_params.velscale},{kin_params.num_gauss_hermites_con},{kin_params.num_gauss_hermites_eml}"
 
     def _format_LineList_params(self, LineList_params):
         return f"{LineList_params.file},{LineList_params.type}"

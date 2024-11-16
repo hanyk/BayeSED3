@@ -88,8 +88,8 @@ def run_bayesed_example(obj, input_dir='observation/test', output_dir='output', 
         params.kin = [KinParams(
             id=3,
             velscale=10,
-            num_gauss_hermites_continuum=2,
-            num_gauss_hermites_emission=0
+            num_gauss_hermites_con=2,
+            num_gauss_hermites_eml=0
         )]
 
     print(f"Running BayeSED for {obj} object...")
@@ -112,10 +112,10 @@ def run_bayesed_test1(survey, obs_file, np=None, Ntest=None):
         filters='observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt',
         filters_selected=f'observation/test1/filters_{survey}_seleted.txt',
         ssp=[SSPParams(
-            igroup=0, 
-            id=0, 
+            igroup=0,
+            id=0,
             name='bc2003_lr_BaSeL_chab',
-            iscalable=1, 
+            iscalable=1,
         )],
         sfh=[SFHParams(
             id=0,
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         np_index = sys.argv.index('--np')
         if np_index + 1 < len(sys.argv):
             np = int(sys.argv[np_index + 1])
-    
+
     if '--Ntest' in sys.argv:
         ntest_index = sys.argv.index('--Ntest')
         if ntest_index + 1 < len(sys.argv):
