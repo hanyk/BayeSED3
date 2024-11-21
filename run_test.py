@@ -184,12 +184,16 @@ def run_bayesed_test2(np=None, Ntest=None):
     print("Running BayeSED for test2...")
     bayesed.run(params)
 
-def run_bayesed_test3(itype, np=None, Ntest=None):
+def run_bayesed_test3(obj_type, itype, np=None, Ntest=None):
     bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
+    if(obj_type=='STARFORMING'):
+        input_file='observation/test3/test_STARFORMING.txt'
+    if(obj_type=='PASSIVE'):
+        input_file='observation/test3/test_PASSIVE.txt'
 
     params = BayeSEDParams(
         input_type=1,
-        input_file='observation/test3/test_STARFORMING.txt',
+        input_file=input_file,
         outdir='test3',
         save_bestfit=0,  # 0: Save the best fitting result in fits format
         save_sample_par=True,
@@ -217,6 +221,10 @@ def run_bayesed_test3(itype, np=None, Ntest=None):
             id=0,
             ilaw=8
         )],
+        z=ZParams(
+            min=0,
+            max=1
+        ),
         NNLM= NNLMParams(1,1000,0.0,10,0.01,0.025,0.975),
         SNRmin1=SNRmin1Params(0,3),
         rdf=RDFParams(-1,0),
@@ -249,7 +257,7 @@ def plot_results(obj, output_dir):
 
     for root, dirs, files in os.walk(search_dir):
         for file in files:
-            if file.endswith('.fits'):
+            if file.endswith('.fits') and itype in file:
                 fits_file = os.path.join(root, file)
                 cmd = ['python', plot_script, fits_file]
                 subprocess.run(cmd)
@@ -295,7 +303,8 @@ if __name__ == "__main__":
     elif obj == 'test2':
         run_bayesed_test2(np=np, Ntest=Ntest)
     elif obj == 'test3':
-        run_bayesed_test3(itype,np=np, Ntest=Ntest)
+        run_bayesed_test3(obj_type='STARFORMING',itype=itype,np=np, Ntest=Ntest)
+        run_bayesed_test3(obj_type='PASSIVE',itype=itype,np=np, Ntest=Ntest)
     else:
         # Run BayeSED example
         run_bayesed_example(obj, np=np, Ntest=Ntest)

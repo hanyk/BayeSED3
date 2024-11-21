@@ -302,7 +302,7 @@ class GSLMultifitRobustParams:
 class KinParams:
     id: int  # Model ID
     velscale: int = 10  # Velocity scale
-    num_gauss_hermites_con: int = 0  # Number of Gauss-Hermite terms for continuum 
+    num_gauss_hermites_con: int = 0  # Number of Gauss-Hermite terms for continuum
     num_gauss_hermites_eml: int = 0  # Number of Gauss-Hermite terms for emission lines
 
 @dataclass
@@ -468,7 +468,7 @@ class BayeSEDInterface:
         openmpi_dir = f"openmpi-{openmpi_version}"
         openmpi_file = f"{openmpi_dir}.tar.gz"
         install_dir = os.path.abspath("openmpi")
-        
+
         # Check if the correct version of OpenMPI is already installed on the system
         system_mpirun = shutil.which("mpirun")
         if system_mpirun:
@@ -483,7 +483,7 @@ class BayeSEDInterface:
                         print(f"System has OpenMPI {installed_version}, but we need {openmpi_version}")
             except Exception as e:
                 print(f"Error checking OpenMPI version: {e}")
-        
+
         # If the correct version of OpenMPI is not found, proceed with the installation
         if not os.path.exists(install_dir):
             # Check if the tarball already exists and is complete
@@ -496,12 +496,12 @@ class BayeSEDInterface:
                 except Exception as e:
                     print(f"Existing tarball is incomplete or corrupted. Re-downloading: {e}")
                     os.remove(openmpi_file)
-            
+
             if not os.path.exists(openmpi_file):
                 print(f"Downloading OpenMPI {openmpi_version}...")
                 response = requests.get(openmpi_url, stream=True)
                 total_size = int(response.headers.get('content-length', 0))
-                
+
                 with open(openmpi_file, 'wb') as file, tqdm(
                     desc=openmpi_file,
                     total=total_size,
@@ -512,29 +512,29 @@ class BayeSEDInterface:
                     for data in response.iter_content(chunk_size=1024):
                         size = file.write(data)
                         progress_bar.update(size)
-            
+
             print("Extracting OpenMPI...")
             with tarfile.open(openmpi_file, 'r:gz') as tar:
                 tar.extractall()
-            
+
             print("Compiling and installing OpenMPI...")
             os.chdir(openmpi_dir)
             subprocess.run(["./configure", f"--prefix={install_dir}"], check=True)
             subprocess.run(["make", "-j", str(self._get_max_threads())], check=True)
             subprocess.run(["make", "install"], check=True)
             os.chdir("..")
-            
+
             print("Cleaning up temporary files...")
             shutil.rmtree(openmpi_dir)
-        
+
         mpirun_path = os.path.join(install_dir, "bin", "mpirun")
         if not os.path.exists(mpirun_path):
             raise FileNotFoundError(f"mpirun not found at {mpirun_path}. OpenMPI installation may have failed.")
-        
+
         # Set up environment variables for OpenMPI
         os.environ["PATH"] = f"{os.path.dirname(mpirun_path)}:{os.environ.get('PATH', '')}"
         os.environ["LD_LIBRARY_PATH"] = f"{os.path.join(install_dir, 'lib')}:{os.environ.get('LD_LIBRARY_PATH', '')}"
-        
+
         return mpirun_path
 
     def _get_executable(self):
@@ -546,11 +546,11 @@ class BayeSEDInterface:
             platform_dir = "mac"
         else:
             raise ValueError(f"Unsupported operating system: {self.os}")
-        
+
         executable_path = os.path.join(base_path, platform_dir, executable)
         if not os.path.exists(executable_path):
             raise FileNotFoundError(f"Executable not found: {executable_path}")
-        
+
         return executable_path
 
     def run(self, params):
@@ -561,272 +561,272 @@ class BayeSEDInterface:
 
         # Set TMPDIR environment variable
         os.environ['TMPDIR'] = '/tmp'
-        
+
         cmd = [self.mpi_cmd, '--use-hwthread-cpus', '-np', str(self.num_processes), self.executable_path] + args
-        
+
         # Add Ntest if specified
         if self.Ntest is not None:
             cmd.extend(['--Ntest', str(self.Ntest)])
-        
+
         print(f"Executing command: {' '.join(cmd)}")
-        
+
         try:
             self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
-            
+
             for line in iter(self.process.stdout.readline, ''):
                 print(line, end='', flush=True)
-            
+
             self.process.wait()
-            
+
             if self.process.returncode == 0:
                 print("BayeSED execution completed\n", flush=True)
             else:
                 print(f"BayeSED execution failed, return code: {self.process.returncode}\n", flush=True)
-        
+
         except Exception as e:
             print(f"Error: {str(e)}\n", flush=True)
 
     def _params_to_args(self, params):
         if isinstance(params, list):
             return params
-        
+
         args = []
-        
+
         if params.help:
             args.append('-h')
             return args
-        
+
         args.extend([
             '-i', f"{params.input_type},{params.input_file}",
             '--outdir', params.outdir,
             '--save_bestfit', str(params.save_bestfit),
             '-v', str(params.verbose)
         ])
-        
+
         # Add other command line arguments of bayesed
         if params.fann:
             for fann_params in params.fann:
                 args.extend(['-a', self._format_fann_params(fann_params)])
-        
+
         if params.AGN:
             for AGN_params in params.AGN:
                 args.extend(['-AGN', self._format_AGN_params(AGN_params)])
-        
+
         if params.blackbody:
             for blackbody_params in params.blackbody:
                 args.extend(['-bb', self._format_blackbody_params(blackbody_params)])
-        
+
         if params.big_blue_bump:
             for big_blue_bump_params in params.big_blue_bump:
                 args.extend(['-bbb', self._format_big_blue_bump_params(big_blue_bump_params)])
-        
+
         if params.greybody:
             for greybody_params in params.greybody:
                 args.extend(['-gb', self._format_greybody_params(greybody_params)])
-        
+
         if params.aknn:
             for aknn_params in params.aknn:
                 args.extend(['-k', self._format_aknn_params(aknn_params)])
-        
+
         if params.line:
             for line_params in params.line:
                 args.extend(['-l', self._format_line_params(line_params)])
-        
+
         if params.lines:
             for lines_params in params.lines:
                 args.extend(['-ls', self._format_line_params(lines_params)])
-        
+
         if params.lines1:
             for line_params in params.lines1:
                 args.extend(['-ls1', self._format_line_params(line_params)])
-        
+
         if params.luminosity:
             args.extend(['--luminosity', self._format_luminosity_params(params.luminosity)])
-        
+
         if params.np_sfh:
             args.extend(['--np_sfh', self._format_np_sfh_params(params.np_sfh)])
-        
+
         if params.polynomial:
             args.extend(['--polynomial', self._format_polynomial_params(params.polynomial)])
-        
+
         if params.powerlaw:
             for powerlaw_params in params.powerlaw:
                 args.extend(['-pw', self._format_powerlaw_params(powerlaw_params)])
-        
+
         if params.rbf:
             for rbf_params in params.rbf:
                 args.extend(['-rbf', self._format_rbf_params(rbf_params)])
-        
+
         if params.sfh:
             for sfh_params in params.sfh:
                 args.extend(['--sfh', self._format_sfh_params(sfh_params)])
-        
+
         if params.ssp:
             for ssp_params in params.ssp:
                 args.extend(['-ssp', self._format_ssp_params(ssp_params)])
-        
+
         if params.sedlib:
             for sedlib_params in params.sedlib:
                 args.extend(['-sedlib', self._format_sedlib_params(sedlib_params)])
-        
+
         if params.sys_err_mod:
             args.extend(['--sys_err_mod', self._format_sys_err_params(params.sys_err_mod)])
-       
+
         if params.sys_err_obs:
             args.extend(['--sys_err_obs', self._format_sys_err_params(params.sys_err_obs)])
-        
+
         if params.z:
-            args.extend(['-z', self._format_z_params(params.z)])
-        
+            args.extend(['--z', self._format_z_params(params.z)])
+
         if params.rename:
             for rename_params in params.rename:
                 args.extend(['--rename', f"{rename_params.id},{rename_params.ireplace},{rename_params.name}"])
-        
+
         if params.rename_all:
             args.extend(['--rename_all', params.rename_all])
-        
+
         if params.save_pos_sfh:
             args.extend(['--save_pos_sfh', params.save_pos_sfh])
-        
+
         if params.save_pos_spec:
             args.append('--save_pos_spec')
-        
+
         if params.save_sample_obs:
             args.append('--save_sample_obs')
-        
+
         if params.save_sample_spec:
             args.append('--save_sample_spec')
-        
+
         if params.save_summary:
             args.append('--save_summary')
-        
+
         if params.suffix:
             args.extend(['--suffix', params.suffix])
-        
+
         if params.SFR_over:
             args.extend(['--SFR_over', f"{params.SFR_over.past_Myr1},{params.SFR_over.past_Myr2}"])
-        
+
         if params.SNRmin1:
             args.extend(['--SNRmin1', f"{params.SNRmin1.phot},{params.SNRmin1.spec}"])
-        
+
         if params.SNRmin2:
             args.extend(['--SNRmin2', f"{params.SNRmin2.phot},{params.SNRmin2.spec}"])
-        
+
         if params.unweighted_samples:
             args.append('--unweighted_samples')
-        
+
         if params.filters:
             args.extend(['--filters', params.filters])
-        
+
         if params.filters_selected:
             args.extend(['--filters_selected', params.filters_selected])
-        
+
         if params.no_spectra_fit:
             args.append('--no_spectra_fit')
-        
+
         if params.NNLM:
             args.extend(['--NNLM', self._format_NNLM_params(params.NNLM)])
-        
+
         if params.Ndumper:
             args.extend(['--Ndumper', self._format_Ndumper_params(params.Ndumper)])
-        
+
         if params.NfilterPoints:
             args.extend(['--NfilterPoints', str(params.NfilterPoints)])
-        
+
         if params.Nsample:
             args.extend(['--Nsample', str(params.Nsample)])
-        
+
         if params.output_SFH:
             args.extend(['--output_SFH', self._format_output_SFH_params(params.output_SFH)])
-        
+
         if params.output_mock_photometry:
             args.extend(['--output_mock_photometry', str(params.output_mock_photometry)])
-        
+
         if params.multinest:
             args.extend(['--multinest', self._format_multinest_params(params.multinest)])
-        
+
         if params.gsl_integration_qag:
             args.extend(['--gsl_integration_qag', f"{params.gsl_integration_qag.epsabs},{params.gsl_integration_qag.epsrel},{params.gsl_integration_qag.limit}"])
-        
+
         if params.gsl_multifit_robust:
             args.extend(['--gsl_multifit_robust', f"{params.gsl_multifit_robust.type},{params.gsl_multifit_robust.tune}"])
-        
+
         if params.import_files:
             for import_file in params.import_files:
                 args.extend(['--import', import_file])
-        
+
         if params.inn:
             for inn_params in params.inn:
                 args.extend(['--inn', self._format_sedlib_params(inn_params)])
-        
+
         if params.IGM is not None:
             args.extend(['--IGM', str(params.IGM)])
-        
+
         if params.kin:
             for kin_param in params.kin:
                 args.extend(['--kin', self._format_kin_params(kin_param)])
-        
+
         if params.logZero is not None:
             args.extend(['--logZero', str(params.logZero)])
-        
+
         if params.lw_max is not None:
             args.extend(['--lw_max', str(params.lw_max)])
-        
+
         if params.LineList:
             args.extend(['--LineList', self._format_LineList_params(params.LineList)])
-        
+
         if params.make_catalog:
             args.extend(['--make_catalog', self._format_make_catalog_params(params.make_catalog)])
-        
+
         if params.niteration is not None:
             args.extend(['--niteration', str(params.niteration)])
-        
+
         if params.no_photometry_fit:
             args.append('--no_photometry_fit')
-        
+
         if params.cloudy:
             for cloudy_params in params.cloudy:
                 args.extend(['--cloudy', self._format_cloudy_params(cloudy_params)])
-        
+
         if params.cosmology:
             args.extend(['--cosmology', self._format_cosmology_params(params.cosmology)])
-        
+
         if params.dal:
             for dal_params in params.dal:
                 args.extend(['--dal', self._format_dal_params(dal_params)])
-        
+
         if params.export:
             args.extend(['--export', params.export])
-        
+
         if params.output_mock_spectra:
             args.append('--output_mock_spectra')
-        
+
         if params.output_model_absolute_magnitude:
             args.append('--output_model_absolute_magnitude')
-        
+
         if params.output_pos_obs:
             args.append('--output_pos_obs')
-        
+
         if params.priors_only:
             args.append('--priors_only')
-        
+
         if params.rdf:
             args.extend(['--rdf', self._format_rdf_params(params.rdf)])
-        
+
         if params.template:
             for template_params in params.template:
                 args.extend(['-t', self._format_template_params(template_params)])
-        
+
         if params.build_sedlib is not None:
             args.extend(['--build_sedlib', str(params.build_sedlib)])
         if params.check:
             args.append('--check')
         if params.cl:
             args.extend(['--cl', params.cl])
-        
+
         if params.save_sample_par:
             args.append('--save_sample_par')
-        
+
         return args
 
     def _format_fann_params(self, fann_params):
@@ -941,7 +941,7 @@ def main():
     parser.add_argument('--outdir', type=str, default='result', help='Output directory')
     parser.add_argument('--save_bestfit', type=int, default=0, help='Save best fit')
     parser.add_argument('-v', '--verbose', type=int, default=2, help='Verbosity level')
-    parser.add_argument('--save_sample_par', action='store_true', 
+    parser.add_argument('--save_sample_par', action='store_true',
                        help='Save the posterior sample of parameters')
     # Add other parameters of BayeSEDParams...
 
@@ -953,7 +953,7 @@ def main():
         mpi_mode = '1'
 
     bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
-    
+
     # Use all available cores if --np is not specified
     if args.np is None:
         bayesed.num_processes = bayesed._get_max_threads()
@@ -969,13 +969,13 @@ def main():
         parser.error("the following arguments are required: -i/--input")
 
     input_type, input_file = args.input.split(',')
-    
+
     # Only pass the parameters defined in BayeSEDParams
     params_dict = {k: v for k, v in vars(args).items() if k in BayeSEDParams.__dataclass_fields__}
     params_dict['input_type'] = int(input_type)
     params_dict['input_file'] = input_file
     params = BayeSEDParams(**params_dict)
-    
+
     bayesed.run(params)
 
 if __name__ == "__main__":
@@ -1002,12 +1002,12 @@ if __name__ == "__main__":
             i += 1
 
     bayesed = BayeSEDInterface(mpi_mode=mpi_mode)
-    
+
     if '-h' in bayesed_args or '--help' in bayesed_args:
         num_processes = 1
     elif num_processes is None:
         num_processes = bayesed._get_max_threads()
-    
+
     bayesed.num_processes = num_processes
 
     bayesed.run(bayesed_args)
