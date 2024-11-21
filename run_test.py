@@ -257,10 +257,16 @@ def plot_results(obj, output_dir):
 
     for root, dirs, files in os.walk(search_dir):
         for file in files:
-            if file.endswith('.fits') and itype in file:
-                fits_file = os.path.join(root, file)
-                cmd = ['python', plot_script, fits_file]
-                subprocess.run(cmd)
+            if obj == 'test3':
+                if file.endswith('.fits') and itype in file:
+                    fits_file = os.path.join(root, file)
+                    cmd = ['python', plot_script, fits_file]
+                    subprocess.run(cmd)
+            else:
+                if file.endswith('.fits'):
+                    fits_file = os.path.join(root, file)
+                    cmd = ['python', plot_script, fits_file]
+                    subprocess.run(cmd)
 
 if __name__ == "__main__":
     # Ensure output directory exists
@@ -274,7 +280,7 @@ if __name__ == "__main__":
 
     obj = sys.argv[1]
     plot = False
-    itype = 'spec'
+    itype = None
     if len(sys.argv) > 2 and sys.argv[2] == 'plot':
         plot = True
 
