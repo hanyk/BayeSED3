@@ -12,22 +12,24 @@ c1 = 2.9979246e+14 #um/s
 if hdul.__contains__('model:total'):
     total=hdul['model:total'].data
     mask=total['flux']>0
-    # plt.loglog(total[mask]['wavelength_rest'],total[mask]['flux'],label='Total')
+    plt.loglog(total[mask]['wavelength_rest'],total[mask]['flux'],label='Best-fitting model')
     xmin=min(total['wavelength_rest'])
     xmax=max(total['wavelength_rest'])
     ymin=min(total[mask]['flux'])
     ymax=max(total[mask]['flux'])
 
 models=[hdul[i].name for i in range(0,len(hdul)) if 'model:' in hdul[i].name and hdul[i].name!='model:total']
-for model in models[0:1]:
-    obs_phot=hdul[model].data
-    mask=obs_phot['flux']>0
-    # plt.loglog(obs_phot[mask]['wavelength_rest'],obs_phot[mask]['flux'],label=model.replace('model:',''))
-    # if len(models)==1:
-        # xmin=min(obs_phot['wavelength_rest'])
-        # xmax=max(obs_phot['wavelength_rest'])
-        # ymin=min(obs_phot[mask]['flux'])
-        # ymax=max(obs_phot[mask]['flux'])
+if len(models)==1:
+    if not hdul.__contains__('obs:spec') or '--no_spectra_fit' in hdul[0].header['RUN_ARGUMENTS']:
+        for model in models[0:1]:
+            obs_phot=hdul[model].data
+            mask=obs_phot['flux']>0
+            plt.loglog(obs_phot[mask]['wavelength_rest'],obs_phot[mask]['flux'],label='Best-fitting model')
+            # if len(models)==1:
+            # xmin=min(obs_phot['wavelength_rest'])
+            # xmax=max(obs_phot['wavelength_rest'])
+            # ymin=min(obs_phot[mask]['flux'])
+            # ymax=max(obs_phot[mask]['flux'])
 
 if hdul.__contains__('obs:phot') and '--no_photometry_fit' not in hdul[0].header['RUN_ARGUMENTS']:
     obs_phot=hdul['obs:phot'].data

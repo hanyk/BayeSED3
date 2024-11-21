@@ -274,12 +274,14 @@ if __name__ == "__main__":
 
     obj = sys.argv[1]
     plot = False
-    itype='spec'
+    itype = 'spec'
     if len(sys.argv) > 2 and sys.argv[2] == 'plot':
         plot = True
 
     if obj == 'test3' and len(sys.argv) > 3:
-        itype=sys.argv[3]
+        itype = sys.argv[2]
+        if sys.argv[3] == 'plot':
+            plot = True
     np = None
     Ntest = None
 
@@ -303,8 +305,8 @@ if __name__ == "__main__":
     elif obj == 'test2':
         run_bayesed_test2(np=np, Ntest=Ntest)
     elif obj == 'test3':
-        run_bayesed_test3(obj_type='STARFORMING',itype=itype,np=np, Ntest=Ntest)
-        run_bayesed_test3(obj_type='PASSIVE',itype=itype,np=np, Ntest=Ntest)
+        run_bayesed_test3(obj_type='STARFORMING', itype=itype, np=np, Ntest=Ntest)
+        run_bayesed_test3(obj_type='PASSIVE', itype=itype, np=np, Ntest=Ntest)
     else:
         # Run BayeSED example
         run_bayesed_example(obj, np=np, Ntest=Ntest)
