@@ -137,3 +137,7 @@ If you use BayeSED3 in your research, please cite:
 ## More Information
 
 For more information about [MultiNest](https://github.com/farhanferoz/MultiNest), please refer to the [README_multinest.txt](README_multinest.txt) file.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hanyk/BayeSED3&type=Date)](https://star-history.com/#hanyk/BayeSED3&Date)
