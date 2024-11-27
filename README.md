@@ -91,6 +91,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 ![pdftree csst_mock_all](test3/seedcat2_0_STARFORMING_inoise2/8144596/pdftree.png)
 
 4. [ A new approach to constraining properties of AGN host galaxies by combining image and SED decomposition](https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract)
+
 jupyter-notebook [observation/agn_host_decomp/demo.ipynb](observation/agn_host_decomp/demo.ipynb)
 
 ### Graphical User Interface (GUI)
