@@ -1,0 +1,8 @@
+#name        iprior_type  is_age  min       max      nbin
+log(age/yr)  1            1       8         10.14    40
+alpha        1            0       0.01      1000     40
+beta         1            0       0.01      1000     40
+tau          1            0       0.007     1        40
+p            1            0       0.1       2        40
+log(Z/Zsun)  1            0       -2.30103  0.69897  40
+f            1            0       0         1        40

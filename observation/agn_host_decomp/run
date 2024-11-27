@@ -1,0 +1,53 @@
+#!/bin/bash
+bayesed="./bin/mac/bayesed_mn_1 -v 2"
+mpirun="./openmpi/bin/mpirun --use-hwthread-cpus"
+nlive=400
+efr=0.3
+tol=0.5
+seed=1
+verbose=1
+multinest="--multinest 1,0,0,$nlive,$efr,$tol,1000,-1e90,$seed,$verbose,0,0,-1e90,100000,0.01" #see README_multinest.txt for the meaning of multinest parameters
+
+#models="--ssp 0,0,bc2003_lr_BaSeL_chab,1,1,1,0,0,0,0,0 --sfh 0,8,0,1 --dal 0,2,8 -a 1,2,clumpy201410tor,1 -t 1,3,QSO1,-1 --dal 3,2,7"
+#models="--ssp 0,0,bc2003_lr_BaSeL_chab,1,1,1,0,0,0,0,0 --sfh 0,8,0,1 --dal 0,2,8 -gb 0,1,gb,-2,1,1,1000,200 -a 1,2,clumpy201410tor,1 -t 1,3,QSO1,-1 --dal 3,2,7"
+
+#galaxy model: simple stellar population (SSP), star formation history (SFH), and dust attenuation law (DAL) 
+galaxy=""
+galaxy+=" --ssp 0,0,bc2003_lr_BaSeL_chab,1,1,1,0,0,0,0,0"
+galaxy+=" --sfh 0,8,0,1"
+galaxy+=" --dal 0,2,8"
+
+#dust emission model: greybody
+dust="-gb 0,1,gb,-2,1,1,1000,200"
+
+#AGN model
+AGN_torus="-a 1,2,clumpy201410tor,1"
+AGN_disk="-t 1,3,QSO1,-1 --dal 3,2,7"
+
+models="$galaxy $dust $AGN_torus $AGN_disk"
+
+# set the path to the observational data and configuration files
+obs="./observation/agn_host_decomp"
+
+#definition and selection of filters
+filters="--filters $obs/filters.txt --filters_selected $obs/filters_selected.txt"
+
+# set the path of input file
+input="-i 0,$obs/sample.txt"
+
+# set the path for output
+output="--outdir $obs/output"
+
+#save best-fitting results and posterior sample of parameters
+save="--save_bestfit 0 --save_sample_par"
+
+#set the prior for the observational systematic error
+sys_err="--sys_err_obs 3,0,0.01,0.2,40"
+
+#output luminosity at given wavelength for all SED models
+luminosity="--luminosity -1,0.25,0.25"
+
+Ntest="--Ntest 4"
+#time $mpirun $bayesed $multinest $input $filters $models $output $save $sys_err $luminosity  $Ntest
+filters="--filters $obs/filters.txt --filters_selected $obs/filters_selected_total_only.txt"
+time $mpirun $bayesed $multinest $input $filters $models $output $save $sys_err $luminosity  $Ntest --suffix _total_only
