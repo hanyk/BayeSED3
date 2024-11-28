@@ -59,9 +59,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
    - Fedora: `sudo dnf install python3-tkinter`
    - macOS (with Homebrew): `brew install python-tk`
 
-## Usage
-
-### Python Script examples
+## Usage examples
 
 1. SDSS spectroscopic SED analysis
    ```
@@ -131,7 +129,7 @@ Issues and pull requests are welcome. Please make sure to update tests before su
 
 ## Citation
 
-If you use BayeSED3 in your research, please cite:
+If BayeSED has been of benefit to you, either directly or indirectly, please consider citing our papers:
 - Han, Y., & Han, Z. 2012, ApJ, 749, 123
 - Han, Y., & Han, Z. 2014, ApJS, 215, 2
 - Han, Y., & Han, Z. 2019, ApJS, 240, 3
