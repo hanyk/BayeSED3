@@ -129,7 +129,7 @@ Issues and pull requests are welcome. Please make sure to update tests before su
 
 ## Citation
 
-If BayeSED has been of benefit to you, either directly or indirectly, please consider citing our papers:
+The further development of BayeSED needs your support. If BayeSED has been of benefit to you, either directly or indirectly, please consider citing our papers:
 - Han, Y., & Han, Z. 2012, ApJ, 749, 123
 - Han, Y., & Han, Z. 2014, ApJS, 215, 2
 - Han, Y., & Han, Z. 2019, ApJS, 240, 3
