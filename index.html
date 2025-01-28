@@ -119,7 +119,28 @@
         .button:hover {
             background: #2c974b;
         }
+
+        /* Add Dify chatbot styles */
+        #dify-chatbot-bubble-button {
+            background-color: #1C64F2 !important;
+        }
+        #dify-chatbot-bubble-window {
+            width: 24rem !important;
+            height: 40rem !important;
+        }
     </style>
+
+    <!-- Add Dify chatbot configuration -->
+    <script>
+        window.difyChatbotConfig = {
+            token: 'Gmni8M7sHDKWG67F'
+        }
+    </script>
+    <script
+        src="https://udify.app/embed.min.js"
+        id="Gmni8M7sHDKWG67F"
+        defer>
+    </script>
 </head>
 <body>
     <div class="header">
@@ -163,6 +184,34 @@ cd BayeSED3
 # Install dependencies
 pip install -r requirements.txt</code></pre>
 
+        <h2>Example Results</h2>
+        <div class="gallery">
+            <div class="gallery-item">
+                <img src="output/gal/spec-0285-51930-0184_GALAXY_STARFORMING/0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits.png" 
+                     alt="Galaxy SED Fit">
+                <p>Best-fit galaxy spectrum (SDSS spec-0285-51930-0184)</p>
+            </div>
+            <div class="gallery-item">
+                <img src="output/qso/spec-2091-53447-0584_QSO_BROADLINE/0Stellar+Nebular_2dal8_10_1bbb_2dal7_15_2BLR_kin_eml3_13_3FeII_kin_con2_6_4NLR_kin_eml2_13_sys_err0_bestfit.fits.png" 
+                     alt="QSO SED Fit">
+                <p>Best-fit QSO spectrum (SDSS spec-2091-53447-0584)</p>
+            </div>
+            <div class="gallery-item">
+                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png" 
+                     alt="CSST Mock Analysis">
+                <p>CSST mock photometric+spectroscopic analysis</p>
+            </div>
+        </div>
+
+        <h2>Photometric Analysis</h2>
+        <pre><code>python run_test.py test1 plot  # Basic mock
+python run_test.py test2 plot  # W0533 ALMA data</code></pre>
+
+        <h2>CSST Mock Analysis</h2>
+        <pre><code>python run_test.py test3 phot plot  # Phot only
+python run_test.py test3 spec plot  # Spec only 
+python run_test.py test3 both plot   # Combined</code></pre>
+
         <h2>Supported Platforms</h2>
         <ul>
             <li>Linux: x86_64 architecture</li>
@@ -187,6 +236,15 @@ pip install -r requirements.txt</code></pre>
             <a href="https://star-history.com/#hanyk/BayeSED3&Date">
                 <img src="https://api.star-history.com/svg?repos=hanyk/BayeSED3&type=Date" alt="Star History Chart">
             </a>
+        </div>
+
+        <h2>AGN Host Decomposition Demo</h2>
+        <div class="demo-section">
+            <a href="observation/agn_host_decomp/demo.ipynb">
+                <img src="observation/agn_host_decomp/demo_results.png" 
+                     alt="AGN Host Decomposition Results">
+            </a>
+            <p>Combined image+SED decomposition of AGN host galaxies (<a href="https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract">Yu et al. 2024</a>)</p>
         </div>
     </div>
 
