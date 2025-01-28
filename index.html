@@ -34,6 +34,12 @@
             color: #24292e;
         }
 
+        .header h2 {
+            font-weight: normal;
+            color: #586069;
+            margin: 10px 0;
+        }
+
         .header p {
             color: #586069;
             font-size: 1.2em;
@@ -56,9 +62,22 @@
         /* Feature Grid */
         .features {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 20px;
             margin: 30px 0;
+        }
+
+        /* Make it responsive for smaller screens */
+        @media (max-width: 900px) {
+            .features {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .features {
+                grid-template-columns: 1fr;
+            }
         }
 
         .feature-card {
@@ -128,6 +147,55 @@
             width: 24rem !important;
             height: 40rem !important;
         }
+
+        /* Gallery Styles */
+        .gallery {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .gallery-item {
+            text-align: center;
+            max-width: 100%;
+        }
+
+        .gallery-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .gallery-item p {
+            margin-top: 10px;
+            color: #586069;
+        }
+
+        /* Technical Details */
+        .technical-details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .technical-details h3 {
+            color: #24292e;
+            margin-top: 20px;
+        }
+
+        .technical-details ul {
+            margin-left: 20px;
+        }
+
+        .technical-details code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
     </style>
 
     <!-- Add Dify chatbot configuration -->
@@ -145,34 +213,56 @@
 <body>
     <div class="header">
         <h1>BayeSED3</h1>
-        <p>A sophisticated Bayesian SED analysis tool for galaxies and AGNs</p>
+        <h2 style="font-weight: normal; color: #586069; margin: 10px 0;">A code for Bayesian SED synthesis and analysis of galaxies and AGNs</h2>
+        <img src="BayeSED3.jpg" alt="BayeSED3 Logo" style="width: 200px; margin: 20px auto;">
+        <p style="font-style: italic;">"With four parameters I can fit an elephant, and with five I can make him wiggle his trunk."</p>
+        <p style="font-size: 0.9em;">- Attributed to John von Neumann</p>
         <div>
             <a href="https://github.com/hanyk/BayeSED3" class="button">View on GitHub</a>
-            <a href="https://github.com/hanyk/BayeSED3/releases" class="button">Download</a>
         </div>
     </div>
 
     <div class="main-content">
         <h2>Overview</h2>
-        <p>BayeSED3 is a powerful tool for performing full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It combines sophisticated modeling capabilities with an intuitive interface, making it suitable for both basic and advanced astronomical research.</p>
+        <p>BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs Bayesian parameter estimation using posteriori probability distributions (PDFs) and Bayesian SED model comparison using Bayesian evidence. BayeSED3 supports various built-in SED models and can emulate other SED models using machine learning techniques.</p>
 
         <h2>Key Features</h2>
         <div class="features">
             <div class="feature-card">
                 <h3>Multi-component Analysis</h3>
-                <p>Comprehensive SED synthesis and analysis capabilities</p>
+                <p>Comprehensive SED synthesis and analysis for galaxies and AGNs</p>
             </div>
             <div class="feature-card">
                 <h3>Stellar Population</h3>
-                <p>Flexible stellar population synthesis modeling</p>
+                <p>Non-parametric and parametric star formation history with flexible stellar population synthesis</p>
             </div>
             <div class="feature-card">
-                <h3>Dust Modeling</h3>
-                <p>Advanced dust attenuation & emission modeling</p>
+                <h3>Dust & Gas Modeling</h3>
+                <p>Flexible dust attenuation, emission, and gas kinematics modeling</p>
             </div>
             <div class="feature-card">
                 <h3>AGN Components</h3>
-                <p>Sophisticated AGN component modeling</p>
+                <p>Comprehensive AGN modeling including accretion disk, BLR, NLR, and Torus</p>
+            </div>
+            <div class="feature-card">
+                <h3>IGM Absorption</h3>
+                <p>Intergalactic medium absorption modeling</p>
+            </div>
+            <div class="feature-card">
+                <h3>Data Analysis</h3>
+                <p>Handles both photometric and spectroscopic data with Bayesian analysis</p>
+            </div>
+            <div class="feature-card">
+                <h3>Machine Learning</h3>
+                <p>SED model emulation using machine learning techniques</p>
+            </div>
+            <div class="feature-card">
+                <h3>User Interface</h3>
+                <p>User-friendly CLI, Python script and GUI interfaces</p>
+            </div>
+            <div class="feature-card">
+                <h3>Performance</h3>
+                <p>Parallel processing support for improved performance</p>
             </div>
         </div>
 
@@ -181,10 +271,26 @@
 git clone https://github.com/hanyk/BayeSED3.git
 cd BayeSED3
 
-# Install dependencies
-pip install -r requirements.txt</code></pre>
+# Install OpenMPI (automatic installation)
+# For manual installation:
+wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
+tar xzvf openmpi-4.1.6.tar.gz
+cd openmpi-4.1.6
+./configure --prefix=$PWD/../openmpi
+make
+make install
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Optional: Install HDF5 utilities and tkinter for GUI
+# See README for platform-specific instructions</code></pre>
 
         <h2>Example Results</h2>
+        
+        <h3>1. SDSS spectroscopic SED analysis</h3>
+        <pre><code>python run_test.py gal plot
+python run_test.py qso plot</code></pre>
         <div class="gallery">
             <div class="gallery-item">
                 <img src="output/gal/spec-0285-51930-0184_GALAXY_STARFORMING/0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits.png" 
@@ -196,21 +302,55 @@ pip install -r requirements.txt</code></pre>
                      alt="QSO SED Fit">
                 <p>Best-fit QSO spectrum (SDSS spec-2091-53447-0584)</p>
             </div>
+        </div>
+
+        <h3>2. Photometric SED analysis</h3>
+        <pre><code>python run_test.py test1 plot  # Basic mock
+python run_test.py test2 plot  # W0533 ALMA data</code></pre>
+        <div class="gallery">
             <div class="gallery-item">
-                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png" 
-                     alt="CSST Mock Analysis">
-                <p>CSST mock photometric+spectroscopic analysis</p>
+                <img src="test1/test_inoise1/0/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal8_10_z_CSST_bestfit.fits.png" 
+                     alt="Best-fit mock_phot">
+                <p>Basic mock photometric analysis</p>
+            </div>
+            <div class="gallery-item">
+                <img src="test2/W0533_ALMA/W0533/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal7_10_1gb_8_2clumpy201410tor_1_bestfit.fits.png" 
+                     alt="Best-fit W0533">
+                <p>W0533 ALMA data analysis</p>
             </div>
         </div>
 
-        <h2>Photometric Analysis</h2>
-        <pre><code>python run_test.py test1 plot  # Basic mock
-python run_test.py test2 plot  # W0533 ALMA data</code></pre>
-
-        <h2>CSST Mock Analysis</h2>
+        <h3>3. CSST Mock Analysis</h3>
         <pre><code>python run_test.py test3 phot plot  # Phot only
 python run_test.py test3 spec plot  # Spec only 
-python run_test.py test3 both plot   # Combined</code></pre>
+python run_test.py test3 both plot  # Combined</code></pre>
+        <div class="gallery">
+            <div class="gallery-item">
+                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_phot_bestfit.fits.png" 
+                     alt="Best-fit csst_mock_phot">
+                <p>CSST mock photometric analysis</p>
+            </div>
+            <div class="gallery-item">
+                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_spec_bestfit.fits.png" 
+                     alt="Best-fit csst_mock_spec">
+                <p>CSST mock spectroscopic analysis</p>
+            </div>
+            <div class="gallery-item">
+                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png" 
+                     alt="Best-fit csst_mock_both">
+                <p>CSST mock combined analysis</p>
+            </div>
+            <div class="gallery-item">
+                <img src="test3/seedcat2_0_STARFORMING_inoise2/8144596/pdftree.png" 
+                     alt="pdftree csst_mock_all">
+                <p>PDF tree visualization</p>
+            </div>
+        </div>
+
+        <h2>AGN Host Decomposition</h2>
+        <p>Try our new approach to constraining properties of AGN host galaxies by combining image and SED decomposition:</p>
+        <pre><code>jupyter-notebook observation/agn_host_decomp/demo.ipynb</code></pre>
+        <p>View the <a href="https://github.com/hanyk/BayeSED3/blob/main/observation/agn_host_decomp/demo.ipynb">demo notebook</a> for detailed examples and documentation.</p>
 
         <h2>Supported Platforms</h2>
         <ul>
@@ -238,14 +378,40 @@ python run_test.py test3 both plot   # Combined</code></pre>
             </a>
         </div>
 
-        <h2>AGN Host Decomposition Demo</h2>
-        <div class="demo-section">
-            <a href="observation/agn_host_decomp/demo.ipynb">
-                <img src="observation/agn_host_decomp/demo_results.png" 
-                     alt="AGN Host Decomposition Results">
-            </a>
-            <p>Combined image+SED decomposition of AGN host galaxies (<a href="https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract">Yu et al. 2024</a>)</p>
+        <h2>Graphical User Interface</h2>
+        <p>BayeSED3 provides a user-friendly GUI interface. Launch it with:</p>
+        <pre><code>python bayesed_gui.py</code></pre>
+        <img src="BayeSED3_GUI.png" alt="BayeSED3 GUI Interface" style="max-width: 100%; margin: 20px 0;">
+
+        <h2>Technical Details</h2>
+        <div class="technical-details">
+            <h3>Machine Learning Components</h3>
+            <p>BayeSED3 uses advanced machine learning techniques including:</p>
+            <ul>
+                <li><strong>FANN (Fast Artificial Neural Network)</strong>: For SED model emulation</li>
+                <li><strong>AKNN (Approximate K-Nearest Neighbors)</strong>: For efficient model comparison</li>
+            </ul>
+
+            <h3>Key Files</h3>
+            <ul>
+                <li><code>bayesed.py</code>: Main interface class for BayeSED3</li>
+                <li><code>bayesed_gui.py</code>: Graphical User Interface</li>
+                <li><code>run_test.py</code>: Script to run examples</li>
+                <li><code>requirements.txt</code>: Python dependencies</li>
+                <li><code>bin/</code>: BayeSED3 executables for different platforms</li>
+                <li><code>nets/</code>: FANN and AKNN models for SED emulation</li>
+                <li><code>data/</code>: Additional data files</li>
+            </ul>
         </div>
+
+        <h2>Contributing</h2>
+        <p>We welcome contributions to BayeSED3! If you'd like to help improve the project:</p>
+        <ul>
+            <li>Submit issues for bug reports or feature requests</li>
+            <li>Create pull requests with improvements</li>
+            <li>Please ensure all tests are updated before submitting changes</li>
+        </ul>
+
     </div>
 
     <div class="footer">
