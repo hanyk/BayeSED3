@@ -157,13 +157,13 @@ mAB_err(B)      # Error in B band magnitude
 #### Part 3: Additional Information
 ```
 # Various additional columns including:
-f[0,1]_{True}                # Model parameters
-sys_err0_{True}              # System error parameters
-sys_err1_{True}              # Additional system errors
-m_cut[C0411]_{True}          # Cut parameters
-m_cut[C1411]_{True}          # Additional cut parameters
-logphi1_y1[C3902]_{True}     # Model-specific parameters
-...                          # Other additional columns
+f[0,1]_{True}                
+sys_err0_{True}              
+sys_err1_{True}              
+m_cut[C0411]_{True}          
+m_cut[C1411]_{True}          
+logphi1_y1[C3902]_{True}     
+...                          
 ```
 
 #### Part 4: Spectroscopic Data
@@ -179,7 +179,7 @@ Then, for each spectral point:
 w_CSST_GU0      # Wavelength (microns)
 f_CSST_GU0      # Flux
 e_CSST_GU0      # Error in flux
-s_CSST_GU0      # Systematic error
+s_CSST_GU0      # wavelength dispersion
 ```
 
 
