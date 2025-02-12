@@ -189,9 +189,9 @@ s_CSST_GU0      # wavelength dispersion
    b. Multi-band Spectroscopic Data:
    - Required columns:
      * Wavelength (in μm)
-     * Wavelength dispersion (in μm)
      * Flux (in μJy)
      * Flux error (in μJy)
+     * Wavelength dispersion (in μm)
 
 2. Filter Definition File:
    - example: `observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt`
