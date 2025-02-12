@@ -8,6 +8,32 @@
   <small>- Attributed to John von Neumann</small>
 </p>
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [System Compatibility](#system-compatibility)
+- [Input Data Format](#input-data-format)
+- [Detailed Input/Output Specifications](#detailed-inputoutput-specifications)
+- [Running BayeSED3](#running-bayesed3)
+  - [Command Line Interface](#command-line-interface)
+  - [Python Interface](#python-interface)
+  - [GUI Interface](#gui-interface)
+- [Output Files](#output-files)
+- [Examples](#examples)
+  - [SDSS Spectroscopic SED Analysis](#1-sdss-spectroscopic-sed-analysis)
+  - [Photometric SED Analysis](#2-photometric-sed-analysis)
+  - [Mock CSST Analysis](#3-mock-csst-analysis)
+  - [AGN Host Galaxy Decomposition](#4-agn-host-galaxy-decomposition)
+- [Best Practices](#best-practices)
+- [Error Handling and Troubleshooting](#error-handling-and-troubleshooting)
+- [References](#references)
+- [File Descriptions](#file-descriptions)
+- [Citation](#citation)
+- [More Information](#more-information)
+- [License](#license)
+- [Contributions](#contributions)
+
 ## Overview
 
 BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs:
@@ -17,7 +43,6 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Support for various built-in SED models and machine learning model emulation
 - Multi-component SED synthesis and analysis
 
-### **Explore the [BayeSED-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) for interactive help and guidance!**
 
 ### Key Features
 
@@ -33,6 +58,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Machine learning techniques for SED model emulation
 - Parallel processing support for improved performance
 - User-friendly CLI, Python script and GUI interfaces
+- **Explore the [BayeSED3-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) for interactive help and guidance!**
 
 ## Installation
 
@@ -72,45 +98,6 @@ pip install -r requirements.txt
 - Linux: x86_64 architecture
 - macOS: x86_64 architecture (ARM supported via Rosetta 2)
 - Windows: Supported through Windows Subsystem for Linux (WSL)
-
-## Usage Examples
-
-1. SDSS spectroscopic SED analysis:
-```bash
-python run_test.py gal plot
-python run_test.py qso plot
-```
-
-2. Photometric SED analysis:
-```bash
-python run_test.py test1 plot
-python run_test.py test2 plot
-```
-
-3. Mock CSST photometric and/or spectroscopic SED analysis:
-```bash
-python run_test.py test3 phot plot
-python run_test.py test3 spec plot
-python run_test.py test3 both plot
-```
-
-4. AGN Host Galaxy Decomposition:
-For a demonstration of AGN host galaxy decomposition using image and SED analysis, see:
-```bash
-jupyter-notebook observation/agn_host_decomp/demo.ipynb
-```
-
-### Command Line Interface
-```bash
-./bayesed [OPTIONS] -i inputfile
-```
-
-### Graphical User Interface (GUI)
-Launch the GUI:
-```bash
-python bayesed_gui.py
-```
-The GUI provides an intuitive way to set up complex SED analysis scenarios with meaningful defaults.
 
 ## Input Data Format
 
@@ -268,9 +255,9 @@ s_CSST_GU0      # wavelength dispersion
    - Format: GetDist compatible
 
 
-## Command Line Options
+## Running BayeSED3
 
-### Basic Usage
+### Command Line Interface 
 ```bash
 ./bayesed [OPTIONS] -i inputfile
 ```
@@ -405,6 +392,36 @@ s_CSST_GU0      # wavelength dispersion
 - `--Ndumper ARG1[,ARGn]`: Set dumper parameters
   Example: `--Ndumper 1,0,-1` (default)
 
+### Data Quality Control
+- `--SNRmin1 ARG1[,ARGn]`: Minimal SNR of data (phot,spec) for determining scaling
+  Example: `--SNRmin1 0,0` (default)
+- `--SNRmin2 ARG1[,ARGn]`: Minimal SNR of data (phot,spec) for likelihood evaluation
+  Example: `--SNRmin2 0,0` (default)
+- `--sys_err_mod ARG1[,ARGn]`: Prior for fractional systematic error of model
+  Example: `--sys_err_mod iprior_type,is_age,min,max,nbin` (default:1,0,0,0,40)
+- `--sys_err_obs ARG1[,ARGn]`: Prior for fractional systematic error of observations
+  Example: `--sys_err_obs iprior_type,is_age,min,max,nbin` (default:1,0,0,0,40)
+
+### Analysis Control
+- `--no_photometry_fit`: Skip fitting photometric data even if present
+- `--no_spectra_fit`: Skip fitting spectra data even if present
+- `--priors_only`: Test priors by setting loglike for observational data to zero
+- `--unweighted_samples`: Use unweighted posterior samples
+- `--Ntest ARG`: Number of objects for test run
+- `--niteration ARG`: Number of iterations (default: 0)
+- `--NfilterPoints ARG`: Number of points per filter (default: 30)
+- `--Nsample ARG`: Number of samples for catalog generation and SED library building
+
+### Prior Settings
+- `--z ARG1[,ARGn]`: Set prior for redshift z
+  Example: `--z iprior_type,is_age,min,max,nbin` (default:1,0,z_min,z_max,100)
+- `--np_sfh ARG1[,ARGn]`: Set prior type and parameters for nonparametric SFH
+  Example: `--np_sfh 5,0,10,100` (default)
+  - Prior types (0-7)
+  - Interpolation method (0-3)
+  - Number of bins
+  - Regularization parameter
+
 ### Additional Options
 
 - `-p, --polynomial ARG`: Multiplicative polynomial of order n
@@ -422,22 +439,7 @@ For a complete list of options, run:
 ./bayesed --help
 ```
 
-## Running BayeSED3
 
-### Command Line Interface
-```bash
-./bayesed [OPTIONS] -i inputfile
-```
-
-Key options:
-- `-i, --input`: Input file path and type
-- `--outdir`: Output directory
-- `--filters`: Filter definition file
-- `--filters_selected`: Selected filters file
-- `--multinest`: MultiNest sampling parameters
-- `--save_bestfit`: Save best-fit results (0:fits, 1:hdf5, 2:both)
-- `--save_sample_par`: Save parameter posterior samples
-- `--save_pos_spec`: Save spectra posterior distribution
 
 ### Python Interface
 
@@ -822,37 +824,6 @@ The graphical user interface provides an intuitive way to set up complex SED ana
    - Adjust number of live points
    - Balance accuracy and computation time
 
-## Data Analysis Options
-
-### Data Quality Control
-- `--SNRmin1 ARG1[,ARGn]`: Minimal SNR of data (phot,spec) for determining scaling
-  Example: `--SNRmin1 0,0` (default)
-- `--SNRmin2 ARG1[,ARGn]`: Minimal SNR of data (phot,spec) for likelihood evaluation
-  Example: `--SNRmin2 0,0` (default)
-- `--sys_err_mod ARG1[,ARGn]`: Prior for fractional systematic error of model
-  Example: `--sys_err_mod iprior_type,is_age,min,max,nbin` (default:1,0,0,0,40)
-- `--sys_err_obs ARG1[,ARGn]`: Prior for fractional systematic error of observations
-  Example: `--sys_err_obs iprior_type,is_age,min,max,nbin` (default:1,0,0,0,40)
-
-### Analysis Control
-- `--no_photometry_fit`: Skip fitting photometric data even if present
-- `--no_spectra_fit`: Skip fitting spectra data even if present
-- `--priors_only`: Test priors by setting loglike for observational data to zero
-- `--unweighted_samples`: Use unweighted posterior samples
-- `--Ntest ARG`: Number of objects for test run
-- `--niteration ARG`: Number of iterations (default: 0)
-- `--NfilterPoints ARG`: Number of points per filter (default: 30)
-- `--Nsample ARG`: Number of samples for catalog generation and SED library building
-
-### Prior Settings
-- `--z ARG1[,ARGn]`: Set prior for redshift z
-  Example: `--z iprior_type,is_age,min,max,nbin` (default:1,0,z_min,z_max,100)
-- `--np_sfh ARG1[,ARGn]`: Set prior type and parameters for nonparametric SFH
-  Example: `--np_sfh 5,0,10,100` (default)
-  - Prior types (0-7)
-  - Interpolation method (0-3)
-  - Number of bins
-  - Regularization parameter
 
 ## Error Handling and Troubleshooting
 
