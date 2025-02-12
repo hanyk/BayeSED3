@@ -33,8 +33,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
    git clone https://github.com/hanyk/BayeSED3.git
    ```
 
-2. Install OpenMPI (if not already installed):
-   BayeSED3 will automatically download and install OpenMPI 4.1.6. For manual installation:
+2. Install OpenMPI:
    ```
    cd BayeSED3
    wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
