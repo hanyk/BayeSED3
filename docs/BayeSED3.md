@@ -11,10 +11,16 @@
 ## Table of Contents
 
 - [Overview](#overview)
+  - [Key Features](#key-features)
 - [Installation](#installation)
 - [System Compatibility](#system-compatibility)
 - [Input Data Format](#input-data-format)
+  - [File Structure Overview](#file-structure-overview)
+  - [Header Format](#header-format)
+  - [Data Column Organization](#data-column-organization)
 - [Detailed Input/Output Specifications](#detailed-inputoutput-specifications)
+  - [Input Requirements](#input-requirements)
+  - [Output Files](#output-files)
 - [Running BayeSED3](#running-bayesed3)
   - [Command Line Interface](#command-line-interface)
   - [Python Interface](#python-interface)
@@ -42,7 +48,6 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Bayesian SED model comparison using Bayesian evidence
 - Support for various built-in SED models and machine learning model emulation
 - Multi-component SED synthesis and analysis
-
 
 ### Key Features
 
@@ -205,11 +210,9 @@ s_CSST_GU0      # wavelength dispersion
    - Format: List of filter IDs and usage flags
 
 4. Model Component Specifications:
-   - Required components:
      * Stellar population synthesis (SSP)
      * Star formation history (SFH)
      * Dust attenuation law (DAL)
-   - Optional components:
      * AGN components
      * Dust emission
      * Emission lines
