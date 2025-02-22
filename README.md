@@ -12,6 +12,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 ## Key Features
 
+- **Explore the [BayeSED3-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) for interactive help and guidance!**
 - Multi-component SED synthesis and analysis of galaxies and AGNs
 - Flexible stellar population synthesis modeling
 - Flexible dust attenuation and emission modeling
@@ -24,7 +25,6 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Machine learning techniques for SED model emulation
 - Parallel processing support for improved performance
 - User-friendly CLI, Python script and GUI interfaces
-- **Explore the [BayeSED3-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) for interactive help and guidance!**
 
 ## Installation Instructions
 
