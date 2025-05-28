@@ -12,7 +12,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 ## Key Features
 
-- **Explore the [BayeSED3-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) for interactive help and guidance!**
+- **Explore the [BayeSED3-AI Assistant 🚀](https://udify.app/chat/Gmni8M7sHDKWG67F) or [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hanyk/BayeSED3) for interactive help and guidance!**
 - Multi-component SED synthesis and analysis of galaxies and AGNs
 - Flexible stellar population synthesis modeling
 - Flexible dust attenuation and emission modeling
