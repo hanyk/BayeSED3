@@ -894,6 +894,12 @@ def create_input_catalog(
     - LSF sigma columns stored in microns
 
     Parameters are minimally validated; the caller is responsible for consistent shapes.
+    
+    Returns
+    -------
+    list of str
+        List of band names (photometry and spectral bands combined).
+        Empty list if no bands are provided.
     """
 
     ids = np.asarray(ids)
@@ -1055,6 +1061,15 @@ def create_input_catalog(
         strip_whitespace=False,
         fill_values=[(ascii.masked, '-999'), ('nan', '-999'), ('inf', '-999')]
     )
+    
+    # Collect and return band names
+    band_names = []
+    if phot_band_names is not None:
+        band_names.extend(phot_band_names)
+    if spec_band_names is not None:
+        band_names.extend(spec_band_names)
+    
+    return band_names
 
     def _format_fann_params(self, fann_params):
         return f"{fann_params.igroup},{fann_params.id},{fann_params.name},{fann_params.iscalable}"
