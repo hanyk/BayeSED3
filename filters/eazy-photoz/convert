@@ -1,0 +1,4 @@
+#!/bin/bash
+EAZY_PHOTOZ_PATH="${1:-../../../eazy-photoz}"
+printf "# itype icalib description\n"
+awk 'BEGIN{IGNORECASE=1}{if(gsub("lambda_c","&")) {beta=0;if(gsub("IRAC","&",$0)||gsub("PACS","&",$0)||gsub("SPIRE","SPIRE",$0)||gsub("IRAS","&",$0)) beta=1;if(gsub("MIPS","&",$0)) beta=4;if(gsub("SCUBA","&",$0)) beta=5; printf "# 1 "beta" "; print} else {printf $2*0.0001;for(i=3;i<=NF;i++) printf " "$i;printf "\n"}}' "$EAZY_PHOTOZ_PATH/filters/FILTER.RES.latest"

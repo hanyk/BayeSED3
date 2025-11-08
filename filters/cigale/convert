@@ -1,0 +1,20 @@
+#!/bin/bash
+CIGALE_PATH="${1:-../../../cigale}"
+printf "# itype icalib description\n"
+
+# Use fd if available, otherwise fall back to find
+if command -v fd >/dev/null 2>&1; then
+    FILES=$(fd -p -e dat filters "$CIGALE_PATH")
+else
+    FILES=$(find "$CIGALE_PATH" -path "*/filters/*" -name "*.dat" -type f)
+fi
+
+for i in $FILES
+do
+    awk 'NR==1 { if ($2 != "") name = $2; else {gsub("#", "", $1); name = $1}}
+         NR==2 { if ($2 != "") type = $2; else {gsub("#", "", $1); type = $1} }
+         NR==3 {icalib=0;if(gsub("IRAC","&",$0)||gsub("PACS","&",$0)||gsub("SPIRE","SPIRE",$0)||gsub("IRAS","&",$0)) icalib=1;if(gsub("MIPS","&",$0)) icalib=4;if(gsub("SCUBA","&",$0)) icalib=5}
+         NR==3 { gsub("#", "", $0); description = $0; if (type == "photon") print "# 1 ",icalib, description,FILENAME; else if (type == "energy") print "# 0 ",icalib, description,FILENAME; else nextfile }
+         NR>3 { print 1e-4*$1,$2}' "$i"
+
+done
