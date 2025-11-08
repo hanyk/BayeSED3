@@ -10,6 +10,9 @@ import multiprocessing
 import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
+import numpy as np
+from astropy.table import Table
+from astropy.io import ascii
 
 @dataclass
 class FANNParams:
@@ -828,6 +831,230 @@ class BayeSEDInterface:
             args.append('--save_sample_par')
 
         return args
+
+def create_input_catalog(
+    output_path: str,
+    catalog_name: str,
+    ids,
+    z_min,
+    z_max,
+    distance_mpc: Optional[np.ndarray] = None,
+    ebv: Optional[np.ndarray] = None,
+    phot_band_names: Optional[List[str]] = None,
+    phot_fluxes: Optional[np.ndarray] = None,
+    phot_errors: Optional[np.ndarray] = None,
+    phot_type: str = "fnu",
+    phot_flux_limits: Optional[np.ndarray] = None,
+    phot_mag_limits: Optional[np.ndarray] = None,
+    phot_nsigma: Optional[float] = None,
+    other_columns: Optional[dict] = None,
+    spec_band_names: Optional[List[str]] = None,
+    spec_wavelengths: Optional[dict] = None,
+    spec_fluxes: Optional[dict] = None,
+    spec_errors: Optional[dict] = None,
+    spec_lsf_sigma: Optional[dict] = None,
+    spec_flux_type: str = "fnu",
+):
+    """
+    Create a input catalog file for bayesed3.
+
+    Required base columns (length N):
+    - ID, z_min, z_max; d/Mpc and E(B-V) default to 0 if not provided
+
+    Photometry (optional):
+    - phot_band_names: list of band names like ["G","R","Z",...]
+    - phot_type: "fnu" (μJy) or "abmag" (AB mags)
+      * If phot_type == "fnu": phot_fluxes/phot_errors are in μJy
+      * If phot_type == "abmag": phot_fluxes/phot_errors are AB magnitudes and mag errors
+        - Converted to μJy via f_μJy = 10^((23.9 - m_AB)/2.5)
+        - σ_f = f_μJy * ln(10)/2.5 * σ_m
+    - phot_fluxes: shape (N, Nphot)
+    - phot_errors: shape (N, Nphot)
+    - Nondetections (optional, recommended):
+      * If phot_type == "fnu" and S/N < 1 in a band, represent as F = Flim and s = -Flim/N
+        Provide per-band limits in phot_flux_limits (μJy) and N in phot_nsigma
+      * If phot_type == "abmag" and σm > 1.08574, represent as m = mlim and σm = -1.08574/N
+        Provide per-band limits in phot_mag_limits (AB mag) and N in phot_nsigma
+
+    Other columns (optional):
+    - other_columns: dict {column_name: np.ndarray (length N)}
+
+    Spectra (optional), per band (e.g. B,R,Z):
+    - spec_band_names: list of band names, e.g. ["B","R","Z"]
+    - spec_wavelengths: dict band -> array (N, Nw) in Angstrom
+    - spec_fluxes/spec_errors: either F_lambda or f_nu depending on spec_flux_type
+      * When spec_flux_type == "flambda": arrays must be in F_lambda (erg s^-1 cm^-2 Å^-1)
+      * When spec_flux_type == "fnu": arrays must be in microJy (μJy)
+    - spec_lsf_sigma: dict band -> array (N, Nw) of LSF sigma in microns (as in convert.py)
+
+    File format details (must match readers):
+    - Header comment: "<catalog_name> <Nphot> <Nother> <Nspec> 0"
+    - Wavelength columns stored in microns
+    - Spectral flux and error stored in microJy (converted from F_lambda by F_nu = F_lambda * lambda^2 / c)
+    - LSF sigma columns stored in microns
+
+    Parameters are minimally validated; the caller is responsible for consistent shapes.
+    """
+
+    ids = np.asarray(ids)
+    z_min = np.asarray(z_min)
+    z_max = np.asarray(z_max)
+    # Defaults: zeros if not provided
+    if distance_mpc is None:
+        distance_mpc = np.zeros_like(z_min, dtype=float)
+    else:
+        distance_mpc = np.asarray(distance_mpc)
+    if ebv is None:
+        ebv = np.zeros_like(z_min, dtype=float)
+    else:
+        ebv = np.asarray(ebv)
+
+    N = len(ids)
+    if not (len(z_min) == len(z_max) == len(distance_mpc) == len(ebv) == N):
+        raise ValueError("Base columns must all have equal length N")
+
+    names: List[str] = []
+    cols: List[np.ndarray] = []
+
+    # Base columns (ordered)
+    names.extend(["ID", "z_min", "z_max", "d/Mpc", "E(B-V)"])
+    cols.extend([ids, z_min, z_max, distance_mpc, ebv])
+
+    # Photometry
+    Nphot = 0
+    if phot_band_names is not None and len(phot_band_names) > 0:
+        phot_fluxes = np.asarray(phot_fluxes)
+        phot_errors = np.asarray(phot_errors)
+        if phot_fluxes.shape != phot_errors.shape:
+            raise ValueError("phot_fluxes and phot_errors must have the same shape (N, Nphot)")
+        if phot_fluxes.shape[0] != N:
+            raise ValueError("photometry arrays must have length N in the first dimension")
+        Nphot = phot_fluxes.shape[1]
+        if Nphot != len(phot_band_names):
+            raise ValueError("len(phot_band_names) must equal phot_fluxes.shape[1]")
+        pt = phot_type.lower()
+        if pt not in ("fnu", "abmag"):
+            raise ValueError("phot_type must be 'fnu' or 'abmag'")
+        # Apply nondetection conventions prior to unit conversion
+        if pt == "fnu" and phot_flux_limits is not None and phot_nsigma is not None:
+            lim = np.asarray(phot_flux_limits)
+            if lim.shape != phot_fluxes.shape:
+                if lim.ndim == 1 and lim.shape[0] == Nphot:
+                    lim = np.broadcast_to(lim, phot_fluxes.shape)
+                else:
+                    raise ValueError("phot_flux_limits must be shape (N,Nphot) or (Nphot,)")
+            Nsig = float(phot_nsigma)
+            snr = np.divide(phot_fluxes, phot_errors, out=np.zeros_like(phot_fluxes, dtype=float), where=phot_errors!=0)
+            mask_nd = snr < 1.0
+            # F = Flim; s = -Flim/N
+            phot_fluxes = phot_fluxes.copy()
+            phot_errors = phot_errors.copy()
+            phot_fluxes[mask_nd] = lim[mask_nd]
+            phot_errors[mask_nd] = -lim[mask_nd] / Nsig
+        elif pt == "abmag" and phot_mag_limits is not None and phot_nsigma is not None:
+            limm = np.asarray(phot_mag_limits)
+            if limm.shape != phot_fluxes.shape:
+                if limm.ndim == 1 and limm.shape[0] == Nphot:
+                    limm = np.broadcast_to(limm, phot_fluxes.shape)
+                else:
+                    raise ValueError("phot_mag_limits must be shape (N,Nphot) or (Nphot,)")
+            Nsig = float(phot_nsigma)
+            # nondetection if sigma_m > 1.08574
+            mask_nd = phot_errors > 1.08574
+            # m = mlim; sigma_m = -1.08574/N
+            phot_fluxes = phot_fluxes.copy()
+            phot_errors = phot_errors.copy()
+            phot_fluxes[mask_nd] = limm[mask_nd]
+            phot_errors[mask_nd] = -1.08574 / Nsig
+
+        if pt == "abmag":
+            # Convert AB mag to μJy: f_μJy = 10^((23.9 - m)/2.5)
+            f_microjy = 10.0 ** ((23.9 - phot_fluxes) / 2.5)
+            # Error propagation: σ_f = f * ln(10)/2.5 * σ_m
+            k = np.log(10.0) / 2.5
+            e_microjy = f_microjy * k * phot_errors
+        else:
+            f_microjy = phot_fluxes
+            e_microjy = phot_errors
+        for j, band in enumerate(phot_band_names):
+            names.append(f"f_{band}")
+            cols.append(f_microjy[:, j])
+            names.append(f"e_{band}")
+            cols.append(e_microjy[:, j])
+
+    # Other columns
+    Nother = 0
+    if other_columns:
+        for col_name, values in other_columns.items():
+            values = np.asarray(values)
+            if len(values) != N:
+                raise ValueError(f"other column '{col_name}' must have length N")
+            names.append(col_name)
+            cols.append(values)
+        Nother = len(other_columns)
+
+    # Spectra
+    Nspec = 0
+    if spec_band_names:
+        Nspec = len(spec_band_names)
+        # Add Nw_<band> columns first
+        for band in spec_band_names:
+            wl = np.asarray(spec_wavelengths[band])  # (N, Nw) in Angstrom
+            if wl.shape[0] != N:
+                raise ValueError(f"spec_wavelengths['{band}'] must have first dimension N")
+            names.append(f"Nw_{band}")
+            cols.append(np.full(N, wl.shape[1], dtype=int))
+
+        # Then add per-pixel columns: wavelength (micron), flux (microJy), error (microJy), lsf sigma (micron)
+        c_ang_per_s = 2.9979246e+18  # Angstrom/s (must match tools/bayesed2bagpipes.py)
+        use_fnu = spec_flux_type.lower() == "fnu"
+        for band in spec_band_names:
+            wl_ang = np.asarray(spec_wavelengths[band])           # (N, Nw)
+            f_arr = np.asarray(spec_fluxes[band])                  # (N, Nw)
+            e_arr = np.asarray(spec_errors[band])                  # (N, Nw)
+            if spec_lsf_sigma is None or band not in spec_lsf_sigma:
+                raise ValueError(f"spec_lsf_sigma['{band}'] is required and must be in microns")
+            s_micron = np.asarray(spec_lsf_sigma[band])            # (N, Nw) in microns
+
+            if not (wl_ang.shape == f_arr.shape == e_arr.shape == s_micron.shape):
+                raise ValueError(f"All spectral arrays for band '{band}' must have identical shape (N, Nw)")
+
+            wl_micron = wl_ang * 1e-4  # store wavelength in microns
+            if use_fnu:
+                # Already microJy
+                f_microjy = f_arr
+                e_microjy = e_arr
+            else:
+                # Convert F_lambda (erg/s/cm^2/Å) to microJy per pixel
+                # F_nu (erg/s/cm^2/Hz) = F_lambda * lambda^2 / c
+                # 1 microJy = 1e-29 erg/s/cm^2/Hz
+                f_microjy = (f_arr * (wl_ang ** 2) / c_ang_per_s) / 1e-29
+                e_microjy = (e_arr * (wl_ang ** 2) / c_ang_per_s) / 1e-29
+
+            Nw = wl_ang.shape[1]
+            for w in range(Nw):
+                names.append(f"w_{band}{w}")
+                cols.append(wl_micron[:, w])
+                names.append(f"f_{band}{w}")
+                cols.append(f_microjy[:, w])
+                names.append(f"e_{band}{w}")
+                cols.append(e_microjy[:, w])
+                names.append(f"s_{band}{w}")
+                cols.append(s_micron[:, w])
+
+    # Construct the table in one shot to avoid repeated reallocation
+    table = Table(cols, names=names)
+    table.meta['comments'] = [f"{catalog_name} {Nphot} {Nother} {Nspec} 0"]
+
+    # Write ASCII with the same options as convert.py
+    ascii.write(
+        table,
+        output_path,
+        overwrite=True,
+        fast_writer='force',
+        strip_whitespace=False,
+        fill_values=[(ascii.masked, '-999'), ('nan', '-999'), ('inf', '-999')]
+    )
 
     def _format_fann_params(self, fann_params):
         return f"{fann_params.igroup},{fann_params.id},{fann_params.name},{fann_params.iscalable}"
