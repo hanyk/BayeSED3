@@ -1968,8 +1968,8 @@ def create_filters_selected(
     >>> # Find filters by description
     >>> optical_mask = ['optical' in desc.lower() for desc in filters['Description']]
     >>> optical_filters = filters[optical_mask]
-    >>> # Get selected filter IDs
-    >>> selected = filters['ID'][filters['is_selected']].tolist()
+    >>> # Get filter IDs from the returned table (all are selected)
+    >>> selected = filters['ID'].tolist()
     >>> # Create files with selected filters
     >>> create_filters_selected(
     ...     'filters.txt',
@@ -1986,18 +1986,19 @@ def create_filters_selected(
     Returns
     -------
     astropy.table.Table
-        Table containing filter information with the following columns:
+        Table containing information for all selected filters with the following columns:
         - 'ID': int - Filter ID (position in full filter list, 0-based)
         - 'Name': str - Filter name
         - 'Type': str - Human-readable filter transmission type ('Energy' or 'Photon')
         - 'Calib': str - Human-readable filter calibration scheme ('Standard', 'SPITZER/IRAC', etc.)
         - 'Source': str - Source filter file (with parent directory if multiple files)
         - 'Description': str - Filter description (without itype/icalib prefix)
-        - 'is_selected': bool - Whether this filter is selected
         - 'itype': str - Filter transmission type ('0' or '1')
         - 'icalib': str - Filter calibration scheme ('0'-'5')
         - 'source_file': str - Full path to source filter file
         - 'display_description': str - Description without itype/icalib prefix (same as Description)
+        
+        Note: Only selected filters are included in the returned table.
     
     Notes
     -----
@@ -2292,8 +2293,14 @@ def create_filters_selected(
                 iused = 1
                 iselected = 1
                 
-                # Filter ID equals position in the full filter list
-                filter_id = info['id']
+                # Filter ID: if output_filters_file is set, use sequential number in that file (0-based)
+                # Otherwise, use the original position in the full filter list
+                if output_filters_file is not None:
+                    # Sequential ID in output_filters_file (starts from 0)
+                    filter_id = selected_count
+                else:
+                    # Original position in the full filter list
+                    filter_id = info['id']
                 
                 # Format the output line
                 # Format: iused iselected id name mid mag_lim mag_lim_err Nsigma mag_err_min SNR_min inoise Bsky D t Bdet Nread Rn Npx Npx_sig # itype icalib description
@@ -2366,19 +2373,21 @@ def create_filters_selected(
             print(f"Successfully created filter file: {output_filters_file} with {len(selected_filter_indices)} selected filter(s)")
     
     # Convert filter_info list to astropy Table for easier programmatic use
+    # Only include selected filters in the returned table
+    selected_filter_info = [info for info in filter_info if info['is_selected']]
+    
     # Create table with columns matching the displayed format
     table_data = {
-        'ID': [info['id'] for info in filter_info],
-        'Name': [info['name'] for info in filter_info],
-        'Type': [info['itype_display'] for info in filter_info],
-        'Calib': [info['icalib_display'] for info in filter_info],
-        'Source': [info['source_file_name'] for info in filter_info],
-        'Description': [info['display_description'] for info in filter_info],
-        'is_selected': [info['is_selected'] for info in filter_info],
-        'itype': [info['itype'] for info in filter_info],
-        'icalib': [info['icalib'] for info in filter_info],
-        'source_file': [info['source_file'] for info in filter_info],
-        'display_description': [info['display_description'] for info in filter_info],
+        'ID': [info['id'] for info in selected_filter_info],
+        'Name': [info['name'] for info in selected_filter_info],
+        'Type': [info['itype_display'] for info in selected_filter_info],
+        'Calib': [info['icalib_display'] for info in selected_filter_info],
+        'Source': [info['source_file_name'] for info in selected_filter_info],
+        'Description': [info['display_description'] for info in selected_filter_info],
+        'itype': [info['itype'] for info in selected_filter_info],
+        'icalib': [info['icalib'] for info in selected_filter_info],
+        'source_file': [info['source_file'] for info in selected_filter_info],
+        'display_description': [info['display_description'] for info in selected_filter_info],
     }
     
     filter_table = Table(table_data)
