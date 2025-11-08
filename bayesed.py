@@ -1202,6 +1202,633 @@ FILTER_CALIB_NAMES = {
 }
 
 
+def infer_filter_itype_icalib(filter_metadata: dict, filter_id: str = ""):
+    """
+    Infer itype and icalib from SVO filter metadata.
+    
+    This function attempts to automatically determine the filter transmission type
+    (itype) and calibration scheme (icalib) based on filter metadata from astroquery SvoFps.
+    Uses Facility, Instrument, filterID, name, and DetectorType attributes.
+    
+    Parameters
+    ----------
+    filter_metadata : dict
+        Dictionary containing filter metadata from SvoFps (e.g., from filter index table row)
+    filter_id : str, optional
+        SVO filter ID (used as fallback for metadata extraction)
+    
+    Returns
+    -------
+    tuple
+        (itype, icalib) where:
+        - itype: 0 (Energy) or 1 (Photon, default)
+        - icalib: 0-5 (calibration scheme, default 0)
+    
+    Notes
+    -----
+    Calibration scheme inference (icalib):
+    - 1: SPITZER/IRAC, PACS, SPIRE, IRAS (ν B_ν = constant)
+    - 4: SPITZER/MIPS (mixed calibration)
+    - 5: SCUBA (mixed calibration)
+    - 0: Standard (default, B_ν = constant)
+    
+    Transmission type inference (itype) from DetectorType:
+    DetectorType values and their corresponding itype:
+    - "CCD" (Charge-Coupled Device): Photon-counting → itype=1
+    - "Photomultiplier": Photon-counting → itype=1
+    - "Array": Usually detector arrays (CCD/CMOS) → itype=1
+    - "Bolometer": Energy-based (measures power/energy) → itype=0
+    - "Calorimeter": Energy-based → itype=0
+    - "Energy": Explicitly energy-based → itype=0
+    - "Photon": Explicitly photon-counting → itype=1
+    - Default: 1 (Photon) for most optical/NIR detectors
+    """
+    # Default values
+    itype = FILTER_TYPE_PHOTON  # Default to photon-counting
+    icalib = FILTER_CALIB_STANDARD  # Default to standard calibration
+    
+    # Collect metadata strings for pattern matching
+    metadata_strings = []
+    detector_type = None
+    
+    # Get Facility
+    if 'Facility' in filter_metadata and filter_metadata['Facility']:
+        facility = str(filter_metadata['Facility']).upper()
+        metadata_strings.append(facility)
+    
+    # Get Instrument
+    if 'Instrument' in filter_metadata and filter_metadata['Instrument']:
+        instrument = str(filter_metadata['Instrument']).upper()
+        metadata_strings.append(instrument)
+    
+    # Get filterID (contains facility/instrument info)
+    if 'filterID' in filter_metadata and filter_metadata['filterID']:
+        filter_id = str(filter_metadata['filterID']).upper()
+        metadata_strings.append(filter_id)
+    
+    # Get name (might be in PhotSystem or filterID)
+    if 'PhotSystem' in filter_metadata and filter_metadata['PhotSystem']:
+        name = str(filter_metadata['PhotSystem']).upper()
+        metadata_strings.append(name)
+    
+    # Get DetectorType (if available)
+    if 'DetectorType' in filter_metadata and filter_metadata['DetectorType']:
+        detector_type = str(filter_metadata['DetectorType']).upper()
+        metadata_strings.append(detector_type)
+    
+    # Also check original filter ID
+    if filter_id:
+        metadata_strings.append(filter_id.upper())
+    
+    # Combine all metadata for pattern matching
+    combined_metadata = " ".join(metadata_strings)
+    
+    # Infer icalib from facility/instrument patterns
+    # Based on filters/cigale/convert script logic
+    if any(keyword in combined_metadata for keyword in ['IRAC', 'PACS', 'SPIRE', 'IRAS']):
+        icalib = FILTER_CALIB_SPITZER_IRAC  # 1
+    elif 'MIPS' in combined_metadata:
+        icalib = FILTER_CALIB_SPITZER_MIPS  # 4
+    elif 'SCUBA' in combined_metadata:
+        icalib = FILTER_CALIB_SCUBA  # 5
+    # Note: Sub-mm (2) and Blackbody (3) are harder to infer automatically
+    # They would need additional metadata or manual specification
+    
+    # Infer itype from detector type and metadata
+    # DetectorType values and their meanings:
+    # - "CCD" (Charge-Coupled Device): Photon-counting detector → itype=1
+    # - "Photomultiplier": Photon-counting detector → itype=1
+    # - "Array": Usually refers to detector arrays (CCD/CMOS) → itype=1
+    # - "Bolometer": Energy-based detector (measures power/energy) → itype=0
+    # - "Calorimeter": Energy-based detector → itype=0
+    # - "Energy": Explicitly energy-based → itype=0
+    # - "Photon": Explicitly photon-counting → itype=1
+    # Most optical/NIR detectors are photon-counting (default itype=1)
+    
+    if detector_type:
+        # Check for explicit energy-based detector indicators
+        energy_keywords = ['BOLOMETER', 'CALORIMETER', 'ENERGY']
+        if any(keyword in detector_type for keyword in energy_keywords):
+            itype = FILTER_TYPE_ENERGY  # 0
+        
+        # Check for explicit photon-counting indicators (though default is already photon)
+        photon_keywords = ['PHOTON', 'CCD', 'PHOTOMULTIPLIER', 'ARRAY', 'CMOS']
+        # Note: Most detectors are photon-counting, so this is mainly for explicit cases
+        # Default itype=1 (Photon) already covers CCD, Photomultiplier, Array, etc.
+    
+    # Additional pattern matching for itype (if DetectorType not available or ambiguous)
+    # Some instruments/facilities might have known energy-based responses
+    # This is rare, so we keep photon as default
+    
+    return itype, icalib
+
+
+def create_filters_from_svo(
+    svo_filterIDs: List[str],
+    filters_file: str,
+    filters_selected_file: Optional[str] = None,
+    itype: Optional[int] = None,
+    icalib: Optional[int] = None,
+    itype_per_filter: Optional[List[int]] = None,
+    icalib_per_filter: Optional[List[int]] = None,
+    auto_infer: bool = True,
+    wave_units: str = "micron",
+    selected_indices: Optional[List[int]] = None,
+    filter_names: Optional[List[str]] = None,
+    **filters_selected_kwargs
+):
+    """
+    Create filter files and filters_selected file from SVO filter IDs using astroquery SvoFps.
+    
+    This function:
+    1. Loads filters from the SVO Filter Profile Service using astroquery SvoFps
+    2. Automatically infers itype and icalib from filter metadata (if auto_infer=True)
+    3. Creates a filters file with transmission curves
+    4. Creates a corresponding filters_selected file
+    
+    Parameters
+    ----------
+    svo_filterIDs : list of str
+        List of SVO filter IDs in format 'Facility/FilterName' (e.g., 
+        ['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r', '2MASS/2MASS.H']).
+        These must match the filterID format required by SVO Filter Profile Service.
+        Use SvoFps.get_filter_index() to list available filter IDs.
+    filters_file : str
+        Path to output filters file. This will contain the filter transmission curves.
+    filters_selected_file : str, optional
+        Path to output filters_selected file. If None, will be generated from filters_file
+        by replacing '.txt' with '_selected.txt' or appending '_selected.txt'.
+    itype : int, optional
+        Filter transmission type for all filters. If None and auto_infer=True, will be
+        inferred from filter metadata. If None and auto_infer=False, defaults to 1 (Photon).
+        - 0 = Energy (filter response in energy units)
+        - 1 = Photon (filter response in photon-counting units, default)
+    icalib : int, optional
+        Filter calibration scheme for all filters. If None and auto_infer=True, will be
+        inferred from filter metadata. If None and auto_infer=False, defaults to 0 (Standard).
+        - 0 = Standard calibration (B_ν = constant, default)
+        - 1 = SPITZER/IRAC and ISO calibration (ν B_ν = constant)
+        - 2 = Sub-mm calibration (B_ν = ν)
+        - 3 = Blackbody calibration (T = 10,000 K)
+        - 4 = SPITZER/MIPS mixed calibration
+        - 5 = SCUBA mixed calibration
+    itype_per_filter : list of int, optional
+        Per-filter itype values. If provided, must have same length as svo_filterIDs.
+        Overrides itype for individual filters. Use None in list to auto-infer that filter.
+    icalib_per_filter : list of int, optional
+        Per-filter icalib values. If provided, must have same length as svo_filterIDs.
+        Overrides icalib for individual filters. Use None in list to auto-infer that filter.
+    auto_infer : bool, optional
+        If True (default), automatically infer itype and icalib from filter metadata
+        when not explicitly provided. Uses infer_filter_itype_icalib() function.
+    wave_units : str, optional
+        Wavelength units for output file. Options: "micron", "angstrom" (default: "micron").
+        BayeSED typically uses microns.
+    selected_indices : list of int, optional
+        If provided, only filters at these indices (0-based) will be included in
+        filters_selected file. If None (default), all filters are selected.
+    filter_names : list of str, optional
+        List of custom filter names corresponding to selected_indices.
+        Must have the same length as selected_indices if provided.
+        If None, filter names will be extracted from SVO filter IDs.
+    **filters_selected_kwargs
+        Additional keyword arguments passed to create_filters_selected().
+        See create_filters_selected() documentation for available options.
+    
+    Returns
+    -------
+    tuple
+        (filters_file, filters_selected_file) paths
+    
+    Examples
+    --------
+    >>> # Create filters with automatic inference of itype and icalib
+    >>> create_filters_from_svo(
+    ...     ['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i', 'SLOAN/SDSS.z'],
+    ...     'observation/test1/filters_SDSS.txt',
+    ...     'observation/test1/filters_SDSS_selected.txt',
+    ...     auto_infer=True  # Automatically infer from metadata
+    ... )
+    
+    >>> # Create filters with manual itype/icalib
+    >>> create_filters_from_svo(
+    ...     ['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    ...     'filters.txt',
+    ...     itype=1,  # All filters use photon-counting
+    ...     icalib=0  # All filters use standard calibration
+    ... )
+    
+    >>> # Create filters with per-filter values
+    >>> create_filters_from_svo(
+    ...     ['SLOAN/SDSS.u', 'Spitzer/IRAC.I1', 'Spitzer/MIPS.24mu'],
+    ...     'filters.txt',
+    ...     itype_per_filter=[1, None, None],  # Auto-infer IRAC and MIPS
+    ...     icalib_per_filter=[0, None, None]  # Auto-infer IRAC and MIPS
+    ... )
+    
+    >>> # List available filters first (using astroquery)
+    >>> from astroquery.svo_fps import SvoFps
+    >>> import astropy.units as u
+    >>> filter_index = SvoFps.get_filter_index(0*u.AA, 100000*u.AA)
+    >>> print(filter_index['filterID'][:10])  # Show first 10 filter IDs
+    
+    Notes
+    -----
+    - Requires astroquery package: pip install astroquery
+    - Filter transmission curves are saved in two-column format: wavelength transmission
+    - Wavelengths are converted to microns by default (BayeSED convention)
+    - The filters file format matches BayeSED's expected format:
+      * Lines starting with '#' define filters: "# itype icalib description"
+      * Following lines contain wavelength and transmission pairs
+    - Automatic inference uses filter Facility, Instrument, and filterID metadata
+    - IRAC, PACS, SPIRE, IRAS filters → icalib=1
+    - MIPS filters → icalib=4
+    - SCUBA filters → icalib=5
+    - Other filters → icalib=0 (Standard)
+    """
+    try:
+        from astroquery.svo_fps import SvoFps
+        import astropy.units as u
+        import numpy as np
+    except ImportError:
+        raise ImportError(
+            "astroquery package is required. Install with: pip install astroquery"
+        )
+    
+    if not svo_filterIDs:
+        raise ValueError("svo_filterIDs must contain at least one filter ID")
+    
+    # Validate per-filter lists if provided
+    if itype_per_filter is not None:
+        if len(itype_per_filter) != len(svo_filterIDs):
+            raise ValueError(
+                f"itype_per_filter (length {len(itype_per_filter)}) must have "
+                f"the same length as svo_filterIDs (length {len(svo_filterIDs)})"
+            )
+        # Validate values
+        for i, val in enumerate(itype_per_filter):
+            if val is not None and val not in (FILTER_TYPE_ENERGY, FILTER_TYPE_PHOTON):
+                raise ValueError(f"itype_per_filter[{i}] must be 0 (Energy) or 1 (Photon), got {val}")
+    
+    if icalib_per_filter is not None:
+        if len(icalib_per_filter) != len(svo_filterIDs):
+            raise ValueError(
+                f"icalib_per_filter (length {len(icalib_per_filter)}) must have "
+                f"the same length as svo_filterIDs (length {len(svo_filterIDs)})"
+            )
+        # Validate values
+        for i, val in enumerate(icalib_per_filter):
+            if val is not None and val not in range(6):
+                raise ValueError(f"icalib_per_filter[{i}] must be 0-5, got {val}")
+    
+    # Validate global itype and icalib if provided
+    if itype is not None and itype not in (FILTER_TYPE_ENERGY, FILTER_TYPE_PHOTON):
+        raise ValueError(f"itype must be 0 (Energy) or 1 (Photon), got {itype}")
+    if icalib is not None and icalib not in range(6):
+        raise ValueError(f"icalib must be 0-5, got {icalib}")
+    
+    # Validate filter_names if provided
+    if filter_names is not None:
+        if selected_indices is None:
+            raise ValueError("filter_names can only be used when selected_indices is provided")
+        if len(filter_names) != len(selected_indices):
+            raise ValueError(
+                f"filter_names (length {len(filter_names)}) must have the same length "
+                f"as selected_indices (length {len(selected_indices)})"
+            )
+    
+    # Load filters from SVO using astroquery
+    print(f"Loading {len(svo_filterIDs)} filter(s) from SVO Filter Profile Service...")
+    
+    filter_transmission_data = []  # Store transmission data tables
+    filter_metadata_list = []  # Store metadata dictionaries
+    filter_descriptions = []
+    filter_itypes = []
+    filter_icalibs = []
+    filter_names_from_svo = []  # Collect filter names from SVO
+    
+    for i, filter_id in enumerate(svo_filterIDs):
+        try:
+            print(f"  Loading filter {i+1}/{len(svo_filterIDs)}: {filter_id}")
+            
+            # Get transmission data
+            transmission_table = SvoFps.get_transmission_data(filter_id)
+            
+            # Get metadata from filter index
+            filter_metadata = {
+                'filterID': filter_id,
+                'Facility': None,
+                'Instrument': None,
+                'Band': None,
+                'WavelengthEff': None,
+                'WavelengthMean': None,
+                'WavelengthMin': None,
+                'WavelengthMax': None,
+                'WavelengthCen': None,
+                'WavelengthPivot': None,
+                'WavelengthPeak': None,
+                'FWHM': None,
+                'WidthEff': None,
+                'DetectorType': None,
+                'PhotSystem': None,
+                'MagSys': None,
+                'ZeroPoint': None,
+                'ZeroPointUnit': None,
+                'ZeroPointType': None,
+                'ProfileReference': None,
+                'CalibrationReference': None,
+                'Description': None,
+                'Comments': None
+            }
+            
+            # Try to get metadata from filter index
+            # Query index with a reasonable wavelength range based on transmission data
+            try:
+                # First get a rough wavelength range from transmission data
+                wave_values = transmission_table['Wavelength'].value  # In Angstroms
+                if len(wave_values) > 0:
+                    wave_min_aa = float(np.min(wave_values))
+                    wave_max_aa = float(np.max(wave_values))
+                    # Query index with a slightly wider range to ensure we get the filter
+                    wave_range_min = max(0, wave_min_aa - 1000) * u.AA
+                    wave_range_max = (wave_max_aa + 1000) * u.AA
+                    
+                    # Query filter index for this wavelength range
+                    filter_index_subset = SvoFps.get_filter_index(wave_range_min, wave_range_max)
+                    
+                    # Find matching filter in index
+                    matching_filters = filter_index_subset[filter_index_subset['filterID'] == filter_id]
+                    if len(matching_filters) > 0:
+                        row = matching_filters[0]
+                        # Extract all available metadata
+                        for key in filter_metadata.keys():
+                            if key in row.colnames:
+                                value = row[key]
+                                # Handle masked values
+                                if hasattr(value, 'mask') and value.mask:
+                                    filter_metadata[key] = None
+                                else:
+                                    filter_metadata[key] = value
+            except Exception as e:
+                # If index query fails, continue without metadata (will use fallback)
+                pass
+            
+            # Fallback: Try to extract metadata from filter_id if not found in index
+            if filter_metadata['Facility'] is None and '/' in filter_id:
+                parts = filter_id.split('/')
+                if len(parts) >= 2:
+                    filter_metadata['Facility'] = parts[0]
+                    if len(parts) >= 3:
+                        filter_metadata['Instrument'] = parts[1]
+            
+            # Build comprehensive description from filter metadata
+            # Includes: name, facility/instrument, wavelength, FWHM, detector type, photometric system
+            desc_parts = []
+            
+            # Add filter name/ID (most important identifier)
+            filter_name = filter_id.split('/')[-1] if '/' in filter_id else filter_id
+            desc_parts.append(filter_name)
+            
+            # Add Facility and Instrument if available
+            facility_instrument = []
+            if filter_metadata['Facility'] and str(filter_metadata['Facility']).strip() not in ['-', '']:
+                facility_instrument.append(str(filter_metadata['Facility']))
+            if filter_metadata['Instrument'] and str(filter_metadata['Instrument']).strip() not in ['-', '']:
+                facility_instrument.append(str(filter_metadata['Instrument']))
+            if facility_instrument:
+                desc_parts.append(f"({', '.join(facility_instrument)})")
+            
+            # Add wavelength information (prefer metadata from index, fallback to transmission data)
+            wave_eff_um = None
+            try:
+                # First try metadata from index
+                if filter_metadata['WavelengthEff'] is not None:
+                    wave_eff_val = filter_metadata['WavelengthEff']
+                    if hasattr(wave_eff_val, 'value'):
+                        wave_eff_um = wave_eff_val.to(u.um).value if hasattr(wave_eff_val, 'to') else wave_eff_val.value * 1e-4
+                    else:
+                        wave_eff_um = float(wave_eff_val) * 1e-4  # Convert Angstroms to microns
+                elif filter_metadata['WavelengthMean'] is not None:
+                    wave_mean_val = filter_metadata['WavelengthMean']
+                    if hasattr(wave_mean_val, 'value'):
+                        wave_eff_um = wave_mean_val.to(u.um).value if hasattr(wave_mean_val, 'to') else wave_mean_val.value * 1e-4
+                    else:
+                        wave_eff_um = float(wave_mean_val) * 1e-4
+                
+                # Fallback to transmission data if metadata not available
+                if wave_eff_um is None:
+                    wave_values = transmission_table['Wavelength'].value  # In Angstroms
+                    if len(wave_values) > 0:
+                        wave_eff_aa = float(np.average(wave_values, weights=transmission_table['Transmission'].value))
+                        wave_eff_um = wave_eff_aa * 1e-4
+                
+                if wave_eff_um is not None:
+                    desc_parts.append(f"λ_eff={wave_eff_um:.3f}μm")
+            except (AttributeError, ValueError, TypeError, KeyError):
+                pass  # Skip if wavelength info not available
+            
+            # Add FWHM if available (prefer metadata from index)
+            try:
+                fwhm_um = None
+                if filter_metadata['FWHM'] is not None:
+                    fwhm_val = filter_metadata['FWHM']
+                    if hasattr(fwhm_val, 'value'):
+                        fwhm_um = fwhm_val.to(u.um).value if hasattr(fwhm_val, 'to') else fwhm_val.value * 1e-4
+                    else:
+                        fwhm_um = float(fwhm_val) * 1e-4  # Convert Angstroms to microns
+                
+                if fwhm_um is not None:
+                    desc_parts.append(f"FWHM={fwhm_um:.3f}μm")
+            except (ValueError, TypeError):
+                pass
+            
+            # Add WidthEff if available and different from FWHM
+            try:
+                if filter_metadata['WidthEff'] is not None:
+                    width_eff_val = filter_metadata['WidthEff']
+                    if hasattr(width_eff_val, 'value'):
+                        width_eff_um = width_eff_val.to(u.um).value if hasattr(width_eff_val, 'to') else width_eff_val.value * 1e-4
+                    else:
+                        width_eff_um = float(width_eff_val) * 1e-4
+                    desc_parts.append(f"WidthEff={width_eff_um:.3f}μm")
+            except (ValueError, TypeError):
+                pass
+            
+            # Add DetectorType if available
+            if filter_metadata['DetectorType'] and str(filter_metadata['DetectorType']).strip() not in ['-', '']:
+                desc_parts.append(f"Det={filter_metadata['DetectorType']}")
+            
+            # Add PhotSystem or MagSys if available
+            phot_system = None
+            if filter_metadata['PhotSystem'] and str(filter_metadata['PhotSystem']).strip() not in ['-', '']:
+                phot_system = str(filter_metadata['PhotSystem'])
+            elif filter_metadata['MagSys'] and str(filter_metadata['MagSys']).strip() not in ['-', '']:
+                phot_system = str(filter_metadata['MagSys'])
+            if phot_system:
+                desc_parts.append(f"Sys={phot_system}")
+            
+            # Add Band if available (more specific than just filter name)
+            if filter_metadata['Band'] and str(filter_metadata['Band']).strip() not in ['-', '']:
+                band = str(filter_metadata['Band']).strip()
+                if band != filter_name:  # Only add if different from filter name
+                    desc_parts.append(f"Band={band}")
+            
+            # Add ZeroPoint if available
+            try:
+                if filter_metadata['ZeroPoint'] is not None:
+                    zp_val = filter_metadata['ZeroPoint']
+                    zp_unit = filter_metadata.get('ZeroPointUnit', 'Jy')
+                    if hasattr(zp_val, 'value'):
+                        zp = zp_val.value
+                    else:
+                        zp = float(zp_val)
+                    desc_parts.append(f"ZP={zp:.2f}{zp_unit}")
+            except (ValueError, TypeError):
+                pass
+            
+            # Add ZeroPointType if available
+            if filter_metadata['ZeroPointType'] and str(filter_metadata['ZeroPointType']).strip() not in ['-', '']:
+                zpt_type = str(filter_metadata['ZeroPointType'])
+                if zpt_type.lower() not in ['pogson', '']:
+                    desc_parts.append(f"ZPT={zpt_type}")
+            
+            # Add ProfileReference if available
+            if filter_metadata['ProfileReference'] and str(filter_metadata['ProfileReference']).strip() not in ['-', '']:
+                profile_ref = str(filter_metadata['ProfileReference']).strip()
+                desc_parts.append(f"ProfileReference={profile_ref}")
+            
+            # Add CalibrationReference if available
+            if filter_metadata['CalibrationReference'] and str(filter_metadata['CalibrationReference']).strip() not in ['-', '']:
+                calib_ref = str(filter_metadata['CalibrationReference']).strip()
+                desc_parts.append(f"CalibRef={calib_ref}")
+            
+            # Combine all parts into description
+            desc = " ".join(desc_parts)
+            
+            # Collect filter name for filters_selected file
+            filter_names_from_svo.append(filter_name)
+            
+            # Determine itype and icalib for this filter
+            # Priority: per-filter list > global value > auto-inference > default
+            if itype_per_filter is not None and itype_per_filter[i] is not None:
+                filt_itype = itype_per_filter[i]
+            elif itype is not None:
+                filt_itype = itype
+            elif auto_infer:
+                filt_itype, _ = infer_filter_itype_icalib(filter_metadata, filter_id)
+            else:
+                filt_itype = FILTER_TYPE_PHOTON  # Default
+            
+            if icalib_per_filter is not None and icalib_per_filter[i] is not None:
+                filt_icalib = icalib_per_filter[i]
+            elif icalib is not None:
+                filt_icalib = icalib
+            elif auto_infer:
+                _, filt_icalib = infer_filter_itype_icalib(filter_metadata, filter_id)
+            else:
+                filt_icalib = FILTER_CALIB_STANDARD  # Default
+            
+            filter_transmission_data.append(transmission_table)
+            filter_metadata_list.append(filter_metadata)
+            filter_descriptions.append(desc)
+            filter_itypes.append(filt_itype)
+            filter_icalibs.append(filt_icalib)
+            
+            # Print inferred values
+            if auto_infer and (itype is None or icalib is None or 
+                              (itype_per_filter is not None and itype_per_filter[i] is None) or
+                              (icalib_per_filter is not None and icalib_per_filter[i] is None)):
+                detector_info = ""
+                if filter_metadata['DetectorType']:
+                    detector_info = f", DetectorType={filter_metadata['DetectorType']}"
+                print(f"    → Inferred: itype={filt_itype} ({FILTER_TYPE_NAMES[filt_itype]}), "
+                      f"icalib={filt_icalib} ({FILTER_CALIB_NAMES[filt_icalib]}){detector_info}")
+            
+        except Exception as e:
+            print(f"  Warning: Failed to load filter '{filter_id}': {e}")
+            print(f"  Skipping this filter. Check filter ID format (e.g., 'SLOAN/SDSS.u' or 'Spitzer/IRAC.I1').")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    # Create filters file
+    print(f"\nWriting filter transmission curves to: {filters_file}")
+    with open(filters_file, 'w') as f:
+        # Write header line: "# itype icalib description"
+        f.write("# itype icalib description\n")
+        
+        # Write each filter
+        for i, (trans_table, desc, filt_itype, filt_icalib) in enumerate(
+            zip(filter_transmission_data, filter_descriptions, filter_itypes, filter_icalibs)
+        ):
+            # Write filter definition line: "# itype icalib description"
+            f.write(f"# {filt_itype} {filt_icalib} {desc}\n")
+            
+            # Get wavelength and transmission data from table
+            wave_values = trans_table['Wavelength'].value  # In Angstroms
+            trans_values = trans_table['Transmission'].value
+            
+            # Convert to numpy arrays
+            wave_values = np.asarray(wave_values)
+            trans_values = np.asarray(trans_values)
+            
+            # Ensure wave_values is 1D (handle multi-bin filters)
+            if wave_values.ndim > 1:
+                wave_values = wave_values.flatten()
+            if trans_values.ndim > 1:
+                trans_values = trans_values.flatten()
+            
+            # Convert wavelength to microns if needed
+            if wave_units == "micron":
+                # SVO transmission data is in Angstroms, convert to microns
+                wave_values = wave_values * 1e-4  # Angstrom to micron
+            
+            # Write wavelength and transmission pairs
+            for w, t in zip(wave_values, trans_values):
+                f.write(f"{w:.6e} {t:.6e}\n")
+            
+            # Add blank line between filters (optional, for readability)
+            f.write("\n")
+    
+    print(f"Successfully created filters file: {filters_file}")
+    
+    # Create filters_selected file
+    if filters_selected_file is None:
+        # Generate default name
+        if filters_file.endswith('.txt'):
+            filters_selected_file = filters_file.replace('.txt', '_selected.txt')
+        else:
+            filters_selected_file = filters_file + '_selected.txt'
+    
+    print(f"\nCreating filters_selected file: {filters_selected_file}")
+    
+    # Determine filter names to use: user-provided filter_names take precedence, otherwise use filt.name from svo_filters
+    filter_names_to_use = None
+    if filter_names is not None:
+        # User provided custom names, use them
+        filter_names_to_use = filter_names
+    elif filter_names_from_svo:
+        # Use filter names from SVO
+        if selected_indices is None:
+            # All filters selected, use all names
+            filter_names_to_use = filter_names_from_svo
+        else:
+            # Only selected filters, extract names for selected indices
+            filter_names_to_use = [filter_names_from_svo[i] for i in selected_indices if 0 <= i < len(filter_names_from_svo)]
+    
+    # Call create_filters_selected with the generated filters file
+    create_filters_selected(
+        filters_file=filters_file,
+        output_file=filters_selected_file,
+        selected_indices=selected_indices,
+        filter_names=filter_names_to_use,
+        validate_itype_icalib=False,  # We already validated
+        **filters_selected_kwargs
+    )
+    
+    return filters_file, filters_selected_file
+
+
 def create_filters_selected(
     filters_file: str,
     output_file: str,
@@ -1331,9 +1958,9 @@ def create_filters_selected(
                 filter_lines.append(line)
     
     if len(filter_lines) < 2:
-        raise ValueError(f"Filters file '{filters_file}' must contain at least one filter definition (lines starting with '#')")
+        raise ValueError(f"Filters file '{filters_file}' must contain at least the header line and one filter definition (lines starting with '#')")
     
-    # Skip the first line (header) and process filter definitions
+    # Skip the first line (header: "# itype icalib description") and process filter definitions
     filter_definitions = filter_lines[1:]
     
     # Collect filter information for listing
@@ -1376,9 +2003,13 @@ def create_filters_selected(
     # Validate filter_names if provided
     if filter_names is not None:
         if selected_indices is None:
-            raise ValueError("filter_names can only be used when selected_indices is provided")
-        if len(filter_names) != len(selected_indices):
-            raise ValueError(f"filter_names (length {len(filter_names)}) must have the same length as selected_indices (length {len(selected_indices)})")
+            # When all filters are selected, filter_names should match all filters
+            if len(filter_names) != len(filter_info):
+                raise ValueError(f"filter_names (length {len(filter_names)}) must have the same length as total filters (length {len(filter_info)}) when selected_indices=None")
+        else:
+            # When specific filters are selected, filter_names should match selected_indices
+            if len(filter_names) != len(selected_indices):
+                raise ValueError(f"filter_names (length {len(filter_names)}) must have the same length as selected_indices (length {len(selected_indices)})")
     
     # Determine which filters to select
     if selected_indices is None:
