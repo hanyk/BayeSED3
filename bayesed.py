@@ -1331,237 +1331,11 @@ def create_filters_selected(
             parts.extend([''] * (4 - len(parts)))
         
         filter_type_str = parts[1] if len(parts) > 1 else '1'
-        filter_beta_str = parts[2] if len(parts) > 2 else '0'
-        name_and_info = parts[3] if len(parts) > 3 else ''
+        filter_calib_str = parts[2] if len(parts) > 2 else '0'
+        description = parts[3] if len(parts) > 3 else ''
         
-        # Extract filter name (will be overridden later if filter_names is provided)
-        # For now, auto-extract the name
-        filter_short_name = f"F{i+1}"
-        if name_and_info:
-            info_parts = name_and_info.split()
-            for part in info_parts:
-                # Skip empty parts
-                if not part:
-                    continue
-                
-                # Handle file paths (e.g., "path/to/file.txt" or "file.dat")
-                # Also handle URLs with query parameters (e.g., "http://...?id=Euclid/NISP.H.dat")
-                if '/' in part or ('.txt' in part or '.dat' in part or '.res' in part or '.pb' in part):
-                    # Extract filename from URL or path
-                    if '?' in part:
-                        # Handle URLs with query parameters
-                        # Extract id parameter if present (e.g., "?id=Euclid/NISP.H.dat")
-                        query_part = part.split('?')[-1]
-                        if 'id=' in query_part:
-                            id_value = query_part.split('id=')[-1].split('&')[0]
-                            filename = id_value.split('/')[-1] if '/' in id_value else id_value
-                        else:
-                            # No id parameter, use last part after ?
-                            filename = query_part.split('/')[-1] if '/' in query_part else query_part
-                    else:
-                        # Regular path or filename
-                        filename = part.split('/')[-1] if '/' in part else part
-                    if '_' in filename:
-                        # First check if there's a dot-separated filter identifier (e.g., "ACS_WFC.F435W" -> "ACS_WFC.F435W")
-                        if '.' in filename:
-                            name_parts = filename.split('.')
-                            # Remove file extensions and 'throughput'
-                            name_parts = [p for p in name_parts if p not in ('dat', 'txt', 'res', 'pb') and p.lower() != 'throughput']
-                            
-                            # Find the filter identifier part (F435W, F184, IA427, etc.)
-                            filter_id_part = None
-                            filter_id_idx = -1
-                            for idx, name_part in enumerate(name_parts):
-                                # Look for filter identifiers like F435W, F184, or patterns like IA427, NB711
-                                if (name_part.startswith('F') and any(c.isdigit() for c in name_part)) or \
-                                   (name_part.startswith('IA') and name_part[2:].isdigit()) or \
-                                   (name_part.startswith('NB') and name_part[2:].isdigit()) or \
-                                   (len(name_part) >= 2 and name_part[0].isalpha() and any(c.isdigit() for c in name_part) and name_part.isalnum()):
-                                    if len(name_part) <= 20:
-                                        filter_id_part = name_part
-                                        filter_id_idx = idx
-                                        break
-                            
-                            if filter_id_part:
-                                # Include device name
-                                if filter_id_idx > 0:
-                                    # Device name comes before filter ID (e.g., "ACS_WFC.F435W")
-                                    device_parts = [p for p in name_parts[:filter_id_idx] if p.lower() != 'throughput']
-                                    device_name = '.'.join(device_parts) if device_parts else ''
-                                    filter_short_name = f"{device_name}.{filter_id_part}" if device_name else filter_id_part
-                                elif len(name_parts) > 1:
-                                    # Filter ID is first, device name comes after (e.g., "IA427.SuprimeCam")
-                                    device_parts = [p for p in name_parts[filter_id_idx + 1:] if p.lower() != 'throughput']
-                                    if device_parts:
-                                        device_name = '.'.join(device_parts)
-                                        filter_short_name = f"{device_name}.{filter_id_part}"
-                                    else:
-                                        filter_short_name = filter_id_part
-                                else:
-                                    filter_short_name = filter_id_part
-                                break
-                            # If no F/IA/NB-prefixed filter ID found, but we have multiple parts, include device name
-                            elif len(name_parts) >= 2:
-                                # Use the last part as filter ID, rest as device name
-                                filter_id_part = name_parts[-1]
-                                device_parts = [p for p in name_parts[:-1] if p.lower() != 'throughput']
-                                device_name = '.'.join(device_parts) if device_parts else ''
-                                filter_short_name = f"{device_name}.{filter_id_part}" if device_name else filter_id_part
-                                break
-                            # If only one part remains after removing extensions, check if it contains underscores
-                            elif len(name_parts) == 1 and '_' in name_parts[0]:
-                                # Handle cases like "GI_throughput" -> extract "GI" or "irac_ch1" -> extract "irac_ch1"
-                                # or "g_megaprime_sagem" -> extract "g_megaprime"
-                                base_part = name_parts[0]
-                                underscore_parts = [p for p in base_part.split('_') if p.lower() != 'throughput']
-                                if underscore_parts:
-                                    # For names with underscores, keep the full name (without file extension)
-                                    # Join all parts back together (file extension already removed)
-                                    filter_short_name = '_'.join(underscore_parts)
-                                    break
-                        
-                        # For underscore-separated names (e.g., "wircam_H.res", "g_megaprime_sagem.res")
-                        # Check if we haven't found a good name yet
-                        if filter_short_name.startswith('F') and filter_short_name[1:].isdigit():
-                            underscore_parts = [p for p in filename.split('_') if p.lower() != 'throughput']
-                            if underscore_parts:
-                                # For names with underscores, keep the full name (without file extension)
-                                # Remove file extension from the last part if present
-                                clean_parts = []
-                                for part in underscore_parts:
-                                    # Remove file extension
-                                    for ext in ['.res', '.dat', '.txt', '.pb']:
-                                        if part.endswith(ext):
-                                            part = part[:-len(ext)]
-                                            break
-                                    clean_parts.append(part)
-                                filter_short_name = '_'.join(clean_parts)
-                                break
-                        
-                        # Try first part before underscore (for files without dots, keep full name)
-                        # Remove file extensions and join parts back together
-                        underscore_parts_raw = filename.split('_')
-                        underscore_parts = [p for p in underscore_parts_raw if p.lower() != 'throughput']
-                        if underscore_parts:
-                            # Remove file extensions from all parts and join back
-                            clean_parts = []
-                            for part in underscore_parts:
-                                # Remove file extension
-                                for ext in ['.res', '.dat', '.txt', '.pb']:
-                                    if part.endswith(ext):
-                                        part = part[:-len(ext)]
-                                        break
-                                clean_parts.append(part)
-                            if clean_parts:
-                                filter_short_name = '_'.join(clean_parts)
-                                break
-                    else:
-                        # Handle filenames with dots but no underscores (e.g., "WFI.F184.dat", "IA427.SuprimeCam.pb")
-                        # Try to extract filter identifier with device name
-                        name_parts = filename.split('.')
-                        # Remove file extensions and 'throughput'
-                        name_parts = [p for p in name_parts if p not in ('dat', 'txt', 'res', 'pb') and p.lower() != 'throughput']
-                        found_filter_id = False
-                        if len(name_parts) >= 2:
-                            # Look for parts that look like filter identifiers (e.g., F184, F435W, IA427)
-                            for idx, name_part in enumerate(name_parts):
-                                # Check if it looks like a filter identifier
-                                if (name_part.startswith('F') and any(c.isdigit() for c in name_part)) or \
-                                   (name_part.startswith('IA') and name_part[2:].isdigit()) or \
-                                   (name_part.startswith('NB') and name_part[2:].isdigit()) or \
-                                   (len(name_part) >= 2 and name_part[0].isalpha() and any(c.isdigit() for c in name_part) and name_part.isalnum()):
-                                    if len(name_part) <= 20:
-                                        # Include device name
-                                        if idx > 0:
-                                            # Device name comes before filter ID
-                                            device_parts = [p for p in name_parts[:idx] if p.lower() != 'throughput']
-                                            if device_parts:
-                                                device_name = '.'.join(device_parts)
-                                                filter_short_name = f"{device_name}.{name_part}"
-                                            else:
-                                                filter_short_name = name_part
-                                        elif len(name_parts) > 1:
-                                            # Filter ID is first, device name comes after
-                                            device_parts = [p for p in name_parts[idx + 1:] if p.lower() != 'throughput']
-                                            if device_parts:
-                                                device_name = '.'.join(device_parts)
-                                                filter_short_name = f"{device_name}.{name_part}"
-                                            else:
-                                                filter_short_name = name_part
-                                        else:
-                                            filter_short_name = name_part
-                                        found_filter_id = True
-                                        break
-                            if found_filter_id:
-                                break
-                            # If no F-prefixed filter ID found but we have multiple parts, use last as filter ID
-                            elif len(name_parts) >= 2:
-                                filter_id_part = name_parts[-1]
-                                device_parts = [p for p in name_parts[:-1] if p.lower() != 'throughput']
-                                if device_parts:
-                                    device_name = '.'.join(device_parts)
-                                    filter_short_name = f"{device_name}.{filter_id_part}"
-                                else:
-                                    filter_short_name = filter_id_part
-                                break
-                        
-                        # Fallback: use base name (part before first dot, excluding extensions)
-                        base_name = filename.split('.')[0]
-                        # Check if base_name contains underscore
-                        if '_' in base_name:
-                            first_part = base_name.split('_')[0]
-                            if len(first_part) <= 3 and first_part.isalnum():
-                                filter_short_name = first_part
-                                break
-                        if base_name and len(base_name) <= 20:
-                            filter_short_name = base_name
-                            break
-                # Skip 'throughput' parts
-                elif part.lower() == 'throughput':
-                    continue
-                # Handle single letter names (e.g., "u", "g", "r")
-                elif len(part) == 1 and part.isalpha():
-                    filter_short_name = part
-                    break
-                # Handle filter names with digits and letters (e.g., "f435w", "f150w2", "f1000w")
-                # Allow up to 20 characters, allow digits and letters, allow underscores and hyphens
-                elif (len(part) <= 20 and 
-                      part.replace('_', '').replace('-', '').replace('.', '').isalnum() and
-                      not part.replace('.', '').isdigit()):  # Don't accept pure numbers
-                    filter_short_name = part
-                    break
-                # Fallback: if part looks like a reasonable filter name (contains letters)
-                elif len(part) <= 20 and any(c.isalpha() for c in part):
-                    filter_short_name = part
-                    break
-        
-        # Final cleanup: remove 'throughput' from filter name if it appears
-        # Handle cases like "filter_throughput", "throughput_filter", "device.throughput.filter", etc.
-        if filter_short_name:
-            # If the entire name is just 'throughput', use fallback
-            if filter_short_name.lower() == 'throughput':
-                filter_short_name = f"F{i+1}"
-            else:
-                # Split by common separators and filter out 'throughput'
-                name_components = []
-                found_sep = None
-                for sep in ['.', '_', '-']:
-                    if sep in filter_short_name:
-                        found_sep = sep
-                        name_components = [c for c in filter_short_name.split(sep) if c.lower() != 'throughput']
-                        break
-                
-                if found_sep:
-                    # Rejoin with the separator, filtering out 'throughput'
-                    if name_components:
-                        filter_short_name = found_sep.join(name_components)
-                    else:
-                        filter_short_name = f"F{i+1}"  # Fallback if everything was filtered out
-                elif 'throughput' in filter_short_name.lower():
-                    # No separator found but name contains 'throughput', remove it
-                    filter_short_name = filter_short_name.lower().replace('throughput', '').strip('_-.')
-                    if not filter_short_name:
-                        filter_short_name = f"F{i+1}"  # Fallback if name becomes empty
+        # Use default filter name (simplified - no complex extraction)
+        filter_short_name = f"F{i}"
         
         description = filter_line[1:].strip() if filter_line.startswith('#') else filter_line.strip()
         # Store full description for output file, but create a display description without itype/icalib
@@ -1570,7 +1344,7 @@ def create_filters_selected(
         desc_parts = description.split(None, 2)
         if len(desc_parts) >= 2:
             # Check if first two parts match itype and icalib
-            if desc_parts[0] == filter_type_str and desc_parts[1] == filter_beta_str:
+            if desc_parts[0] == filter_type_str and desc_parts[1] == filter_calib_str:
                 # Remove itype and icalib, keep the rest
                 display_description = desc_parts[2] if len(desc_parts) > 2 else ""
         
@@ -1579,7 +1353,7 @@ def create_filters_selected(
             'id': i,  # ID starts from 0 (matching select_all script)
             'name': filter_short_name,
             'itype': filter_type_str,
-            'icalib': filter_beta_str,
+            'icalib': filter_calib_str,
             'description': description,  # Full description for output file
             'display_description': display_description  # Description without itype/icalib for display
         })
@@ -1612,13 +1386,28 @@ def create_filters_selected(
     print(f"\nFound {len(filter_info)} available filters in '{filters_file}':")
     if filter_names:
         print(f"Note: Custom names provided for {len(filter_names)} selected filter(s).")
-    print("-" * 100)
-    print(f"{'ID':<6} {'Name':<12} {'Type':<8} {'Calib':<8} {'Description':<60}")
-    print("-" * 100)
+    
+    # Automatically determine max description length based on terminal width
+    try:
+        terminal_width = shutil.get_terminal_size().columns
+    except (AttributeError, OSError):
+        # Fallback if terminal size cannot be determined
+        terminal_width = 100
+    
+    # Calculate space used by fixed columns: ID(6) + Name(12) + Type(8) + Calib(8) + spacing(~4) = ~38
+    fixed_columns_width = 6 + 12 + 8 + 8 + 4
+    # Reserve some margin and calculate available space for description
+    max_desc_len = max(20, terminal_width - fixed_columns_width - 5)  # -5 for margin
+    
+    print("-" * min(100, terminal_width))
+    print(f"{'ID':<6} {'Name':<12} {'Type':<8} {'Calib':<8} {'Description'}")
+    print("-" * min(100, terminal_width))
     for info in filter_info:
         # Use display_description (without itype/icalib) for the table display
         display_desc = info.get('display_description', info['description'])
-        desc_truncated = display_desc[:57] + "..." if len(display_desc) > 60 else display_desc
+        # Truncate description to fit on one line
+        if len(display_desc) > max_desc_len:
+            display_desc = display_desc[:max_desc_len-3] + "..."
         is_selected = info['index'] in selected_filter_indices
         name_marker = "*" if (filter_names and is_selected) else " "
         
@@ -1635,8 +1424,8 @@ def create_filters_selected(
         except (ValueError, TypeError):
             icalib_display = info['icalib']
         
-        print(f"{info['id']:<6} {info['name']:<11}{name_marker} {itype_display:<8} {icalib_display:<8} {desc_truncated:<60}")
-    print("-" * 100)
+        print(f"{info['id']:<6} {info['name']:<11}{name_marker} {itype_display:<8} {icalib_display:<8} {display_desc}")
+    print("-" * min(100, terminal_width))
     if filter_names:
         print("* = Custom name provided")
     print(f"\nFilter Type (itype): 0=Energy, 1=Photon")
