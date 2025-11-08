@@ -9,7 +9,7 @@ import subprocess
 import multiprocessing
 import sys
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 import numpy as np
 from astropy.table import Table
 from astropy.io import ascii
@@ -1819,7 +1819,7 @@ def create_filters_from_svo(
     # Call create_filters_selected with the generated filters file
     create_filters_selected(
         filters_file=filters_file,
-        output_file=filters_selected_file,
+        output_selection_file=filters_selected_file,
         selected_indices=selected_indices,
         filter_names=filter_names_to_use,
         validate_itype_icalib=False,  # We already validated
@@ -1830,8 +1830,8 @@ def create_filters_from_svo(
 
 
 def create_filters_selected(
-    filters_file: str,
-    output_file: str,
+    filters_file: Union[str, List[str]],
+    output_selection_file: Optional[str] = None,
     mag_lim: float = 99.0,
     mag_lim_err: float = 0.1,
     Nsigma: float = 5.0,
@@ -1849,18 +1849,19 @@ def create_filters_selected(
     selected_indices: Optional[List[int]] = None,
     filter_names: Optional[List[str]] = None,
     validate_itype_icalib: bool = True,
+    output_filters_file: Optional[str] = None,
 ):
     """
-    Create a filters_selected file from a filters description file.
+    Create a filters_selected file from one or more filters description files.
     
     This function replicates the functionality of the select_all bash script.
-    It reads a filters file (with lines starting with '#') and creates a 
+    It reads one or more filters files (with lines starting with '#') and creates a 
     filters_selected file containing only the selected filters. Selected filters
     will always have iused=1 and iselected=1.
     
     Filter Definition File Format:
     ------------------------------
-    The input filters file should contain lines starting with '#' in the format:
+    The input filters file(s) should contain lines starting with '#' in the format:
         # itype icalib description
     
     Where:
@@ -1878,13 +1879,16 @@ def create_filters_selected(
     
     Parameters
     ----------
-    filters_file : str
-        Path to the input filters description file (e.g., filters.txt).
-        The file should contain filter definitions starting with '#'.
+    filters_file : str or list of str
+        Path(s) to the input filters description file(s) (e.g., filters.txt).
+        Can be a single file path (str) or a list of file paths (List[str]).
+        Each file should contain filter definitions starting with '#'.
         Format: "# itype icalib description"
-    output_file : str
+        When multiple files are provided, filters from all files are combined
+        and can be selected from the combined list.
+    output_selection_file : str, optional
         Path to the output filters_selected file. Only selected filters will
-        be written to this file.
+        be written to this file. If None (default), no filters_selected file is created.
     mag_lim : float, optional
         Magnitude limit (default: 99.0).
     mag_lim_err : float, optional
@@ -1914,28 +1918,86 @@ def create_filters_selected(
     validate_itype_icalib : bool, optional
         If True (default), validate that itype is 0 or 1 and icalib is 0-5.
         Invalid values will trigger warnings and use defaults (itype=1, icalib=0).
+    output_filters_file : str, optional
+        Path to output combined filter file containing transmission curves for selected filters.
+        If provided and multiple filter files are used, a new filter file will be created
+        with the transmission data (wavelength and transmission pairs) for all selected filters.
+        If None (default), no combined filter file is created.
+        When multiple files are provided, this is recommended to create a single filter file
+        containing only the selected filters' transmission data.
     
     Examples
     --------
     >>> create_filters_selected(
     ...     'observation/test2/filters.txt',
-    ...     'observation/test2/filters_selected.txt'
+    ...     output_selection_file='observation/test2/filters_selected.txt'
     ... )
     
     >>> # Select only specific filters (indices 0, 2, 4)
     >>> create_filters_selected(
     ...     'filters.txt',
-    ...     'filters_selected.txt',
+    ...     output_selection_file='filters_selected.txt',
     ...     selected_indices=[0, 2, 4]
+    ... )
+    
+    >>> # Select filters from multiple filter files and save combined filter file
+    >>> create_filters_selected(
+    ...     ['filters_optical.txt', 'filters_nir.txt', 'filters_mir.txt'],
+    ...     output_selection_file='filters_selected.txt',
+    ...     selected_indices=[0, 2, 4, 10, 15],
+    ...     output_filters_file='filters_combined.txt'
+    ... )
+    
+    >>> # Create only combined filter file without selection file
+    >>> create_filters_selected(
+    ...     ['filters_optical.txt', 'filters_nir.txt'],
+    ...     selected_indices=[0, 2, 4],
+    ...     output_filters_file='filters_combined.txt'
     ... )
     
     >>> # Select filters with custom names
     >>> create_filters_selected(
     ...     'filters.txt',
-    ...     'filters_selected.txt',
+    ...     output_selection_file='filters_selected.txt',
     ...     selected_indices=[0, 2, 4],
     ...     filter_names=['u_band', 'r_band', 'i_band']
     ... )
+    
+    >>> # Get filter list programmatically to help select filters
+    >>> filters = create_filters_selected('filters.txt')
+    >>> # Find filters by description
+    >>> optical_mask = ['optical' in desc.lower() for desc in filters['Description']]
+    >>> optical_filters = filters[optical_mask]
+    >>> # Get selected filter IDs
+    >>> selected = filters['ID'][filters['is_selected']].tolist()
+    >>> # Create files with selected filters
+    >>> create_filters_selected(
+    ...     'filters.txt',
+    ...     output_selection_file='filters_selected.txt',
+    ...     output_filters_file='filters_combined.txt',
+    ...     selected_indices=selected
+    ... )
+    >>> # Display the table
+    >>> print(filters)
+    >>> # Access columns
+    >>> print(filters['ID'])
+    >>> print(filters['Name'])
+    
+    Returns
+    -------
+    astropy.table.Table
+        Table containing filter information with the following columns:
+        - 'ID': int - Filter ID (position in full filter list, 0-based)
+        - 'Name': str - Filter name
+        - 'Type': str - Human-readable filter transmission type ('Energy' or 'Photon')
+        - 'Calib': str - Human-readable filter calibration scheme ('Standard', 'SPITZER/IRAC', etc.)
+        - 'Source': str - Source filter file (with parent directory if multiple files)
+        - 'Description': str - Filter description (without itype/icalib prefix)
+        - 'is_selected': bool - Whether this filter is selected
+        - 'itype': str - Filter transmission type ('0' or '1')
+        - 'icalib': str - Filter calibration scheme ('0'-'5')
+        - 'source_file': str - Full path to source filter file
+        - 'display_description': str - Description without itype/icalib prefix (same as Description)
     
     Notes
     -----
@@ -1949,19 +2011,78 @@ def create_filters_selected(
       factor (fac_corr) to flux estimates, especially important at long
       wavelengths. The calibration schemes follow the LEPHARE convention.
     """
-    # Read the filters file
-    filter_lines = []
-    with open(filters_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('#'):
-                filter_lines.append(line)
+    # Normalize filters_file to a list
+    if isinstance(filters_file, str):
+        filters_files = [filters_file]
+    else:
+        filters_files = filters_file
     
-    if len(filter_lines) < 2:
-        raise ValueError(f"Filters file '{filters_file}' must contain at least the header line and one filter definition (lines starting with '#')")
+    if not filters_files:
+        raise ValueError("At least one filters file must be provided")
     
-    # Skip the first line (header: "# itype icalib description") and process filter definitions
-    filter_definitions = filter_lines[1:]
+    # Read filters from all files (including transmission data)
+    all_filter_lines = []
+    filter_file_map = []  # Track which file each filter came from
+    all_filter_data = []  # Store full filter data including transmission curves
+    
+    for file_path in filters_files:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Filters file not found: '{file_path}'")
+        
+        file_filter_lines = []
+        file_filter_data = []  # Store filter data for this file
+        
+        with open(file_path, 'r') as f:
+            current_filter_header = None
+            current_filter_data = []
+            
+            for line in f:
+                line_stripped = line.strip()
+                if line_stripped.startswith('#'):
+                    # Save previous filter if exists
+                    if current_filter_header is not None:
+                        file_filter_data.append({
+                            'header': current_filter_header,
+                            'data': current_filter_data
+                        })
+                    
+                    # Start new filter
+                    current_filter_header = line_stripped
+                    current_filter_data = []
+                    file_filter_lines.append(line_stripped)
+                elif line_stripped and current_filter_header is not None:
+                    # This is transmission data (wavelength transmission pair)
+                    current_filter_data.append(line_stripped)
+            
+            # Save last filter
+            if current_filter_header is not None:
+                file_filter_data.append({
+                    'header': current_filter_header,
+                    'data': current_filter_data
+                })
+        
+        if len(file_filter_lines) < 2:
+            raise ValueError(f"Filters file '{file_path}' must contain at least the header line and one filter definition (lines starting with '#')")
+        
+        # Skip the first line (header: "# itype icalib description")
+        file_filter_definitions = file_filter_lines[1:]
+        file_filter_data_definitions = file_filter_data[1:]  # Skip header filter data
+        
+        # Add filters from this file to the combined list
+        for i, filter_line in enumerate(file_filter_definitions):
+            all_filter_lines.append(filter_line)
+            filter_file_map.append(file_path)
+            # Store corresponding filter data
+            if i < len(file_filter_data_definitions):
+                all_filter_data.append(file_filter_data_definitions[i])
+            else:
+                all_filter_data.append({'header': filter_line, 'data': []})
+    
+    if len(all_filter_lines) == 0:
+        raise ValueError("No filter definitions found in any of the provided files")
+    
+    # Use all_filter_lines as filter_definitions
+    filter_definitions = all_filter_lines
     
     # Collect filter information for listing
     filter_info = []
@@ -1990,14 +2111,25 @@ def create_filters_selected(
                 # Remove itype and icalib, keep the rest
                 display_description = desc_parts[2] if len(desc_parts) > 2 else ""
         
+        # Get the source file for this filter
+        source_file = filter_file_map[i] if i < len(filter_file_map) else filters_files[0]
+        # For display, show parent directory if multiple files have same basename
+        source_basename = os.path.basename(source_file)
+        source_dirname = os.path.basename(os.path.dirname(source_file))
+        if len(filters_files) > 1 and source_dirname and source_dirname != '.':
+            source_file_name = f"{source_dirname}/{source_basename}"
+        else:
+            source_file_name = source_basename
+        
         filter_info.append({
-            'index': i,
-            'id': i,  # ID starts from 0 (matching select_all script)
+            'id': i,  # ID equals position in full filter list (0-based)
             'name': filter_short_name,
             'itype': filter_type_str,
             'icalib': filter_calib_str,
             'description': description,  # Full description for output file
-            'display_description': display_description  # Description without itype/icalib for display
+            'display_description': display_description,  # Description without itype/icalib for display
+            'source_file': source_file,  # Full path to source file
+            'source_file_name': source_file_name  # Just the filename for display
         })
     
     # Validate filter_names if provided
@@ -2029,7 +2161,29 @@ def create_filters_selected(
                 filter_info[filter_idx]['name'] = str(filter_names[idx])
     
     # List all available filters
-    print(f"\nFound {len(filter_info)} available filters in '{filters_file}':")
+    if len(filters_files) == 1:
+        print(f"\nFound {len(filter_info)} available filters in '{filters_files[0]}':")
+    else:
+        # Show more distinguishing information for multiple files
+        # If files have same basename, show parent directory or relative path
+        def format_file_display(file_path):
+            basename = os.path.basename(file_path)
+            dirname = os.path.basename(os.path.dirname(file_path))
+            # If directory name exists and is meaningful, show dirname/basename
+            if dirname and dirname != '.' and dirname != os.path.basename(os.getcwd()):
+                return f"{dirname}/{basename}"
+            # Otherwise, try relative path from current directory
+            try:
+                rel_path = os.path.relpath(file_path)
+                if rel_path != basename:
+                    return rel_path
+            except ValueError:
+                pass
+            # Fallback to basename
+            return basename
+        
+        file_list_str = ', '.join([format_file_display(f) for f in filters_files])
+        print(f"\nFound {len(filter_info)} available filters from {len(filters_files)} file(s) ({file_list_str}):")
     if filter_names:
         print(f"Note: Custom names provided for {len(filter_names)} selected filter(s).")
     
@@ -2040,22 +2194,25 @@ def create_filters_selected(
         # Fallback if terminal size cannot be determined
         terminal_width = 100
     
-    # Calculate space used by fixed columns: ID(6) + Name(12) + Type(8) + Calib(8) + spacing(~4) = ~38
-    fixed_columns_width = 6 + 12 + 8 + 8 + 4
+    # Calculate space used by fixed columns
+    # ID(6) + Name(12) + Type(8) + Calib(8) + Source(20) + spacing(~4) = ~58
+    fixed_columns_width = 6 + 12 + 8 + 8 + 20 + 4
     # Reserve some margin and calculate available space for description
     max_desc_len = max(20, terminal_width - fixed_columns_width - 5)  # -5 for margin
     
-    print("-" * min(100, terminal_width))
-    print(f"{'ID':<6} {'Name':<12} {'Type':<8} {'Calib':<8} {'Description'}")
-    print("-" * min(100, terminal_width))
+    # Show source file column only if multiple files were provided
+    show_source_column = len(filters_files) > 1
+    
+    print("-" * min(120, terminal_width))
+    if show_source_column:
+        print(f"{'ID':<6} {'Name':<12} {'Type':<8} {'Calib':<8} {'Source':<20} {'Description'}")
+    else:
+        print(f"{'ID':<6} {'Name':<12} {'Type':<8} {'Calib':<8} {'Description'}")
+    print("-" * min(120, terminal_width))
+    # Add is_selected and display names to filter_info for return value
     for info in filter_info:
-        # Use display_description (without itype/icalib) for the table display
-        display_desc = info.get('display_description', info['description'])
-        # Truncate description to fit on one line
-        if len(display_desc) > max_desc_len:
-            display_desc = display_desc[:max_desc_len-3] + "..."
-        is_selected = info['index'] in selected_filter_indices
-        name_marker = "*" if (filter_names and is_selected) else " "
+        is_selected = info['id'] in selected_filter_indices
+        info['is_selected'] = is_selected
         
         # Format itype and icalib with descriptive names if possible
         try:
@@ -2063,15 +2220,31 @@ def create_filters_selected(
             itype_display = FILTER_TYPE_NAMES.get(itype_val, info['itype'])
         except (ValueError, TypeError):
             itype_display = info['itype']
+        info['itype_display'] = itype_display
         
         try:
             icalib_val = int(info['icalib'])
             icalib_display = FILTER_CALIB_NAMES.get(icalib_val, info['icalib'])
         except (ValueError, TypeError):
             icalib_display = info['icalib']
+        info['icalib_display'] = icalib_display
+    
+    # Display the filter table
+    for info in filter_info:
+        # Use display_description (without itype/icalib) for the table display
+        display_desc = info.get('display_description', info['description'])
+        # Truncate description to fit on one line
+        if len(display_desc) > max_desc_len:
+            display_desc = display_desc[:max_desc_len-3] + "..."
+        is_selected = info['is_selected']
+        name_marker = "*" if (filter_names and is_selected) else " "
         
-        print(f"{info['id']:<6} {info['name']:<11}{name_marker} {itype_display:<8} {icalib_display:<8} {display_desc}")
-    print("-" * min(100, terminal_width))
+        if show_source_column:
+            source_display = info.get('source_file_name', '')[:18]  # Truncate if too long
+            print(f"{info['id']:<6} {info['name']:<11}{name_marker} {info['itype_display']:<8} {info['icalib_display']:<8} {source_display:<20} {display_desc}")
+        else:
+            print(f"{info['id']:<6} {info['name']:<11}{name_marker} {info['itype_display']:<8} {info['icalib_display']:<8} {display_desc}")
+    print("-" * min(120, terminal_width))
     if filter_names:
         print("* = Custom name provided")
     print(f"\nFilter Type (itype): 0=Energy, 1=Photon")
@@ -2080,62 +2253,136 @@ def create_filters_selected(
     print(f"Use filter_names parameter to provide custom names (e.g., filter_names=['u_band', 'r_band', 'i_band'])")
     print(f"If selected_indices=None (default), all filters will be selected.\n")
     
-    # Write the output file (only selected filters)
-    with open(output_file, 'w') as f:
-        # Write header
-        header = "iused iselected id name mid mag_lim mag_lim_err Nsigma mag_err_min SNR_min inoise Bsky D t Bdet Nread Rn Npx Npx_sig # itype icalib description"
-        f.write(header + "\n")
-        
-        # Process only selected filters
-        selected_count = 0
-        for i in selected_filter_indices:
-            info = filter_info[i]
+    # Write the output selection file (only selected filters) if requested
+    selected_count = 0
+    if output_selection_file is not None:
+        with open(output_selection_file, 'w') as f:
+            # Write header
+            header = "iused iselected id name mid mag_lim mag_lim_err Nsigma mag_err_min SNR_min inoise Bsky D t Bdet Nread Rn Npx Npx_sig # itype icalib description"
+            f.write(header + "\n")
             
-            # Convert itype and icalib to integers with validation
-            try:
-                filter_itype = int(info['itype'])
-                if validate_itype_icalib and filter_itype not in (FILTER_TYPE_ENERGY, FILTER_TYPE_PHOTON):
-                    print(f"Warning: Filter {i} has invalid itype={filter_itype}. "
-                          f"Valid values are 0 (Energy) or 1 (Photon). Using default 1.")
+            # Process only selected filters
+            for i in selected_filter_indices:
+                info = filter_info[i]
+                
+                # Convert itype and icalib to integers with validation
+                try:
+                    filter_itype = int(info['itype'])
+                    if validate_itype_icalib and filter_itype not in (FILTER_TYPE_ENERGY, FILTER_TYPE_PHOTON):
+                        print(f"Warning: Filter {i} has invalid itype={filter_itype}. "
+                              f"Valid values are 0 (Energy) or 1 (Photon). Using default 1.")
+                        filter_itype = FILTER_TYPE_PHOTON
+                except (ValueError, TypeError):
+                    if validate_itype_icalib:
+                        print(f"Warning: Filter {i} has non-numeric itype='{info['itype']}'. Using default 1.")
                     filter_itype = FILTER_TYPE_PHOTON
-            except (ValueError, TypeError):
-                if validate_itype_icalib:
-                    print(f"Warning: Filter {i} has non-numeric itype='{info['itype']}'. Using default 1.")
-                filter_itype = FILTER_TYPE_PHOTON
-            
-            try:
-                filter_icalib = int(info['icalib'])
-                if validate_itype_icalib and filter_icalib not in range(6):
-                    print(f"Warning: Filter {i} has invalid icalib={filter_icalib}. "
-                          f"Valid values are 0-5. Using default 0.")
+                
+                try:
+                    filter_icalib = int(info['icalib'])
+                    if validate_itype_icalib and filter_icalib not in range(6):
+                        print(f"Warning: Filter {i} has invalid icalib={filter_icalib}. "
+                              f"Valid values are 0-5. Using default 0.")
+                        filter_icalib = FILTER_CALIB_STANDARD
+                except (ValueError, TypeError):
+                    if validate_itype_icalib:
+                        print(f"Warning: Filter {i} has non-numeric icalib='{info['icalib']}'. Using default 0.")
                     filter_icalib = FILTER_CALIB_STANDARD
-            except (ValueError, TypeError):
-                if validate_itype_icalib:
-                    print(f"Warning: Filter {i} has non-numeric icalib='{info['icalib']}'. Using default 0.")
-                filter_icalib = FILTER_CALIB_STANDARD
-            
-            # Selected filters always have iused=1 and iselected=1
-            iused = 1
-            iselected = 1
-            
-            # Filter ID should be sequential starting from 0 for selected filters
-            # (matching select_all script behavior where id starts at 0)
-            filter_id = selected_count
-            
-            # Format the output line
-            # Format: iused iselected id name mid mag_lim mag_lim_err Nsigma mag_err_min SNR_min inoise Bsky D t Bdet Nread Rn Npx Npx_sig # itype icalib description
-            # Use display_description to avoid duplicating itype/icalib in the description field
-            output_description = info.get('display_description', info['description'])
-            output_line = (
-                f"{iused} {iselected} {filter_id} {info['name']} "
-                f"-1 {mag_lim} {mag_lim_err} {Nsigma} {mag_err_min} {SNR_min} "
-                f"{inoise} {Bsky} {D} {t} {Bdet} {Nread} {Rn} {Npx} {Npx_sig} "
-                f"# {filter_itype} {filter_icalib} {output_description}"
-            )
-            f.write(output_line + "\n")
-            selected_count += 1
+                
+                # Selected filters always have iused=1 and iselected=1
+                iused = 1
+                iselected = 1
+                
+                # Filter ID equals position in the full filter list
+                filter_id = info['id']
+                
+                # Format the output line
+                # Format: iused iselected id name mid mag_lim mag_lim_err Nsigma mag_err_min SNR_min inoise Bsky D t Bdet Nread Rn Npx Npx_sig # itype icalib description
+                # Use display_description to avoid duplicating itype/icalib in the description field
+                output_description = info.get('display_description', info['description'])
+                output_line = (
+                    f"{iused} {iselected} {filter_id} {info['name']} "
+                    f"-1 {mag_lim} {mag_lim_err} {Nsigma} {mag_err_min} {SNR_min} "
+                    f"{inoise} {Bsky} {D} {t} {Bdet} {Nread} {Rn} {Npx} {Npx_sig} "
+                    f"# {filter_itype} {filter_icalib} {output_description}"
+                )
+                f.write(output_line + "\n")
+                selected_count += 1
+        
+        print(f"Created filters_selected file: {output_selection_file} with {selected_count} selected filter(s) (iused=1, iselected=1)")
+    else:
+        # Count selected filters even if not writing file
+        selected_count = len(selected_filter_indices)
     
-    print(f"Created filters_selected file: {output_file} with {selected_count} selected filter(s) (iused=1, iselected=1)")
+    # Create combined filter file with transmission data if requested
+    if output_filters_file is not None:
+        print(f"\nCreating filter file with transmission data: {output_filters_file}")
+        with open(output_filters_file, 'w') as f:
+            # Write header
+            f.write("# itype icalib description\n")
+            
+            # Write selected filters with their transmission data
+            for i in selected_filter_indices:
+                info = filter_info[i]
+                filter_data = all_filter_data[i] if i < len(all_filter_data) else None
+                
+                # Get itype and icalib values
+                try:
+                    filter_itype = int(info['itype'])
+                except (ValueError, TypeError):
+                    filter_itype = FILTER_TYPE_PHOTON
+                
+                try:
+                    filter_icalib = int(info['icalib'])
+                except (ValueError, TypeError):
+                    filter_icalib = FILTER_CALIB_STANDARD
+                
+                # Reconstruct the filter header line in the format "# itype icalib description"
+                # Use the original filter line from filter_definitions, which already has the correct format
+                if i < len(filter_definitions):
+                    filter_header = filter_definitions[i]
+                else:
+                    # Fallback: reconstruct from info
+                    description = info.get('display_description', info['description'])
+                    filter_header = f"# {filter_itype} {filter_icalib} {description}"
+                
+                if filter_data and filter_data['data']:
+                    # Write filter header
+                    f.write(f"{filter_header}\n")
+                    
+                    # Write transmission data (wavelength transmission pairs)
+                    for data_line in filter_data['data']:
+                        f.write(f"{data_line}\n")
+                    
+                    # Add blank line between filters
+                    f.write("\n")
+                else:
+                    # Fallback: write header only if no data available
+                    print(f"Warning: No transmission data found for filter {i}, writing header only")
+                    f.write(f"{filter_header}\n\n")
+        
+        if len(filters_files) > 1:
+            print(f"Successfully created combined filter file: {output_filters_file} with {len(selected_filter_indices)} filter(s)")
+        else:
+            print(f"Successfully created filter file: {output_filters_file} with {len(selected_filter_indices)} selected filter(s)")
+    
+    # Convert filter_info list to astropy Table for easier programmatic use
+    # Create table with columns matching the displayed format
+    table_data = {
+        'ID': [info['id'] for info in filter_info],
+        'Name': [info['name'] for info in filter_info],
+        'Type': [info['itype_display'] for info in filter_info],
+        'Calib': [info['icalib_display'] for info in filter_info],
+        'Source': [info['source_file_name'] for info in filter_info],
+        'Description': [info['display_description'] for info in filter_info],
+        'is_selected': [info['is_selected'] for info in filter_info],
+        'itype': [info['itype'] for info in filter_info],
+        'icalib': [info['icalib'] for info in filter_info],
+        'source_file': [info['source_file'] for info in filter_info],
+        'display_description': [info['display_description'] for info in filter_info],
+    }
+    
+    filter_table = Table(table_data)
+    return filter_table
 
 def main():
     # Add parameter parsing
