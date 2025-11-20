@@ -92,6 +92,125 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 jupyter-notebook [observation/agn_host_decomp/demo.ipynb](observation/agn_host_decomp/demo.ipynb)
 
+### Python Interface
+
+BayeSED3 provides a high-level Python interface for programmatic SED analysis. The interface simplifies configuration, data preparation, and result access while maintaining full access to all BayeSED3 capabilities.
+
+**Quick Start Examples:**
+
+```python
+from bayesed import BayeSEDInterface, BayeSEDParams
+
+# Initialize interface
+bayesed = BayeSEDInterface(mpi_mode='auto')
+
+# Simple galaxy fitting
+params = BayeSEDParams.galaxy(
+    input_file='observation/test1/input_catalog.txt',
+    outdir='output',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+
+# Run analysis
+result = bayesed.run(params)
+
+# Load and access results
+results = bayesed.load_results('output')
+spectrum = results.get_bestfit_spectrum()
+evidence = results.get_evidence()
+posteriors = results.get_posterior_samples()
+```
+
+**AGN Fitting:**
+
+```python
+# AGN with all components (includes galaxy host)
+params = BayeSEDParams.agn(
+    input_file='observation/qso/input_catalog.txt',
+    outdir='output',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti',
+    agn_components=['dsk', 'blr', 'nlr', 'feii']  # Disk, BLR, NLR, FeII
+)
+
+bayesed.run(params)
+```
+
+**Working with Data Arrays:**
+
+```python
+import numpy as np
+from bayesed import BayeSEDInterface, BayeSEDParams
+from bayesed.data import SEDObservation
+
+# Create observation from arrays
+obs = SEDObservation(
+    ids=[1, 2, 3],
+    z_min=[0.1, 0.2, 0.3],
+    z_max=[0.2, 0.3, 0.4],
+    phot_filters=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0], [20.0, 30.0, 40.0]]),
+    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5], [2.0, 3.0, 4.0]]),
+    input_type=0  # Flux in μJy
+)
+
+# Convert to BayeSED input format
+input_file = obs.to_bayesed_input('observation/my_analysis', 'input_catalog')
+
+# Download filters from SVO
+bayesed = BayeSEDInterface()
+filter_files = bayesed.prepare_filters_from_svo(
+    svo_filter_ids=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    output_dir='observation/my_analysis/filters'
+)
+
+# Create and run analysis
+params = BayeSEDParams.galaxy(
+    input_file=input_file,
+    outdir='observation/my_analysis/output',
+    filters=filter_files['filters_file'],
+    filters_selected=filter_files['filters_selected_file']
+)
+bayesed.run(params)
+```
+
+**Custom Model Configuration:**
+
+```python
+from bayesed.model import SEDModel
+
+# Create galaxy instance and customize
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+galaxy.add_dust_emission()  # Add dust emission
+
+# Create AGN instance
+agn = SEDModel.create_agn(agn_components=['dsk', 'blr', 'nlr', 'feii'])
+agn.add_torus_fann(name='clumpy201410tor')  # Add torus
+
+# Assemble configuration
+params = BayeSEDParams(input_type=0, input_file='input.txt', outdir='output')
+params.add_galaxy(galaxy)
+params.add_agn(agn)
+bayesed.run(params)
+```
+
+For more detailed documentation and advanced usage, see [docs/BayeSED3.md](docs/BayeSED3.md).
+
+**Comprehensive Examples:**
+
+See [run_test2.py](run_test2.py) for comprehensive examples demonstrating the high-level Python interface, including:
+- Galaxy and AGN fitting with various model configurations
+- Advanced parameter settings and inference configuration
+- Result loading and visualization
+- Complete test cases recreating the original `run_test.py` examples
+
 ### Graphical User Interface (GUI)
 
 Launch the GUI:
@@ -104,9 +223,16 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 
 ## File Descriptions
 
-- `bayesed.py`: Main interface class for BayeSED3
+- `bayesed/`: Python package providing high-level interface to BayeSED3
+  - `core.py`: Main interface classes (`BayeSEDInterface`, `BayeSEDParams`, `BayeSEDResults`)
+  - `model.py`: Model configuration classes (`SEDModel`)
+  - `data.py`: Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
+  - `params.py`: Parameter configuration classes
+  - `utils.py`: Utility functions for data preparation and filter management
+  - `plotting.py`: Plotting functions for visualization
 - `bayesed_gui.py`: Graphical User Interface for BayeSED3
-- `run_test.py`: Script to run BayeSED3 examples
+- `run_test.py`: Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
+- `run_test2.py`: Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
 - `requirements.txt`: List of Python dependencies
 - `observation/test/`: Contains test data and configuration files
 - `bin/`: Contains BayeSED3 executables for different platforms
