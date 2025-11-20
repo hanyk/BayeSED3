@@ -10,35 +10,84 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-  - [Key Features](#key-features)
-- [Installation](#installation)
-- [System Compatibility](#system-compatibility)
-- [Input Data Format](#input-data-format)
-  - [File Structure Overview](#file-structure-overview)
-  - [Header Format](#header-format)
-  - [Data Column Organization](#data-column-organization)
-- [Detailed Input/Output Specifications](#detailed-inputoutput-specifications)
-  - [Input Requirements](#input-requirements)
-  - [Output Files](#output-files)
-- [Running BayeSED3](#running-bayesed3)
-  - [Command Line Interface](#command-line-interface)
-  - [Python Interface](#python-interface)
-  - [GUI Interface](#gui-interface)
-- [Output Files](#output-files)
-- [Examples](#examples)
-  - [SDSS Spectroscopic SED Analysis](#1-sdss-spectroscopic-sed-analysis)
-  - [Photometric SED Analysis](#2-photometric-sed-analysis)
-  - [Mock CSST Analysis](#3-mock-csst-analysis)
-  - [AGN Host Galaxy Decomposition](#4-agn-host-galaxy-decomposition)
-- [Best Practices](#best-practices)
-- [Error Handling and Troubleshooting](#error-handling-and-troubleshooting)
-- [References](#references)
-- [File Descriptions](#file-descriptions)
-- [Citation](#citation)
-- [More Information](#more-information)
-- [License](#license)
-- [Contributions](#contributions)
+- [BayeSED3: A code for Bayesian SED synthesis and analysis of galaxies and AGNs](#bayesed3-a-code-for-bayesian-sed-synthesis-and-analysis-of-galaxies-and-agns)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+    - [Key Features](#key-features)
+  - [Installation](#installation)
+  - [System Compatibility](#system-compatibility)
+  - [Input Data Format](#input-data-format)
+    - [File Structure Overview](#file-structure-overview)
+    - [Header Format](#header-format)
+    - [Data Column Organization](#data-column-organization)
+      - [Part 1: Basic Information](#part-1-basic-information)
+      - [Part 2: Photometric Data](#part-2-photometric-data)
+      - [Part 3: Additional Information](#part-3-additional-information)
+      - [Part 4: Spectroscopic Data](#part-4-spectroscopic-data)
+  - [Detailed Input/Output Specifications](#detailed-inputoutput-specifications)
+    - [Input Requirements](#input-requirements)
+    - [Output Files](#output-files)
+  - [Running BayeSED3](#running-bayesed3)
+    - [Command Line Interface](#command-line-interface)
+    - [Essential Options](#essential-options)
+    - [Model Selection Options](#model-selection-options)
+      - [Stellar Population Models](#stellar-population-models)
+      - [Dust Models](#dust-models)
+    - [AGN Component Options](#agn-component-options)
+    - [Emission Line Component Options](#emission-line-component-options)
+    - [Machine Learning Options](#machine-learning-options)
+    - [Output Control Options](#output-control-options)
+    - [Analysis Options](#analysis-options)
+    - [System Settings](#system-settings)
+    - [MultiNest Settings](#multinest-settings)
+    - [Data Quality Control](#data-quality-control)
+    - [Analysis Control](#analysis-control)
+    - [Prior Settings](#prior-settings)
+    - [Additional Options](#additional-options)
+    - [Python Interface](#python-interface)
+      - [Quick Start](#quick-start)
+      - [Common Use Cases](#common-use-cases)
+      - [Working with Data](#working-with-data)
+      - [Data Classes for Observation Management](#data-classes-for-observation-management)
+      - [Model Configuration](#model-configuration)
+      - [Filter Selection and Management](#filter-selection-and-management)
+      - [Advanced Configuration](#advanced-configuration)
+      - [Execution and Results](#execution-and-results)
+      - [Advanced: Low-Level Interface](#advanced-low-level-interface)
+    - [Low-Level Parameter Reference](#low-level-parameter-reference)
+    - [Low-Level Configuration Examples](#low-level-configuration-examples)
+      - [Extending Models Created with Builder Methods](#extending-models-created-with-builder-methods)
+    - [GUI Interface](#gui-interface)
+  - [Output Files](#output-files-1)
+  - [Examples](#examples)
+    - [1. SDSS Spectroscopic SED Analysis](#1-sdss-spectroscopic-sed-analysis)
+    - [2. Photometric SED Analysis](#2-photometric-sed-analysis)
+    - [3. Mock CSST Analysis](#3-mock-csst-analysis)
+    - [4. AGN Host Galaxy Decomposition](#4-agn-host-galaxy-decomposition)
+    - [GUI Interface](#gui-interface-1)
+    - [Key Configuration Notes](#key-configuration-notes)
+  - [Best Practices](#best-practices)
+    - [Python Interface Best Practices](#python-interface-best-practices)
+      - [Use Class-Based Instances for Model Components](#use-class-based-instances-for-model-components)
+      - [Let the Interface Auto-Assign igroup and id](#let-the-interface-auto-assign-igroup-and-id)
+      - [Use Method Chaining for Fluent Code](#use-method-chaining-for-fluent-code)
+      - [Validate Before Running](#validate-before-running)
+      - [Use Appropriate MPI Mode](#use-appropriate-mpi-mode)
+      - [Start Simple, Extend Gradually](#start-simple-extend-gradually)
+      - [Use Class-Based Instance Management for Complex Configurations](#use-class-based-instance-management-for-complex-configurations)
+      - [Use Numpy Arrays for Performance](#use-numpy-arrays-for-performance)
+      - [Save Configurations for Reproducibility](#save-configurations-for-reproducibility)
+      - [Test with Small Samples First](#test-with-small-samples-first)
+    - [General Best Practices](#general-best-practices)
+  - [Error Handling and Troubleshooting](#error-handling-and-troubleshooting)
+    - [Common Issues](#common-issues)
+    - [Diagnostic Tools](#diagnostic-tools)
+  - [References](#references)
+  - [File Descriptions](#file-descriptions)
+  - [Citation](#citation)
+  - [More Information](#more-information)
+  - [License](#license)
+  - [Contributions](#contributions)
 
 ## Overview
 
@@ -253,9 +302,13 @@ s_CSST_GU0      # wavelength dispersion
 
 3. Posterior Distribution Samples:
    - Files:
-     * *_sample_par.paramnames: Parameter definitions
-     * *_sample_par.txt: Sample values
+     * *_sample_par.paramnames: Parameter definitions (GetDist format)
+     * *_sample_par.txt: Sample values (GetDist format)
    - Format: GetDist compatible
+   - Contents:
+     * First columns: P_{posterior} (posterior weights) and loglike (log-likelihood)
+     * Remaining columns: Parameter samples aligned with paramnames
+   - Note: P_{posterior} and loglike are useful for weighted sampling with nested sampling methods
 
 
 ## Running BayeSED3
@@ -446,180 +499,617 @@ For a complete list of options, run:
 
 ### Python Interface
 
-The Python interface provides a programmatic way to configure and run BayeSED3 analyses.
+The Python interface provides a programmatic way to configure and run BayeSED3 analyses. Start with simple examples and progress to more complex configurations as needed.
+
+#### Quick Start
+
+The simplest way to run an analysis:
 
 ```python
 from bayesed import BayeSEDInterface, BayeSEDParams
 
 # Initialize interface
-bayesed = BayeSEDInterface(mpi_mode='1')
+bayesed = BayeSEDInterface(mpi_mode='1', np=4)
 
-# Configure parameters
-params = BayeSEDParams(
-    input_type=0,
-    input_file='data.txt',
-    outdir='output',
-    # Add model components as shown below...
+# Create parameters
+params = BayeSEDParams.galaxy(
+    input_file='observation/test1/input_catalog.txt',
+    outdir='observation/test1/output',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
 )
 
-# Run analysis
+# Validate and run
+check_result = bayesed.check_config(params)
+if check_result['valid']:
+    result = bayesed.run(params)
+    results = bayesed.load_results('observation/test1/output')
+    spectrum = results.get_bestfit_spectrum()
+    evidence = results.get_evidence()
+```
+
+#### Common Use Cases
+
+**Galaxy Fitting:**
+
+```python
+# Simple galaxy fitting
+params = BayeSEDParams.galaxy(
+    input_file='input.txt',
+    outdir='output',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
 bayesed.run(params)
 ```
 
-#### Available Model Components
-
-##### 1. Stellar Population Models
-
-###### Simple Stellar Population (SSP)
+**AGN Fitting:**
 ```python
+# AGN with all components (includes galaxy host)
+params = BayeSEDParams.agn(
+    input_file='input.txt',
+    outdir='output',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',  # Galaxy SSP model
+    sfh_type='exponential',  # Galaxy star formation history
+    dal_law='calzetti',  # Galaxy dust attenuation law
+    agn_components=['dsk', 'blr', 'nlr', 'feii']  # AGN components
+)
+bayesed.run(params)
+```
+
+**Custom Galaxy Model:**
+```python
+from bayesed.model import SEDModel
+
+# Create galaxy instance and customize
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+galaxy.add_dust_emission()  # Add dust emission
+
+# Add to parameters
+params = BayeSEDParams(input_type=0, input_file='input.txt', outdir='output')
+params.add_galaxy(galaxy)
+bayesed.run(params)
+```
+
+#### Working with Data
+
+**From Data Arrays to Analysis:**
+
+```python
+import numpy as np
+from bayesed import BayeSEDInterface, BayeSEDParams
+from bayesed.data import SEDObservation
+from bayesed.model import SEDModel
+from bayesed.utils import create_filters_from_svo
+import os
+
+# Step 1: Create observation data
+obs = SEDObservation(
+    ids=[1, 2, 3],
+    z_min=[0.1, 0.2, 0.3],
+    z_max=[0.2, 0.3, 0.4],
+    phot_filters=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0], [20.0, 30.0, 40.0]]),
+    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5], [2.0, 3.0, 4.0]]),
+    input_type=0  # Flux in μJy
+)
+obs.validate()
+
+# Step 2: Create input catalog file
+os.makedirs('observation/my_analysis', exist_ok=True)
+input_file = obs.to_bayesed_input('observation/my_analysis', 'input_catalog')
+
+# Step 3: Download filters (optional)
+filter_dir = 'observation/my_analysis/filters'
+os.makedirs(filter_dir, exist_ok=True)
+create_filters_from_svo(
+    svo_filterIDs=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    filters_file=os.path.join(filter_dir, 'filters.txt'),
+    filters_selected_file=os.path.join(filter_dir, 'filters_selected.txt')
+)
+
+# Step 4: Create model using class-based approach (recommended)
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+
+# Step 5: Create parameters and add observation/model
 params = BayeSEDParams(
+    input_type=0,
+    input_file=input_file,
+    outdir='observation/my_analysis/output',
+    filters=os.path.join(filter_dir, 'filters.txt'),
+    filters_selected=os.path.join(filter_dir, 'filters_selected.txt')
+)
+params.add_galaxy(galaxy)
+
+# Step 6: Run analysis
+bayesed = BayeSEDInterface(mpi_mode='auto')
+result = bayesed.run(params)
+```
+
+```python
+import numpy as np
+from bayesed import BayeSEDInterface, BayeSEDParams
+
+bayesed = BayeSEDInterface(mpi_mode='auto')
+
+# Create input catalog from arrays
+input_file = bayesed.prepare_input_catalog(
+    output_path='observation/my_analysis/input_catalog.txt',
+    catalog_name='my_analysis',
+    ids=[1, 2, 3],
+    z_min=[0.1, 0.2, 0.3],
+    z_max=[0.2, 0.3, 0.4],
+    phot_band_names=['u', 'g', 'r'],
+    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0], [20.0, 30.0, 40.0]]),
+    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5], [2.0, 3.0, 4.0]]),
+    phot_type='fnu'
+)
+
+# Download filters from SVO
+filter_files = bayesed.prepare_filters_from_svo(
+    svo_filter_ids=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    output_dir='observation/my_analysis/filters'
+)
+
+# Create parameters with filters and run
+params = BayeSEDParams.galaxy(
+    input_file=input_file,
+    outdir='observation/my_analysis/output',
+    filters=filter_files['filters_file'],
+    filters_selected=filter_files['filters_selected_file']
+)
+bayesed.run(params)
+```
+
+**Select Specific Filters:**
+```python
+# If you want to use only some filters from the downloaded set
+result = bayesed.prepare_filters_selected(
+    filters_file=filter_files['filters_file'],
+    selected_indices=[0, 1],  # Use only first 2 filters (u, g)
+    output_selection_file='observation/my_analysis/filters/filters_selected_2band.txt'
+)
+
+params = BayeSEDParams.galaxy(
+    input_file=input_file,
+    outdir='observation/my_analysis/output',
+    filters=filter_files['filters_file'],
+    filters_selected=result['selection_file']  # Use custom selection
+)
+```
+
+**Using Data Classes:**
+
+Spectral data accepts arrays in different shapes depending on the number of objects:
+
+```python
+# Using SEDObservation (recommended)
+from bayesed.data import SEDObservation
+
+# Single object, single band - 1D array (Nw,)
+obs1 = SEDObservation(
+    ids=[1],
+    z_min=[0.1],
+    z_max=[0.2],
+    spec_band_names=['B'],
+    spec_wavelengths=[np.array([4000., 4100., 4200.])],  # List with 1D array
+    spec_fluxes=[np.array([10., 12., 11.])],
+    spec_errors=[np.array([1., 1.2, 1.1])],
+    spec_lsf_sigma=[np.array([0.1, 0.1, 0.1])]
+)
+input_file1 = obs1.to_bayesed_input('observation/test_spec_1d', 'input_catalog')
+
+# Multiple objects, single band - 2D array (N, Nw)
+obs2 = SEDObservation(
+    ids=[1, 2],
+    z_min=[0.1, 0.2],
+    z_max=[0.2, 0.3],
+    spec_band_names=['B'],
+    spec_wavelengths=[np.array([[4000., 4100.], [4000., 4100.]])],  # List with 2D array
+    spec_fluxes=[np.array([[10., 12.], [11., 13.]])],
+    spec_errors=[np.array([[1., 1.2], [1.1, 1.3]])],
+    spec_lsf_sigma=[np.array([[0.1, 0.1], [0.1, 0.1]])]
+)
+input_file2 = obs2.to_bayesed_input('observation/test_spec_2d', 'input_catalog')
+
+# Or using prepare_input_catalog()
+input_file3 = bayesed.prepare_input_catalog(
+    output_path='observation/test_spec/input_catalog.txt',
+    catalog_name='test_spec',
+    ids=[1, 2],
+    z_min=[0.1, 0.2],
+    z_max=[0.2, 0.3],
+    spec_band_names=['B'],
+    spec_wavelengths=[np.array([[4000., 4100.], [4000., 4100.]])],
+    spec_fluxes=[np.array([[10., 12.], [11., 13.]])],
+    spec_errors=[np.array([[1., 1.2], [1.1, 1.3]])],
+    spec_lsf_sigma=[np.array([[0.1, 0.1], [0.1, 0.1]])]
+)
+```
+
+**Performance Tips:**
+- Use numpy arrays when possible for best performance (fast path optimization)
+- The interface automatically converts diverse formats to numpy arrays early in processing
+- Vectorized numpy operations are used internally for efficient data transformations
+- No performance penalty for using convenient formats - conversion happens once at the start
+
+#### Data Classes for Observation Management
+
+The `bayesed.data` module provides high-level classes for handling observation data:
+
+```python
+from bayesed.data import SEDObservation, PhotometryObservation, SpectrumObservation
+import numpy as np
+
+# Unified observation class (handles both photometry and spectroscopy)
+obs = SEDObservation(
+    ids=[1, 2, 3],
+    z_min=[0.1, 0.2, 0.3],
+    z_max=[0.2, 0.3, 0.4],
+    phot_filters=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0], [20.0, 30.0, 40.0]]),
+    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5], [2.0, 3.0, 4.0]]),
+    spec_band_names=['B', 'R'],
+    spec_wavelengths=[np.array([[4000., 4100.], [4000., 4100.], [4000., 4100.]]),
+                      np.array([[6000., 6100.], [6000., 6100.], [6000., 6100.]])],
+    spec_fluxes=[np.array([[10., 12.], [11., 13.], [12., 14.]]),
+                 np.array([[20., 22.], [21., 23.], [22., 24.]])],
+    spec_errors=[np.array([[1., 1.2], [1.1, 1.3], [1.2, 1.4]]),
+                 np.array([[2., 2.2], [2.1, 2.3], [2.2, 2.4]])],
+    spec_lsf_sigma=[np.array([[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]]),
+                    np.array([[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]])],
+    input_type=0  # Flux in μJy
+)
+
+# Validate data
+obs.validate()
+
+# Convert to BayeSED input file format
+input_file = obs.to_bayesed_input('observation/my_analysis', 'input_catalog')
+
+# Convenience classes for single data types
+phot_obs = PhotometryObservation(
+    ids=[1, 2],
+    z_min=[0.1, 0.2],
+    z_max=[0.2, 0.3],
+    phot_filters=['u', 'g', 'r'],
+    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0]]),
+    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5]])
+)
+
+spec_obs = SpectrumObservation(
+    ids=[1],
+    z_min=[0.1],
+    z_max=[0.2],
+    spec_band_names=['B'],
+    spec_wavelengths=[np.array([4000., 4100., 4200.])],
+    spec_fluxes=[np.array([10., 12., 11.])],
+    spec_errors=[np.array([1., 1.2, 1.1])],
+    spec_lsf_sigma=[np.array([0.1, 0.1, 0.1])]
+)
+```
+
+#### Model Configuration
+
+Configure physical models using `SEDModel`:
+
+```python
+from bayesed.model import SEDModel
+
+# Create galaxy instance
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+galaxy.add_dust_emission()  # Add dust emission
+
+# Create AGN instance
+agn = SEDModel.create_agn(agn_components=['dsk', 'blr', 'nlr', 'feii'])
+agn.add_torus_fann(name='clumpy201410tor')  # Add torus
+
+# Add to parameters
+params = BayeSEDParams(input_type=0, input_file='input.txt', outdir='output')
+params.add_galaxy(galaxy)
+params.add_agn(agn)
+```
+
+**Available Model Options:**
+
+- **SSP Models**: `bc2003_hr_stelib_chab_neb_2000r`, `bc2003_lr_BaSeL_chab`, etc.
+- **SFH Types**: `'exponential'`, `'delayed'`, `'beta'`, `'lognormal'`, `'nonparametric'`, etc.
+- **Dust Laws**: `'calzetti'`, `'milky_way'`, `'star_forming'`, `'smc'`, `'lmc'`, etc.
+- **AGN Components**: `'dsk'` (disk), `'blr'` (broad lines), `'nlr'` (narrow lines), `'feii'` (FeII), `'tor'` (torus)
+
+**Note:** `BayeSEDParams.agn()` includes both galaxy host (SSP, SFH, DAL) and AGN components. You can customize the galaxy parameters:
+
+```python
+# Customize galaxy host in AGN fitting
+params = BayeSEDParams.agn(
+    input_file='input.txt',
+    ssp_model='bc2003_lr_BaSeL_chab',  # Custom SSP for galaxy host
+    sfh_type='delayed',  # Custom SFH for galaxy host
+    dal_law='smc',  # Custom dust law for galaxy host
+    agn_components=['dsk', 'blr', 'nlr', 'feii']
+)
+```
+
+#### Filter Selection and Management
+
+**Download Filters from SVO:**
+```python
+bayesed = BayeSEDInterface()
+
+# Download filters and create selection file
+filter_files = bayesed.prepare_filters_from_svo(
+    svo_filter_ids=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i', 'SLOAN/SDSS.z'],
+    output_dir='observation/filters'
+)
+
+# Use with builder methods
+params = BayeSEDParams.galaxy(
+    input_file='input.txt',
+    outdir='output',
+    filters=filter_files['filters_file'],
+    filters_selected=filter_files['filters_selected_file']
+)
+```
+
+**Select Specific Filters from Existing File:**
+```python
+# Create selection file with only specific filters
+result = bayesed.prepare_filters_selected(
+    filters_file='observation/filters/filters.txt',
+    selected_indices=[0, 1, 2],  # Select first 3 filters (u, g, r)
+    output_selection_file='observation/filters/filters_selected_3band.txt'
+)
+
+# Use the selection file
+params = BayeSEDParams.galaxy(
+    input_file='input.txt',
+    outdir='output',
+    filters='observation/filters/filters.txt',
+    filters_selected=result['selection_file']
+)
+```
+
+**Combine Filters from Multiple Files:**
+```python
+# Combine filters from multiple files and select specific ones
+result = bayesed.prepare_filters_selected(
+    filters_file=['filters_optical.txt', 'filters_nir.txt'],
+    output_filters_file='filters_combined.txt',  # Create new combined file
+    output_selection_file='filters_selected.txt',
+    selected_indices=[0, 2, 4, 10, 15]  # Select specific filters from combined list
+)
+
+# Use combined filters
+params = BayeSEDParams.galaxy(
+    input_file='input.txt',
+    outdir='output',
+    filters=result['filters_file'],
+    filters_selected=result['selection_file']
+)
+```
+
+**Using Filters with AGN Fitting:**
+```python
+# Download filters
+filter_files = bayesed.prepare_filters_from_svo(
+    svo_filter_ids=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
+    output_dir='observation/filters'
+)
+
+# Use with AGN fitting
+params = BayeSEDParams.agn(
+    input_file='input.txt',
+    outdir='output',
+    filters=filter_files['filters_file'],
+    filters_selected=filter_files['filters_selected_file'],
+    agn_components=['dsk', 'blr']
+)
+```
+
+#### Advanced Configuration
+
+**Inference Settings:**
+```python
+params.configure_multinest(nlive=500, tol=0.5, efr=0.1)
+```
+
+**MPI Mode:**
+```python
+# Auto-select optimal mode
+bayesed = BayeSEDInterface(mpi_mode='auto')
+# Or specify: '1' for complex models, 'n' for large catalogs
+```
+
+
+#### Execution and Results
+
+**Run Analysis:**
+```python
+bayesed = BayeSEDInterface(mpi_mode='1', np=4)
+result = bayesed.run(params)
+```
+
+**Load Results:**
+```python
+results = bayesed.load_results('output')
+
+# Get best-fit spectrum
+spectrum = results.get_bestfit_spectrum()
+
+# Get posterior samples (includes weights and log-likelihood for weighted sampling)
+posteriors = results.get_posterior_samples()
+# Returns dict with:
+# - 'paramnames': list of parameter names
+# - 'samples': array (N_samples, N_params) - parameter samples aligned with paramnames
+# - 'posterior_weights': array (optional) - P_{posterior} weights for nested sampling
+# - 'loglike': array (optional) - log-likelihood values
+
+# Access data
+paramnames = posteriors['paramnames']
+samples = posteriors['samples']  # Shape: (N_samples, N_params)
+if 'posterior_weights' in posteriors:
+    weights = posteriors['posterior_weights']  # For weighted sampling
+if 'loglike' in posteriors:
+    loglike = posteriors['loglike']  # Log-likelihood values
+
+# Get evidence
+evidence = results.get_evidence()
+```
+
+**Working with Multiple Model Configurations:**
+
+When you run the same galaxy sample with different model settings, you get multiple HDF5 files (one per model configuration) in the output directory:
+
+```python
+results = bayesed.load_results('output')
+
+# List all available model configurations
+configs = results.list_model_configurations()
+# Returns dict: {'catalog_model1': 'path/to/file1.hdf5', 'catalog_model2': 'path/to/file2.hdf5', ...}
+print(f"Available model configurations: {list(configs.keys())}")
+
+# By default, results uses the first HDF5 file found
+# To access a specific model configuration, specify the hdf5_file parameter:
+params_table = results.load_hdf5_results(hdf5_file=configs['catalog_model2'])
+evidence = results.get_evidence()  # Uses default hdf5_file (first one)
+
+# To work with a specific model configuration, you can:
+# 1. List configurations and their file paths
+for model_name, hdf5_path in configs.items():
+    print(f"Model: {model_name}")
+    print(f"  File: {hdf5_path}")
+    
+# 2. Load results from a specific HDF5 file
+params_table_model1 = results.load_hdf5_results(hdf5_file=configs['catalog_model1'])
+params_table_model2 = results.load_hdf5_results(hdf5_file=configs['catalog_model2'])
+
+# 3. Compare evidence between models
+evidence_model1 = results.get_evidence()  # Default (first file)
+# To get evidence from a specific model, you'd need to temporarily change hdf5_file
+# or create a new BayeSEDResults instance pointing to that file
+```
+
+**What's in `results` when multiple models exist:**
+
+```python
+results = bayesed.load_results('output')
+
+# Results object contains:
+# - results.catalog_name: Catalog name (auto-detected or specified)
+# - results.hdf5_files: List of all HDF5 files found
+# - results.hdf5_file: Default HDF5 file (first one found, scoped to catalog_name)
+# - results.list_model_configurations(): All model configurations for the catalog
+# - results.list_objects(): All object IDs (same across all model configurations)
+
+# All methods use results.hdf5_file by default, but you can override:
+# - load_hdf5_results(hdf5_file=...) to load from a specific file
+# - get_evidence() uses the default hdf5_file
+# - get_bestfit_spectrum() and get_posterior_samples() use object_id to find files
+```
+
+**Working with Specific Objects:**
+```python
+# Load results for a specific object
+results = bayesed.load_results('output', object_id='0')
+
+# All methods automatically use the specified object_id
+spectrum = results.get_bestfit_spectrum()  # For object '0'
+posteriors = results.get_posterior_samples()  # For object '0'
+evidence = results.get_evidence(object_id='0')
+```
+
+
+
+
+#### Advanced: Low-Level Interface
+
+For advanced users who need direct parameter control or exact CLI replication:
+
+```python
+from bayesed import BayeSEDParams
+from bayesed.params import SSPParams, SFHParams, DALParams
+
+# Low-level: Direct parameter construction
+params = BayeSEDParams(
+    input_type=0,
+    input_file='input.txt',
+    outdir='output',
     ssp=[SSPParams(
         igroup=0,
         id=0,
-        name='bc2003_hr_stelib_chab_neb_300r',  # Model name
-        iscalable=1,  # Scalable parameter
-        i1=1  # Additional parameters
-    )]
-)
-```
-
-Available SSP models:
-- BC03 (Bruzual & Charlot 2003)
-  - High resolution (hr)
-  - Low resolution (lr)
-  - Different stellar libraries: STELIB, BaSeL
-  - IMF options: Chabrier, Salpeter
-
-###### Star Formation History (SFH)
-```python
-params = BayeSEDParams(
+        name='bc2003_hr_stelib_chab_neb_2000r',
+        iscalable=1,
+        k=1,
+        i1=1
+    )],
     sfh=[SFHParams(
         id=0,
-        itype_sfh=2,  # SFH type
-        itype_ceh=1   # Chemical evolution history type
-    )]
-)
-```
-
-SFH Types:
-- 0: Instantaneous burst
-- 1: Constant
-- 2: Exponentially declining
-- 3: Exponentially increasing
-- 4: Single burst of length tau
-- 5: Delayed
-- 6: Beta
-- 7: Lognormal
-- 8: Double power-law
-- 9: Nonparametric
-
-##### 2. Dust Models
-
-###### Dust Attenuation Law (DAL)
-```python
-params = BayeSEDParams(
+        itype_sfh=2,
+        itype_ceh=0
+    )],
     dal=[DALParams(
         id=0,
-        ilaw=8  # Attenuation law type
+        ilaw=8,
+        con_eml_tot=2
     )]
 )
 ```
 
-Available laws:
-- 0: SED model with L_dust normalization
-- 1: Starburst (Calzetti+2000, FAST)
-- 2: Milky Way (Cardelli+1989, FAST)
-- 3: Star-forming (Salim+2018)
-- 4: MW (Allen+76, hyperz)
-- 5: MW (Fitzpatrick+86, hyperz)
-- 6: LMC (Fitzpatrick+86, hyperz)
-- 7: SMC (Fitzpatrick+86, hyperz)
-- 8: SB (Calzetti2000, hyperz)
-- 9: Star-forming (Reddy+2015)
+### Low-Level Parameter Reference
 
-###### Dust Emission
+For direct parameter construction (advanced users only):
+
 ```python
+from bayesed import BayeSEDParams
+from bayesed.params import SSPParams, SFHParams, DALParams
+
 params = BayeSEDParams(
-    greybody=[GreybodyParams(
-        igroup=0,
-        id=1,
-        name='gb',
-        iscalable=-2
-    )]
+    input_type=0,
+    input_file='input.txt',
+    outdir='output',
+    ssp=[SSPParams(igroup=0, id=0, name='bc2003_hr_stelib_chab_neb_2000r', iscalable=1)],
+    sfh=[SFHParams(id=0, itype_sfh=2)],
+    dal=[DALParams(id=0, ilaw=8)]
 )
 ```
 
-##### 3. AGN Components
+**Available Model Options:**
 
-###### Accretion Disk (Big Blue Bump)
-```python
-params = BayeSEDParams(
-    big_blue_bump=[BigBlueBumpParams(
-        igroup=1,
-        id=1,
-        name='bbb',
-        iscalable=1,
-        w_min=0.1,
-        w_max=10,
-        Nw=1000
-    )]
-)
-```
+**SSP Models:**
+- BC03 (Bruzual & Charlot 2003): `bc2003_hr_stelib_chab_neb_2000r`, `bc2003_lr_BaSeL_chab`, etc.
+- Libraries: STELIB, BaSeL
+- IMF: Chabrier, Salpeter
 
-###### Broad Line Region (BLR)
-```python
-params = BayeSEDParams(
-    lines1=[LineParams(
-        igroup=2,
-        id=2,
-        name='BLR',
-        iscalable=1,
-        file='lines_BLR.txt',
-        R=300,
-        Nkin=3
-    )]
-)
-```
+**SFH Types:**
+- `'instantaneous'`, `'constant'`, `'exponential'`, `'delayed'`, `'beta'`, `'lognormal'`, `'double_powerlaw'`, `'nonparametric'`
 
-###### Narrow Line Region (NLR)
-```python
-params = BayeSEDParams(
-    lines1=[LineParams(
-        igroup=4,
-        id=4,
-        name='NLR',
-        iscalable=1,
-        file='lines_NLR.txt',
-        R=2000,
-        Nkin=2
-    )]
-)
-```
+**Dust Attenuation Laws:**
+- `'calzetti'` (Calzetti2000), `'milky_way'`, `'star_forming'`, `'smc'`, `'lmc'`, etc.
 
-###### FeII Emission
-```python
-params = BayeSEDParams(
-    aknn=[AKNNParams(
-        igroup=3,
-        id=3,
-        name='FeII',
-        iscalable=1
-    )]
-)
-```
+**AGN Components:**
+- `'dsk'` (accretion disk), `'blr'` (broad lines), `'nlr'` (narrow lines), `'feii'` (FeII), `'tor'` (torus)
 
-##### 4. Additional Components
+For detailed parameter options, see the [API Reference](#) or use `help(SEDModel.create_galaxy)`.
 
-###### IGM Absorption
-```python
-params = BayeSEDParams(
-    IGM=1  # 0:None, 1:Madau (1995, default), 2:Meiksin (2006), 3:hyperz, 4:FSPS, 5:Inoue+2014
-)
-```
+### Low-Level Configuration Examples
 
-#### Complete Configuration Examples
+These examples show how to construct configurations using low-level parameter classes directly. Use these when you need exact control over all parameters.
 
-1. Basic Galaxy Configuration:
+**Example 1: Basic Galaxy Configuration (Low-Level)**
 ```python
 params = BayeSEDParams(
     input_type=0,
@@ -634,7 +1124,7 @@ params = BayeSEDParams(
 )
 ```
 
-2. AGN Configuration:
+**Example 2: AGN Configuration (Low-Level)**
 ```python
 params = BayeSEDParams(
     input_type=0,
@@ -663,8 +1153,11 @@ params = BayeSEDParams(
 )
 ```
 
-3. Complex Multi-component Configuration:
+**Example 3: Complex Multi-component Configuration (Low-Level)**
+
 ```python
+from bayesed.params import SSPParams, SFHParams, DALParams, GreybodyParams, FANNParams, MultiNestParams
+
 params = BayeSEDParams(
     input_type=0,
     input_file='combined.txt',
@@ -697,6 +1190,162 @@ params = BayeSEDParams(
 )
 ```
 
+**High-Level Equivalent (Recommended):**
+```python
+from bayesed.model import SEDModel
+from bayesed.params import MultiNestParams
+
+# Create galaxy with dust emission
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_lr_BaSeL_chab',
+    sfh_type='exponential',
+    dal_law='smc'  # SMC extinction
+)
+galaxy.add_dust_emission()
+
+# Assemble configuration
+params = BayeSEDParams(input_type=0, input_file='combined.txt')
+params.add_galaxy(galaxy)
+
+# Create AGN with torus
+agn = SEDModel.create_agn()
+agn.add_torus_fann(name='clumpy201410tor')
+params.add_agn(agn)  # Auto-assigns IDs
+params.multinest = MultiNestParams(nlive=400, efr=0.1, updInt=1000, fb=2)
+```
+
+**Alternative using builder methods:**
+```python
+params = BayeSEDParams.galaxy('combined.txt', ssp_model='bc2003_lr_BaSeL_chab', dal_law='smc')
+# Then add AGN components...
+```
+
+#### Extending Models Created with Builder Methods
+
+After creating a model with `BayeSEDParams.galaxy()` or `agn()`, you can extend it in several ways:
+
+**Method 1: Add Additional Components Using `add_galaxy()` and `add_agn()`**
+
+```python
+from bayesed.model import SEDModel
+
+# Start with a simple galaxy model
+params = BayeSEDParams.galaxy(
+    input_file='input.txt',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+
+# Add dust emission by creating a new galaxy instance and adding it
+# (or modify the existing one by accessing params.greybody directly)
+galaxy_with_dust = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+galaxy_with_dust.add_dust_emission()
+params.add_galaxy(galaxy_with_dust)
+
+# Or add AGN components
+agn = SEDModel.create_agn(agn_components=['dsk', 'blr'])
+params.add_agn(agn)  # Auto-assigns IDs
+```
+
+**Method 2: Access and Modify Parameters Directly**
+
+```python
+# Start with builder method
+params = BayeSEDParams.galaxy('input.txt', dal_law='calzetti')
+
+# Add dust emission directly to the existing galaxy
+from bayesed.params import GreybodyParams
+params.greybody.append(GreybodyParams(
+    igroup=params.ssp[0].igroup,  # Same igroup as galaxy
+    id=params.ssp[0].id + 1,      # Next ID
+    name='gb',
+    iscalable=-2,
+    w_min=1.0,
+    w_max=1000.0,
+    Nw=200
+))
+
+# Or modify existing parameters
+params.dal[0].ilaw = 7  # Change dust law from 8 to 7
+```
+
+**Method 3: Create New Instances and Extend Before Adding**
+
+```python
+from bayesed.model import SEDModel
+
+# Create galaxy instance and extend it before creating params
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti'
+)
+galaxy.add_dust_emission()  # Add dust emission to instance
+
+# Now create params and add the extended galaxy
+params = BayeSEDParams(input_type=0, input_file='input.txt')
+params.add_galaxy(galaxy)
+
+# Add AGN with torus
+agn = SEDModel.create_agn()
+agn.add_torus_fann(name='clumpy201410tor')
+params.add_agn(agn)  # Auto-assigns IDs
+```
+
+**Method 4: Start with Builder, Then Add More Components**
+
+```python
+# Start with AGN builder (includes galaxy + AGN components)
+params = BayeSEDParams.agn(
+    input_file='input.txt',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',  # Galaxy host SSP
+    sfh_type='exponential',  # Galaxy host SFH
+    dal_law='calzetti',  # Galaxy host dust law
+    agn_components=['dsk', 'blr']  # Start with disk and BLR
+)
+
+# Add more AGN components by creating a new AGN instance
+# Note: For adding to existing AGN, create a new instance and add it
+agn2 = SEDModel.create_agn(
+    agn_components=['nlr', 'feii']  # Add NLR and FeII
+)
+params.add_agn(agn2)  # Auto-assigns IDs
+# Or add torus to existing AGN by accessing params directly
+from bayesed.params import FANNParams
+params.fann.append(FANNParams(
+    igroup=params.big_blue_bump[0].igroup,
+    id=params.big_blue_bump[0].id + 3,
+    name='clumpy201410tor',
+    iscalable=1
+))
+```
+
+**Recommended Approach:**
+
+For simple extensions, use **Method 3** (create instances, extend them, then add):
+- Clean and maintainable
+- Uses the same logic as builder methods
+- Easy to understand and modify
+
+For quick additions, use **Method 2** (direct parameter access):
+- Fastest for simple additions
+- Requires knowledge of parameter structure
+- Less type-safe
+
+**Important Note:**
+- `BayeSEDParams.galaxy()` and `agn()` return `BayeSEDParams` instances, not `GalaxyInstance` or `AGNInstance` objects
+- The instances are decomposed into parameter lists (ssp, sfh, dal, etc.) when added via `add_galaxy()`/`add_agn()`
+- To extend models created with builder methods:
+  1. **Best**: Create new instances, extend them, then add to params (Method 3)
+  2. **Quick**: Access and modify parameters directly (Method 2)
+  3. **Complex**: Create additional instances and add them (Method 1)
+- If you need to modify components before adding, use `SEDModel.create_galaxy()`/`create_agn()` directly instead of builder methods
+
 ### GUI Interface
 ```bash
 python bayesed_gui.py
@@ -709,7 +1358,8 @@ python bayesed_gui.py
    - Contains best-fit parameters and model spectra
 
 2. Parameter samples:
-   - Posterior distributions
+   - Posterior distributions with weights (P_{posterior}) and log-likelihood values
+   - Weighted sampling support for nested sampling methods
    - Corner plots
    - Chain statistics
 
@@ -807,6 +1457,190 @@ The graphical user interface provides an intuitive way to set up complex SED ana
 
 ## Best Practices
 
+### Python Interface Best Practices
+
+#### Use Class-Based Instances for Model Components
+
+Prefer class-based instances (`SEDModel.GalaxyInstance` and `SEDModel.AGNInstance`) over manual parameter construction. Note that `BayeSEDParams.galaxy()` and `agn()` internally use `SEDModel` methods, ensuring consistency:
+
+```python
+from bayesed.model import SEDModel
+
+# Good: Use builder methods (recommended for simple configurations)
+# Internally uses SEDModel.create_galaxy() and params.add_galaxy()
+params = BayeSEDParams.galaxy('input.txt', sfh_type='exponential', dal_law='calzetti')
+
+# Good: Use class-based instances directly (recommended for complex configurations)
+# Same underlying logic as builder methods - both use SEDModel.create_galaxy()
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r', 
+    sfh_type='exponential', 
+    dal_law='calzetti'
+)
+galaxy.add_dust_emission()  # Add components to instance
+params.add_galaxy(galaxy)
+
+# Avoid: Manual construction (error-prone, bypasses validation)
+params.ssp.append(SSPParams(igroup=0, id=0, name='...', ...))
+params.sfh.append(SFHParams(id=0, itype_sfh=2, ...))
+params.dal.append(DALParams(id=0, ilaw=8, ...))
+```
+
+Both `BayeSEDParams.galaxy()` and `SEDModel.create_galaxy()` produce identical results. Choose based on convenience - builder methods for quick setup, class-based instances for complex configurations.
+
+#### Let the Interface Auto-Assign igroup and id
+
+The interface automatically assigns `igroup` and `id` values when using builder methods or class-based instances. Only specify them when you need exact control:
+
+```python
+from bayesed.model import SEDModel
+
+# Good: Auto-assignment with builder methods (recommended)
+params = BayeSEDParams.galaxy('input.txt')  # Auto-assigns IDs starting from 0
+
+# Good: Auto-assignment with class instances
+galaxy = SEDModel.create_galaxy()
+params.add_galaxy(galaxy)  # Auto-assigns IDs to avoid conflicts
+```
+
+#### Use Method Chaining for Fluent Code
+
+Builder methods and configuration methods support method chaining:
+
+```python
+from bayesed.model import SEDModel
+
+# Good: Method chaining with builder methods
+params = BayeSEDParams.galaxy('input.txt').configure_multinest(nlive=400)
+
+# Good: Method chaining with class instances
+galaxy = SEDModel.create_galaxy().add_dust_emission()
+params = BayeSEDParams(input_type=0, input_file='input.txt')
+params.add_galaxy(galaxy).configure_multinest(nlive=400)
+```
+
+#### Validate Before Running
+
+Always validate your configuration before running:
+
+```python
+# Validate configuration
+try:
+    params.validate(check_files=True)
+except BayeSEDValidationError as e:
+    print(f"Configuration errors: {e}")
+    # Fix errors before running
+```
+
+#### Use Appropriate MPI Mode
+
+Choose MPI mode based on your use case:
+
+```python
+# Mode 1: Complex models or small samples (default)
+bayesed = BayeSEDInterface(mpi_mode='1', np=4)
+
+# Mode n: Large catalogues with simple models
+# Note: Requires Ncpu <= Nobj + 1
+bayesed = BayeSEDInterface(mpi_mode='n', np=4)
+```
+
+#### Start Simple, Extend Gradually
+
+Start with builder methods, then add components incrementally:
+
+```python
+from bayesed.model import SEDModel
+from bayesed.params import SysErrParams
+
+# Step 1: Start simple
+params = BayeSEDParams.galaxy('input.txt')
+
+# Step 2: Add AGN components using SEDModel.create_agn()
+agn = SEDModel.create_agn(agn_components=['dsk', 'blr'])
+agn.add_disk_bbb()  # Or use add_disk_agn(), add_disk_fann(), add_disk_aknn()
+params.add_agn(agn)  # Auto-assigns IDs
+
+# Step 3: Customize advanced parameters
+params.configure_multinest(nlive=1000, efr=0.3)
+params.sys_err_obs = SysErrParams(iprior_type=3, min=0.01, max=0.1)
+```
+
+#### Use Class-Based Instance Management for Complex Configurations
+
+For complex configurations (especially when recreating existing test scripts), use `SEDModel.GalaxyInstance` and `SEDModel.AGNInstance` classes for cleaner, more maintainable code:
+
+```python
+# Class-based approach (recommended for complex configurations)
+from bayesed.model import SEDModel
+
+# Create galaxy instance with all parameters
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti',
+    ssp_i1=1,  # All SSP parameters supported
+    sfh_itype_ceh=1  # SFH parameters supported
+)
+galaxy.add_dust_emission()  # Add dust emission if needed
+params.add_galaxy(galaxy)
+
+# Create AGN instance with all components
+agn = SEDModel.create_agn(
+    agn_components=['bbb', 'blr', 'nlr', 'feii', 'tor']  # All components including torus
+)
+params.add_agn(agn)  # Auto-assigns IDs
+
+# Or add torus separately (FANN or AKNN)
+agn.add_torus_fann(name='clumpy201410tor')  # FANN torus
+# Or use AKNN torus:
+# agn.add_torus_aknn(name='torus_aknn', k=1, f_run=1)
+```
+
+**Benefits of class-based approach:**
+- **Cleaner code**: Less verbose than direct parameter construction
+- **Better organization**: Related components grouped together
+- **Easier to maintain**: Changes to one instance don't affect others
+- **Supports all parameters**: All parameters from `run_test.py` are accessible
+- **Type safety**: IDE provides better autocomplete and type checking
+
+See `examples/recreate_run_test_with_class_based.py` for complete examples showing how to recreate all `run_test.py` test cases using the class-based interface.
+
+#### Use Numpy Arrays for Performance
+
+When preparing data, use numpy arrays for best performance:
+
+```python
+# Good: Numpy arrays (best performance)
+import numpy as np
+ids = np.array([1, 2, 3])
+z_min = np.array([0.1, 0.2, 0.3])
+phot_fluxes = np.array([[10.0, 20.0], [15.0, 25.0], [12.0, 22.0]])
+
+# Also works: Lists (convenient, converted internally)
+ids = [1, 2, 3]
+z_min = [0.1, 0.2, 0.3]
+```
+
+#### Save Configurations for Reproducibility
+
+
+#### Test with Small Samples First
+
+Always test with `Ntest=1` before running full analysis:
+
+```python
+# Test run
+bayesed = BayeSEDInterface(mpi_mode='1', np=1, Ntest=1)
+bayesed.run(params)
+
+# Full run
+bayesed = BayeSEDInterface(mpi_mode='1', np=4)
+bayesed.run(params)
+```
+
+### General Best Practices
+
 1. Data Preparation:
    - Ensure consistent units
    - Include measurement uncertainties
@@ -826,6 +1660,7 @@ The graphical user interface provides an intuitive way to set up complex SED ana
    - Use MPI for parallel processing
    - Adjust number of live points
    - Balance accuracy and computation time
+
 
 
 ## Error Handling and Troubleshooting
