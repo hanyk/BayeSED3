@@ -44,6 +44,34 @@ from .utils import (
 # Import plotting function
 from .plotting import plot_bestfit
 
+
+class IDConstants:
+    """
+    Constants for ID and igroup assignment logic.
+    
+    These constants define the spacing and offsets used when automatically
+    assigning IDs to galaxy and AGN instances.
+    """
+    # Galaxy ID spacing
+    GALAXY_ID_INCREMENT = 2  # Increment by 2 to leave room for DEM (uses base_id + 1)
+    GALAXY_IGROUP_INCREMENT = 1  # Increment igroup by 1 for each galaxy
+    
+    # AGN ID spacing
+    AGN_COMPONENT_COUNT = 5  # Maximum components: disk, blr, feii, nlr, torus
+    AGN_ID_INCREMENT_FIRST = 2  # When no existing AGN, increment id by 2
+    AGN_ID_INCREMENT_SUBSEQUENT = 6  # When existing AGN, increment by 6 (conservative)
+    AGN_IGROUP_INCREMENT_FIRST = 1  # When no existing AGN, increment igroup by 1
+    AGN_IGROUP_INCREMENT_SUBSEQUENT = 6  # When existing AGN, increment by 6
+    
+    # AGN Component Offsets (relative to base_igroup and base_id)
+    # Updated: Disk now uses base+0 (was base+1) to eliminate wasted ID space
+    AGN_OFFSET_DISK = 0
+    AGN_OFFSET_BLR = 1
+    AGN_OFFSET_FEII = 2
+    AGN_OFFSET_NLR = 3
+    AGN_OFFSET_TORUS = 4
+
+
 @dataclass
 class BayeSEDParams:
     """
@@ -1020,6 +1048,9 @@ class BayeSEDParams:
                     ssp_i1=galaxy_instance.ssp.i1,
                     ssp_i2=galaxy_instance.ssp.i2,
                     ssp_i3=galaxy_instance.ssp.i3,
+                    ssp_iscalable=galaxy_instance.ssp.iscalable,  # Preserve iscalable
+                    sfh_itype_ceh=galaxy_instance.sfh.itype_ceh,  # Preserve itype_ceh
+                    sfh_itruncated=galaxy_instance.sfh.itruncated,  # Preserve itruncated
                     base_igroup=next_igroup,
                     base_id=next_id
                 )
@@ -1127,21 +1158,22 @@ class BayeSEDParams:
                     tor=agn_instance.tor
                 )
                 # Update IDs in components if they exist
+                # Updated offsets: disk uses base+0, others shifted down by 1
                 if new_instance.dsk:
-                    new_instance.dsk.igroup = next_base_igroup + 1
-                    new_instance.dsk.id = next_base_id + 1
+                    new_instance.dsk.igroup = next_base_igroup + IDConstants.AGN_OFFSET_DISK
+                    new_instance.dsk.id = next_base_id + IDConstants.AGN_OFFSET_DISK
                 if new_instance.blr:
-                    new_instance.blr.igroup = next_base_igroup + 2
-                    new_instance.blr.id = next_base_id + 2
+                    new_instance.blr.igroup = next_base_igroup + IDConstants.AGN_OFFSET_BLR
+                    new_instance.blr.id = next_base_id + IDConstants.AGN_OFFSET_BLR
                 if new_instance.feii:
-                    new_instance.feii.igroup = next_base_igroup + 3
-                    new_instance.feii.id = next_base_id + 3
+                    new_instance.feii.igroup = next_base_igroup + IDConstants.AGN_OFFSET_FEII
+                    new_instance.feii.id = next_base_id + IDConstants.AGN_OFFSET_FEII
                 if new_instance.nlr:
-                    new_instance.nlr.igroup = next_base_igroup + 4
-                    new_instance.nlr.id = next_base_id + 4
+                    new_instance.nlr.igroup = next_base_igroup + IDConstants.AGN_OFFSET_NLR
+                    new_instance.nlr.id = next_base_id + IDConstants.AGN_OFFSET_NLR
                 if new_instance.tor:
-                    new_instance.tor.igroup = next_base_igroup + 5
-                    new_instance.tor.id = next_base_id + 5
+                    new_instance.tor.igroup = next_base_igroup + IDConstants.AGN_OFFSET_TORUS
+                    new_instance.tor.id = next_base_id + IDConstants.AGN_OFFSET_TORUS
                 agn_instance = new_instance
 
         # Add disk component - route to appropriate parameter list based on type
@@ -1206,8 +1238,10 @@ class BayeSEDParams:
             (next_igroup, next_id) - Next available igroup and id for a galaxy instance
         """
         max_id, max_igroup = self.__class__._get_max_ids_igroups(self)
-        next_igroup = max_igroup + 1 if max_igroup >= 0 else 0
-        next_id = max_id + 2 if max_id >= 0 else 0
+        next_igroup = (max_igroup + IDConstants.GALAXY_IGROUP_INCREMENT 
+                      if max_igroup >= 0 else 0)
+        next_id = (max_id + IDConstants.GALAXY_ID_INCREMENT 
+                  if max_id >= 0 else 0)
         return next_igroup, next_id
 
     def get_next_agn_ids(self):
@@ -1225,21 +1259,107 @@ class BayeSEDParams:
 
         if max_igroup >= 0:
             if has_existing_agn:
-                next_base_igroup = max_igroup + 6
+                next_base_igroup = max_igroup + IDConstants.AGN_IGROUP_INCREMENT_SUBSEQUENT
             else:
-                next_base_igroup = max_igroup + 1
+                next_base_igroup = max_igroup + IDConstants.AGN_IGROUP_INCREMENT_FIRST
         else:
             next_base_igroup = 1
 
         if max_id >= 0:
             if has_existing_agn:
-                next_base_id = max_id + 6
+                next_base_id = max_id + IDConstants.AGN_ID_INCREMENT_SUBSEQUENT
             else:
-                next_base_id = max_id + 2
+                next_base_id = max_id + IDConstants.AGN_ID_INCREMENT_FIRST
         else:
             next_base_id = 0
 
         return next_base_igroup, next_base_id
+    
+    def validate_ids(self, new_id, new_igroup=None):
+        """
+        Validate that new IDs don't conflict with existing ones.
+        
+        Parameters
+        ----------
+        new_id : int
+            Proposed new id value
+        new_igroup : int, optional
+            Proposed new igroup value (if applicable)
+        
+        Returns
+        -------
+        tuple
+            (is_valid, conflicts) - True if valid, False with list of conflict messages
+        """
+        max_id, max_igroup = self.__class__._get_max_ids_igroups(self)
+        
+        conflicts = []
+        if new_id <= max_id:
+            conflicts.append(
+                f"id {new_id} conflicts with existing id {max_id} "
+                f"(must be > {max_id})"
+            )
+        if new_igroup is not None and new_igroup <= max_igroup:
+            conflicts.append(
+                f"igroup {new_igroup} conflicts with existing igroup {max_igroup} "
+                f"(must be > {max_igroup})"
+            )
+        
+        return (len(conflicts) == 0, conflicts)
+    
+    def get_used_ids(self):
+        """
+        Return all currently used IDs and igroups.
+        
+        Returns
+        -------
+        dict
+            Dictionary with 'ids' and 'igroups' keys, each containing a list of used values
+        """
+        used_ids = set()
+        used_igroups = set()
+        
+        # Check SSP
+        if self.ssp:
+            for ssp in self.ssp:
+                used_ids.add(ssp.id)
+                used_igroups.add(ssp.igroup)
+        
+        # Check AGN
+        if self.AGN:
+            for agn in self.AGN:
+                used_ids.add(agn.id)
+                used_igroups.add(agn.igroup)
+        
+        # Check Big Blue Bump
+        if self.big_blue_bump:
+            for bbb in self.big_blue_bump:
+                used_ids.add(bbb.id)
+                used_igroups.add(bbb.igroup)
+        
+        # Check Greybody, Blackbody, FANN, AKNN
+        for param_list in [self.greybody, self.blackbody, self.fann, self.aknn]:
+            if param_list:
+                for param in param_list:
+                    used_ids.add(param.id)
+                    used_igroups.add(param.igroup)
+        
+        # Check lines1
+        if self.lines1:
+            for line in self.lines1:
+                used_ids.add(line.id)
+                used_igroups.add(line.igroup)
+        
+        # Check SFH, DAL, Kin (id only)
+        for param_list in [self.sfh, self.dal, self.kin]:
+            if param_list:
+                for param in param_list:
+                    used_ids.add(param.id)
+        
+        return {
+            'ids': sorted(used_ids),
+            'igroups': sorted(used_igroups)
+        }
 
 
 class BayeSEDValidationError(Exception):

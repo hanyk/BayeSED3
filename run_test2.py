@@ -755,6 +755,7 @@ def run_bayesed_test3_class_based(obj_type, itype, np=None, Ntest=None, plot=Fal
         ssp_i1=1,  # Important parameter
         ssp_i2=0,
         ssp_i3=0,
+        ssp_iscalable=0,  # Match run_test.py (iscalable=0)
         sfh_itype_ceh=1,  # Chemical evolution history - important for test3!
         sfh_itruncated=0
     )

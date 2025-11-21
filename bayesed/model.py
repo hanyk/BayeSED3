@@ -73,7 +73,7 @@ class SEDModel:
     def create_galaxy(cls, ssp_model='bc2003_hr_stelib_chab_neb_2000r',
                      sfh_type='exponential', dal_law='calzetti',
                      ssp_k=1, ssp_f_run=1, ssp_Nstep=1, ssp_i0=0, ssp_i1=0, ssp_i2=0, ssp_i3=0,
-                     sfh_itype_ceh=0, sfh_itruncated=0,
+                     ssp_iscalable=1, sfh_itype_ceh=0, sfh_itruncated=0,
                      base_igroup=0, base_id=0):
         """
         Create a GalaxyInstance with default parameters.
@@ -88,6 +88,8 @@ class SEDModel:
             Dust attenuation law (default: 'calzetti')
         ssp_k, ssp_f_run, ssp_Nstep, ssp_i0, ssp_i1, ssp_i2, ssp_i3 : int
             SSP parameters
+        ssp_iscalable : int
+            SSP scalability parameter (default: 1). Set to 0 to disable scaling.
         sfh_itype_ceh : int
             Chemical evolution history type for SFH (default: 0)
         sfh_itruncated : int
@@ -113,6 +115,7 @@ class SEDModel:
             ssp_i1=ssp_i1,
             ssp_i2=ssp_i2,
             ssp_i3=ssp_i3,
+            ssp_iscalable=ssp_iscalable,
             sfh_itype_ceh=sfh_itype_ceh,
             sfh_itruncated=sfh_itruncated,
             base_igroup=base_igroup,
@@ -355,7 +358,7 @@ class SEDModel:
         def create(cls, ssp_model='bc2003_hr_stelib_chab_neb_2000r',
                    sfh_type='exponential', dal_law='calzetti',
                    ssp_k=1, ssp_f_run=1, ssp_Nstep=1, ssp_i0=0, ssp_i1=0, ssp_i2=0, ssp_i3=0,
-                   sfh_itype_ceh=0, sfh_itruncated=0,
+                   ssp_iscalable=1, sfh_itype_ceh=0, sfh_itruncated=0,
                    base_igroup=0, base_id=0):
             """
             Create a GalaxyInstance with default parameters.
@@ -370,6 +373,8 @@ class SEDModel:
                 Dust attenuation law (default: 8)
             ssp_k, ssp_f_run, ssp_Nstep, ssp_i0, ssp_i1, ssp_i2, ssp_i3 : int
                 SSP parameters
+            ssp_iscalable : int
+                SSP scalability parameter (default: 1). Set to 0 to disable scaling.
             sfh_itype_ceh : int
                 Chemical evolution history type for SFH (default: 0)
             sfh_itruncated : int
@@ -443,7 +448,7 @@ class SEDModel:
                 igroup=base_igroup,
                 id=base_id,
                 name=ssp_model,
-                iscalable=1,
+                iscalable=ssp_iscalable,
                 k=ssp_k,
                 f_run=ssp_f_run,
                 Nstep=ssp_Nstep,
@@ -560,11 +565,11 @@ class SEDModel:
         
         def add_disk_bbb(self, name='bbb', iscalable=1,
                         w_min=0.1, w_max=10.0, Nw=1000):
-            """Add Big Blue Bump (BBB) disk component (uses base + 1)."""
+            """Add Big Blue Bump (BBB) disk component (uses base + 0)."""
             from .params import BigBlueBumpParams
             self.dsk = BigBlueBumpParams(
-                igroup=self.base_igroup + 1,
-                id=self.base_id + 1,
+                igroup=self.base_igroup + 0,
+                id=self.base_id + 0,
                 name=name,
                 iscalable=iscalable,
                 w_min=w_min,
@@ -575,11 +580,11 @@ class SEDModel:
         
         def add_disk_agn(self, name='agnsed', iscalable=1, imodel=0, icloudy=0,
                         suffix='', w_min=0.1, w_max=10.0, Nw=1000):
-            """Add AGN disk component (uses base + 1)."""
+            """Add AGN disk component (uses base + 0)."""
             from .params import AGNParams
             self.dsk = AGNParams(
-                igroup=self.base_igroup + 1,
-                id=self.base_id + 1,
+                igroup=self.base_igroup + 0,
+                id=self.base_id + 0,
                 name=name,
                 iscalable=iscalable,
                 imodel=imodel,
@@ -592,11 +597,11 @@ class SEDModel:
             return self
         
         def add_disk_fann(self, name='disk_fann', iscalable=1):
-            """Add FANN disk component (uses base + 1)."""
+            """Add FANN disk component (uses base + 0)."""
             from .params import FANNParams
             self.dsk = FANNParams(
-                igroup=self.base_igroup + 1,
-                id=self.base_id + 1,
+                igroup=self.base_igroup + 0,
+                id=self.base_id + 0,
                 name=name,
                 iscalable=iscalable
             )
@@ -604,11 +609,11 @@ class SEDModel:
         
         def add_disk_aknn(self, name='disk_aknn', iscalable=1,
                          k=1, f_run=1, eps=0, iRad=0, iprep=0, Nstep=1, alpha=0):
-            """Add AKNN disk component (uses base + 1)."""
+            """Add AKNN disk component (uses base + 0)."""
             from .params import AKNNParams
             self.dsk = AKNNParams(
-                igroup=self.base_igroup + 1,
-                id=self.base_id + 1,
+                igroup=self.base_igroup + 0,
+                id=self.base_id + 0,
                 name=name,
                 iscalable=iscalable,
                 k=k,
@@ -624,13 +629,13 @@ class SEDModel:
         def add_broad_line_region(self, file='observation/test/lines_BLR.txt',
                                  name='BLR', iscalable=1, R=300,
                                  Nsample=2, Nkin=3):
-            """Add Broad Line Region component (uses base + 2)."""
+            """Add Broad Line Region component (uses base + 1)."""
             from .params import LineParams
             if not os.path.exists(file):
                 raise FileNotFoundError(f"BLR line list file not found: {file}")
             self.blr = LineParams(
-                igroup=self.base_igroup + 2,
-                id=self.base_id + 2,
+                igroup=self.base_igroup + 1,
+                id=self.base_id + 1,
                 name=name,
                 iscalable=iscalable,
                 file=file,
@@ -643,13 +648,13 @@ class SEDModel:
         def add_narrow_line_region(self, file='observation/test/lines_NLR.txt',
                                   name='NLR', iscalable=1, R=2000,
                                   Nsample=2, Nkin=2):
-            """Add Narrow Line Region component (uses base + 4)."""
+            """Add Narrow Line Region component (uses base + 3)."""
             from .params import LineParams
             if not os.path.exists(file):
                 raise FileNotFoundError(f"NLR line list file not found: {file}")
             self.nlr = LineParams(
-                igroup=self.base_igroup + 4,
-                id=self.base_id + 4,
+                igroup=self.base_igroup + 3,
+                id=self.base_id + 3,
                 name=name,
                 iscalable=iscalable,
                 file=file,
@@ -660,13 +665,13 @@ class SEDModel:
             return self
         
         def add_feii_template(self, name='FeII', iscalable=1,
-                             k=5, f_run=1, eps=0.01, iRad=0, iprep=0, Nstep=100,
-                             alpha=1.0):
-            """Add FeII template component (uses base + 3)."""
+                             k=1, f_run=1, eps=0, iRad=0, iprep=0, Nstep=1,
+                             alpha=0):
+            """ Add FeII template component (uses base + 2)."""
             from .params import AKNNParams
             self.feii = AKNNParams(
-                igroup=self.base_igroup + 3,
-                id=self.base_id + 3,
+                igroup=self.base_igroup + 2,
+                id=self.base_id + 2,
                 name=name,
                 iscalable=iscalable,
                 k=k,
@@ -680,11 +685,11 @@ class SEDModel:
             return self
         
         def add_torus_fann(self, name='clumpy201410tor', iscalable=1):
-            """Add FANN (Fast Artificial Neural Network) torus component (uses base + 5)."""
+            """Add FANN (Fast Artificial Neural Network) torus component (uses base + 4)."""
             from .params import FANNParams
             self.tor = FANNParams(
-                igroup=self.base_igroup + 5,
-                id=self.base_id + 5,
+                igroup=self.base_igroup + 4,
+                id=self.base_id + 4,
                 name=name,
                 iscalable=iscalable
             )
@@ -692,11 +697,11 @@ class SEDModel:
         
         def add_torus_aknn(self, name='torus_aknn', iscalable=1,
                           k=1, f_run=1, eps=0, iRad=0, iprep=0, Nstep=1, alpha=0):
-            """Add AKNN torus component (uses base + 5)."""
+            """Add AKNN torus component (uses base + 4)."""
             from .params import AKNNParams
             self.tor = AKNNParams(
-                igroup=self.base_igroup + 5,
-                id=self.base_id + 5,
+                igroup=self.base_igroup + 4,
+                id=self.base_id + 4,
                 name=name,
                 iscalable=iscalable,
                 k=k,
@@ -714,9 +719,10 @@ class SEDModel:
             from .params import DALParams, BigBlueBumpParams, AGNParams
             if self.dsk:
                 # DAL is only for BBB and AGN types
+                # DAL uses same id as disk (base+0)
                 if isinstance(self.dsk, (BigBlueBumpParams, AGNParams)):
                     return DALParams(
-                        id=self.base_id + 1,
+                        id=self.base_id + 0,  # Same as disk (base+0)
                         con_eml_tot=2,
                         ilaw=7  # AGN-specific dust law
                     )
@@ -725,9 +731,10 @@ class SEDModel:
         def get_kin_params(self):
             """Get kinematic parameters for FeII component (same id as FeII)."""
             from .params import KinParams
+            from .core import IDConstants
             if self.feii:
                 return KinParams(
-                    id=self.base_id + 3,
+                    id=self.base_id + IDConstants.AGN_OFFSET_FEII,  # Same as FeII (base+2)
                     velscale=10,
                     num_gauss_hermites_con=2,
                     num_gauss_hermites_eml=0
