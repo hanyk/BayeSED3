@@ -223,21 +223,21 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 
 ## File Descriptions
 
-- `bayesed/`: Python package providing high-level interface to BayeSED3
-  - `core.py`: Main interface classes (`BayeSEDInterface`, `BayeSEDParams`, `BayeSEDResults`)
-  - `model.py`: Model configuration classes (`SEDModel`)
-  - `data.py`: Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
-  - `params.py`: Parameter configuration classes
-  - `utils.py`: Utility functions for data preparation and filter management
-  - `plotting.py`: Plotting functions for visualization
-- `bayesed_gui.py`: Graphical User Interface for BayeSED3
+- [`bayesed/`](bayesed/): Python package providing high-level interface to BayeSED3
+  - [`core.py`](bayesed/core.py): Main interface classes (`BayeSEDInterface`, `BayeSEDParams`, `BayeSEDResults`)
+  - [`model.py`](bayesed/model.py): Model configuration classes (`SEDModel`)
+  - [`data.py`](bayesed/data.py): Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
+  - [`params.py`](bayesed/params.py): Parameter configuration classes
+  - [`utils.py`](bayesed/utils.py): Utility functions for data preparation and filter management
+  - [`plotting.py`](bayesed/plotting.py): Plotting functions for visualization
+- [`bayesed_gui.py`](bayesed_gui.py): Graphical User Interface for BayeSED3
 - [`run_test.py`](run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
 - [`run_test2.py`](run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
-- `requirements.txt`: List of Python dependencies
-- `observation/test/`: Contains test data and configuration files
-- `bin/`: Contains BayeSED3 executables for different platforms
-- `nets/`: Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
-- `data/`: other data files used by BayeSED3
+- [`requirements.txt`](requirements.txt): List of Python dependencies
+- [`observation/test/`](observation/test/): Contains test data and configuration files
+- [`bin/`](bin/): Contains BayeSED3 executables for different platforms
+- [`nets/`](nets/): Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
+- [`data/`](data/): other data files used by BayeSED3
 
 ## System Compatibility
 
