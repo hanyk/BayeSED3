@@ -1010,14 +1010,47 @@ class BayeSEDGUI:
             max_id = max(max_id, int(instance['dem'][1].get()))  # Consider DEM ID as well
             max_igroup = max(max_igroup, int(instance['ssp'][0].get()))  # igroup is the first element in ssp list
         for instance in self.agn_instances:
-            max_id = max(max_id, int(instance['agn_id'].get()))
-            max_igroup = max(max_igroup, int(instance['agn_igroup'].get()))
+            # Check all AGN component IDs (BBB, BLR, FeII, NLR, TOR) to find maximum
+            if instance['component_vars']['bbb'].get():
+                max_id = max(max_id, int(instance['bbb_id'].get()))
+                max_igroup = max(max_igroup, int(instance['bbb_igroup'].get()))
+            if instance['component_vars']['blr'].get():
+                max_id = max(max_id, int(instance['blr_widgets']['id'].get()))
+                max_igroup = max(max_igroup, int(instance['blr_widgets']['igroup'].get()))
+            if instance['component_vars']['feii'].get():
+                max_id = max(max_id, int(instance['feii_widgets']['id'].get()))
+                max_igroup = max(max_igroup, int(instance['feii_widgets']['igroup'].get()))
+            if instance['component_vars']['nlr'].get():
+                max_id = max(max_id, int(instance['nlr_widgets']['id'].get()))
+                max_igroup = max(max_igroup, int(instance['nlr_widgets']['igroup'].get()))
+            if instance['component_vars']['tor'].get():
+                max_id = max(max_id, int(instance['tor_widgets']['id'].get()))
+                max_igroup = max(max_igroup, int(instance['tor_widgets']['igroup'].get()))
 
-        new_id = max_id + 2  # Increment by 2 to ensure uniqueness
-        new_igroup = max_igroup + 1  # Increment igroup by 5 for a new AGN instance
-        if len(self.agn_instances) > 0:
-            new_id = new_id + 4
-            new_igroup = new_igroup + 5
+        # Check if there are existing AGN components
+        has_existing_agn = len(self.agn_instances) > 0
+
+        # Calculate base IDs using same logic as core.py
+        if max_igroup >= 0:
+            if has_existing_agn:
+                base_igroup = max_igroup + 6  # AGN_IGROUP_INCREMENT_SUBSEQUENT
+            else:
+                base_igroup = max_igroup + 1  # AGN_IGROUP_INCREMENT_FIRST
+        else:
+            base_igroup = 1  # Start at 1 (0 is for galaxy)
+
+        if max_id >= 0:
+            if has_existing_agn:
+                base_id = max_id + 6  # AGN_ID_INCREMENT_SUBSEQUENT
+            else:
+                base_id = max_id + 2  # AGN_ID_INCREMENT_FIRST (leaves room for DEM)
+        else:
+            base_id = 0  # Start at 0
+
+        # Main AGN component uses base_id (if main AGN is used, otherwise base_id is just reference)
+        # For GUI, we'll use base_id as the main AGN ID
+        new_id = base_id
+        new_igroup = base_igroup
 
         instance_frame = ttk.LabelFrame(self.agn_instances_frame, text=f"AGN {len(self.agn_instances)}")
         instance_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -1110,13 +1143,13 @@ class BayeSEDGUI:
         ttk.Label(bbb_content_frame, text="igroup:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         bbb_igroup = ttk.Entry(bbb_content_frame, width=5)
         bbb_igroup.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        bbb_igroup.insert(0, str(new_igroup + 1))  # BBB igroup is main AGN igroup + 1
+        bbb_igroup.insert(0, str(base_igroup + 0))  # BBB uses base_igroup + AGN_OFFSET_DISK (0)
         CreateToolTip(bbb_igroup, "Group ID for the BBB component")
 
         ttk.Label(bbb_content_frame, text="id:").grid(row=0, column=2, sticky=tk.W, padx=5, pady=2)
         bbb_id = ttk.Entry(bbb_content_frame, width=5)
         bbb_id.grid(row=0, column=3, sticky=tk.W, padx=5, pady=2)
-        bbb_id.insert(0, str(int(agn_id.get()) + 1))
+        bbb_id.insert(0, str(base_id + 0))  # BBB uses base_id + AGN_OFFSET_DISK (0)
         CreateToolTip(bbb_id, "Unique ID for the BBB component")
 
         ttk.Label(bbb_content_frame, text="name:").grid(row=0, column=4, sticky=tk.W, padx=5, pady=2)
@@ -1164,8 +1197,8 @@ class BayeSEDGUI:
             widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
             blr_widgets[param] = widget
 
-        blr_widgets['igroup'].insert(0, str(new_igroup + 2))
-        blr_widgets['id'].insert(0, str(int(agn_id.get()) + 2))
+        blr_widgets['igroup'].insert(0, str(base_igroup + 1))  # BLR uses base_igroup + AGN_OFFSET_BLR (1)
+        blr_widgets['id'].insert(0, str(base_id + 1))  # BLR uses base_id + AGN_OFFSET_BLR (1)
         blr_widgets['name'].insert(0, "BLR")
         blr_widgets['iscalable'].insert(0, "1")
         blr_widgets['file'].insert(0, "observation/test/lines_BLR.txt")
@@ -1211,8 +1244,8 @@ class BayeSEDGUI:
             feii_widgets[param] = widget
 
         # Set default values
-        feii_widgets['igroup'].insert(0, str(new_igroup + 3))
-        feii_widgets['id'].insert(0, str(int(agn_id.get()) + 3))
+        feii_widgets['igroup'].insert(0, str(base_igroup + 2))  # FeII uses base_igroup + AGN_OFFSET_FEII (2)
+        feii_widgets['id'].insert(0, str(base_id + 2))  # FeII uses base_id + AGN_OFFSET_FEII (2)
         feii_widgets['name'].insert(0, "FeII")
         feii_widgets['iscalable'].insert(0, "1")
         for param in ['k', 'f_run', 'iprep', 'Nstep', 'alpha']:
@@ -1284,8 +1317,8 @@ class BayeSEDGUI:
             widget.grid(row=0, column=i*2+1, sticky=tk.W, padx=2)
             nlr_widgets[param] = widget
 
-        nlr_widgets['igroup'].insert(0, str(new_igroup + 4))
-        nlr_widgets['id'].insert(0, str(int(agn_id.get()) + 4))
+        nlr_widgets['igroup'].insert(0, str(base_igroup + 3))  # NLR uses base_igroup + AGN_OFFSET_NLR (3)
+        nlr_widgets['id'].insert(0, str(base_id + 3))  # NLR uses base_id + AGN_OFFSET_NLR (3)
         nlr_widgets['name'].insert(0, "NLR")
         nlr_widgets['iscalable'].insert(0, "1")
         nlr_widgets['file'].insert(0, "observation/test/lines_NLR.txt")
@@ -1335,8 +1368,8 @@ class BayeSEDGUI:
             tor_widgets[param] = widget
 
         # Set default values for TOR widgets
-        tor_widgets['igroup'].insert(0, str(new_igroup + 5))
-        tor_widgets['id'].insert(0, str(int(agn_id.get()) + 5))
+        tor_widgets['igroup'].insert(0, str(base_igroup + 4))  # TOR uses base_igroup + AGN_OFFSET_TORUS (4)
+        tor_widgets['id'].insert(0, str(base_id + 4))  # TOR uses base_id + AGN_OFFSET_TORUS (4)
         tor_widgets['name'].insert(0, "clumpy201410tor")
         tor_widgets['iscalable'].insert(0, "1")
         tor_widgets['k'].insert(0, "1")
