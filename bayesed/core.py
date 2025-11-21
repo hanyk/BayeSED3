@@ -675,33 +675,6 @@ class BayeSEDParams:
         galaxy_base_igroup = max_igroup + 1 if max_igroup >= 0 else 0
         galaxy_base_id = max_id + 2 if max_id >= 0 else 0  # Leave room for DEM
 
-        # Set base IDs/igroups for AGN components (auto-increment if not specified)
-        if base_igroup is None:
-            # AGN components start after galaxy components
-            # If there are existing AGN instances, increment by 6 to leave room for all components
-            if max_igroup >= 0:
-                # Check if there are existing AGN components
-                has_existing_agn = (existing_params and
-                                  (existing_params.AGN or existing_params.big_blue_bump))
-                if has_existing_agn:
-                    base_igroup = max_igroup + 6  # Leave room for full AGN instance
-                else:
-                    base_igroup = max_igroup + 1
-            else:
-                base_igroup = 1  # Start at 1 (0 is for galaxy)
-
-        if base_id is None:
-            # Similar logic for IDs
-            if max_id >= 0:
-                has_existing_agn = (existing_params and
-                                  (existing_params.AGN or existing_params.big_blue_bump))
-                if has_existing_agn:
-                    base_id = max_id + 6  # Leave room for full AGN instance
-                else:
-                    base_id = max_id + 2  # Leave room for DEM
-            else:
-                base_id = 0  # Start at 0
-
         # Create galaxy instance using SEDModel
         galaxy_instance = SEDModel.create_galaxy(
             ssp_model=ssp_model,
@@ -709,19 +682,6 @@ class BayeSEDParams:
             dal_law=dal_law,
             base_igroup=galaxy_base_igroup,
             base_id=galaxy_base_id
-        )
-
-        # Create AGN instance using SEDModel
-        # Extract line file paths from kwargs if provided
-        blr_lines_file = kwargs.pop('blr_lines_file', 'observation/test/lines_BLR.txt')
-        nlr_lines_file = kwargs.pop('nlr_lines_file', 'observation/test/lines_NLR.txt')
-
-        agn_instance = SEDModel.create_agn(
-            base_igroup=base_igroup,
-            base_id=base_id,
-            agn_components=agn_components,
-            blr_lines_file=blr_lines_file,
-            nlr_lines_file=nlr_lines_file
         )
 
         # Create BayeSEDParams with defaults
@@ -736,8 +696,51 @@ class BayeSEDParams:
 
         params = cls(**defaults)
 
-        # Add galaxy instance (with auto_assign_ids=False since we've already calculated IDs)
+        # Add galaxy instance first (with auto_assign_ids=False since we've already calculated IDs)
         params.add_galaxy(galaxy_instance, auto_assign_ids=False)
+
+        # Now calculate AGN base IDs based on the updated params (after galaxy is added)
+        # This ensures AGN IDs don't conflict with galaxy IDs
+        if base_igroup is None or base_id is None:
+            # Get max IDs from params after galaxy is added
+            max_id_after_galaxy, max_igroup_after_galaxy = cls._get_max_ids_igroups(params)
+            
+            if base_igroup is None:
+                # AGN components start after galaxy components
+                # If there are existing AGN instances, increment by 6 to leave room for all components
+                if max_igroup_after_galaxy >= 0:
+                    # Check if there are existing AGN components
+                    has_existing_agn = (params.AGN or params.big_blue_bump)
+                    if has_existing_agn:
+                        base_igroup = max_igroup_after_galaxy + IDConstants.AGN_IGROUP_INCREMENT_SUBSEQUENT
+                    else:
+                        base_igroup = max_igroup_after_galaxy + IDConstants.AGN_IGROUP_INCREMENT_FIRST
+                else:
+                    base_igroup = 1  # Start at 1 (0 is for galaxy)
+
+            if base_id is None:
+                # Similar logic for IDs
+                if max_id_after_galaxy >= 0:
+                    has_existing_agn = (params.AGN or params.big_blue_bump)
+                    if has_existing_agn:
+                        base_id = max_id_after_galaxy + IDConstants.AGN_ID_INCREMENT_SUBSEQUENT
+                    else:
+                        base_id = max_id_after_galaxy + IDConstants.AGN_ID_INCREMENT_FIRST
+                else:
+                    base_id = 0  # Start at 0
+
+        # Create AGN instance using SEDModel
+        # Extract line file paths from kwargs if provided
+        blr_lines_file = kwargs.pop('blr_lines_file', 'observation/test/lines_BLR.txt')
+        nlr_lines_file = kwargs.pop('nlr_lines_file', 'observation/test/lines_NLR.txt')
+
+        agn_instance = SEDModel.create_agn(
+            base_igroup=base_igroup,
+            base_id=base_id,
+            agn_components=agn_components,
+            blr_lines_file=blr_lines_file,
+            nlr_lines_file=nlr_lines_file
+        )
 
         # Add AGN instance (with auto_assign_ids=False since we've already calculated IDs)
         params.add_agn(agn_instance, auto_assign_ids=False)
