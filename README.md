@@ -106,7 +106,7 @@ bayesed = BayeSEDInterface(mpi_mode='auto')
 
 # Simple galaxy fitting
 params = BayeSEDParams.galaxy(
-    input_file='observation/test1/input_catalog.txt',
+    input_file='observation/test/gal.txt',
     outdir='output',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
@@ -121,6 +121,37 @@ results = bayesed.load_results('output')
 spectrum = results.get_bestfit_spectrum()
 evidence = results.get_evidence()
 posteriors = results.get_posterior_samples()
+
+# Plot best-fit SED
+results.plot_bestfit()  # Basic plot
+results.plot_bestfit(
+    use_rest_frame=True,
+    flux_unit='nufnu',
+    use_log_scale=True,
+    output_file='bestfit_plot.png'
+)
+
+# Plot posterior distributions
+# 1D posterior (single parameter)
+results.plot_posterior_pdf(
+    params='log(age/yr)[0,1]',
+    output_file='age_1d_posterior.png'
+)
+
+# 2D posterior (two parameters - corner plot)
+results.plot_posterior_pdf(
+    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'],
+    output_file='age_metallicity_2d.png'
+)
+
+# Multi-dimensional posterior (corner plot with 1D and 2D marginals)
+results.plot_posterior_pdf(
+    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'],
+    show_median=True,
+    show_confidence_intervals=True,
+    confidence_level=0.68,  # 1σ confidence interval
+    output_file='posterior_corner.png'
+)
 ```
 
 **AGN Fitting:**
@@ -128,7 +159,7 @@ posteriors = results.get_posterior_samples()
 ```python
 # AGN with all components (includes galaxy host)
 params = BayeSEDParams.agn(
-    input_file='observation/qso/input_catalog.txt',
+    input_file='observation/test/qso.txt',
     outdir='output',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
@@ -195,7 +226,7 @@ agn = SEDModel.create_agn(agn_components=['dsk', 'blr', 'nlr', 'feii'])
 agn.add_torus_fann(name='clumpy201410tor')  # Add torus
 
 # Assemble configuration
-params = BayeSEDParams(input_type=0, input_file='input.txt', outdir='output')
+params = BayeSEDParams(input_type=0, input_file='observation/test/qso.txt', outdir='output')
 params.add_galaxy(galaxy)
 params.add_agn(agn)
 bayesed.run(params)
