@@ -209,7 +209,7 @@ See [run_test2.py](run_test2.py) for comprehensive examples demonstrating the hi
 - Galaxy and AGN fitting with various model configurations
 - Advanced parameter settings and inference configuration
 - Result loading and visualization
-- Complete test cases recreating the original `run_test.py` examples
+- Complete test cases recreating the original [`run_test.py`](run_test.py) examples
 
 ### Graphical User Interface (GUI)
 
@@ -231,8 +231,8 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
   - `utils.py`: Utility functions for data preparation and filter management
   - `plotting.py`: Plotting functions for visualization
 - `bayesed_gui.py`: Graphical User Interface for BayeSED3
-- `run_test.py`: Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
-- `run_test2.py`: Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
+- [`run_test.py`](run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
+- [`run_test2.py`](run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
 - `requirements.txt`: List of Python dependencies
 - `observation/test/`: Contains test data and configuration files
 - `bin/`: Contains BayeSED3 executables for different platforms
@@ -256,10 +256,10 @@ Issues and pull requests are welcome. Please make sure to update tests before su
 ## Citation
 
 The further development of BayeSED needs your support. If BayeSED has been of benefit to you, either directly or indirectly, please consider citing our papers:
-- Han, Y., & Han, Z. 2012, ApJ, 749, 123
-- Han, Y., & Han, Z. 2014, ApJS, 215, 2
-- Han, Y., & Han, Z. 2019, ApJS, 240, 3
-- Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39
+- [Han, Y., & Han, Z. 2012, ApJ, 749, 123](https://ui.adsabs.harvard.edu/abs/2012ApJ...749..123H/abstract)
+- [Han, Y., & Han, Z. 2014, ApJS, 215, 2](https://ui.adsabs.harvard.edu/abs/2014ApJS..215....2H/abstract)
+- [Han, Y., & Han, Z. 2019, ApJS, 240, 3](https://ui.adsabs.harvard.edu/abs/2019ApJS..240....3H/abstract)
+- [Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39](https://ui.adsabs.harvard.edu/abs/2023ApJS..269...39H/abstract)
 - Han, Y., et al. 2024a, in prep.
 
 ## More Information
