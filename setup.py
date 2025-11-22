@@ -60,6 +60,8 @@ def get_data_files():
         r'^conda/',  # Conda packaging files
         r'^bayesed/.*\.py$',  # Python package files installed via packages
         r'^bayesed_gui\.py$',  # GUI module installed via py_modules
+        r'^\.gitignore$',  # Git metadata file
+        r'^\.cursorignore$',  # Editor metadata file
     ]
     
     # Check if we're in a git repository
