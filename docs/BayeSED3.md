@@ -121,6 +121,14 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - macOS (x86_64 and ARM64 via Rosetta 2)
 - Windows (via WSL - uses Linux binaries)
 
+### Prerequisites
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/hanyk/BayeSED3.git
+   cd BayeSED3
+   ```
+
 ### Option 1: Pip Installation (Easier Uninstall) ⭐ Recommended
 
 **Pip installation is simpler for uninstalling** - it only removes bayesed3, not its dependencies.
@@ -152,7 +160,6 @@ pip uninstall bayesed3
 - **Regular install** (`pip install .`): Copies files to site-packages. Use for production.
 - **Editable install** (`pip install -e .`): Links to source directory. Changes are immediately visible. Use for development.
 - BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will prompt you to install OpenMPI via conda (if available) or ask for permission to auto-compile it.
-- BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will prompt you to install OpenMPI or auto-compile it (with your permission).
 
 ### Option 2: Conda Installation (Automatic Dependencies)
 
@@ -160,7 +167,7 @@ pip uninstall bayesed3
 
 **Installation:**
 ```bash
-# Build conda package from source
+# Build conda package from source (run from repository root)
 conda build conda/
 
 # Install the locally built package
