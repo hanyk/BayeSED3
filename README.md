@@ -66,6 +66,7 @@ pip uninstall bayesed3
 - ✅ Cleaner uninstall (only removes bayesed3)
 - ✅ Faster development cycle
 - ✅ Works with virtual environments
+- ✅ Works from any directory (after installation)
 - ⚠️ Requires OpenMPI to be installed separately
 
 **Note:** 
@@ -100,7 +101,7 @@ conda build purge
 
 **Benefits:**
 - ✅ Automatic dependency management (OpenMPI, HDF5, Python packages)
-- ✅ Works from any directory
+- ✅ Works from any directory (after installation)
 - ⚠️ Requires local build first (not available on conda-forge yet)
 - ⚠️ Uninstall removes dependencies: `conda remove bayesed3` also removes OpenMPI, matplotlib, etc.
 
