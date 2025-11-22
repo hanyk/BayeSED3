@@ -193,7 +193,7 @@ conda build purge
 - ⚠️ Requires local build first (not available on conda-forge yet)
 - ⚠️ Uninstall removes dependencies: `conda remove bayesed3` also removes OpenMPI, matplotlib, etc.
 
-**Note:** BayeSED3 will be available on conda-forge in the future. See `conda/CONDA_FORGE_SUBMISSION.md` for submission status.
+**Note:** BayeSED3 will be available on conda-forge in the future.
 
 ### Manual Installation (Advanced)
 
