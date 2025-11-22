@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bayesed3"
+description = "Bayesian SED synthesis and analysis of galaxies and AGNs"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Yunkun Han", email = "hanyk@ynao.ac.cn"}
+]
+maintainers = [
+    {name = "Yunkun Han", email = "hanyk@ynao.ac.cn"}
+]
+keywords = ["astronomy", "astrophysics", "sed", "galaxy", "agn", "bayesian", "fitting"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+    "numpy>=1.20.0",
+    "h5py>=3.1.0",
+    "astropy>=4.2",
+    "matplotlib>=3.3.0",
+    "GetDist>=1.3.0",
+    "requests>=2.25.0",
+    "tqdm>=4.60.0",
+    "Pillow>=8.0.0",
+    "pyperclip>=1.8.0",
+    "psutil>=5.8.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/hanyk/BayeSED3"
+Documentation = "https://github.com/hanyk/BayeSED3"
+Repository = "https://github.com/hanyk/BayeSED3"
+Issues = "https://github.com/hanyk/BayeSED3/issues"
+
+[project.scripts]
+BayeSED3_GUI = "bayesed_gui:main"
+
+[tool.setuptools]
+packages = {find = {}}
+py-modules = ["bayesed_gui"]
+
+[tool.setuptools.dynamic]
+version = {attr = "bayesed.__version__"}
+
+# Note: OpenMPI 4.1.6 is required but not a Python package.
+# It must be installed separately:
+# - Via conda: conda install openmpi=4.1.6
+# - Via system package manager (apt, brew, etc.)
+# - Or compiled from source (see README.md)
+

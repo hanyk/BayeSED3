@@ -100,8 +100,10 @@ class BayeSEDGUI:
 
     def create_icon(self):
         try:
-            # Load the provided icon
-            image = Image.open("BayeSED3.jpg")
+            # Load the provided icon - use resource path resolution for conda installs
+            from bayesed.utils import _get_resource_path
+            icon_path = _get_resource_path("BayeSED3.jpg")
+            image = Image.open(icon_path)
 
             # Resize the image to 128x128 for a higher resolution icon
             image = image.resize((128, 128), Image.LANCZOS)
@@ -2290,7 +2292,10 @@ class BayeSEDGUI:
         header_frame.pack(fill="x", pady=10)
 
         try:
-            logo = Image.open("BayeSED3.jpg")
+            # Use resource path resolution for conda installs
+            from bayesed.utils import _get_resource_path
+            logo_path = _get_resource_path("BayeSED3.jpg")
+            logo = Image.open(logo_path)
             logo = logo.resize((100, 100), Image.LANCZOS)
             logo_photo = ImageTk.PhotoImage(logo)
             logo_label = ttk.Label(header_frame, image=logo_photo)
@@ -2384,9 +2389,14 @@ class BayeSEDGUI:
         about_window.grab_set()
         self.master.wait_window(about_window)
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for BayeSED3 GUI."""
     root = tk.Tk()
     gui = BayeSEDGUI(root)
     root.protocol("WM_DELETE_WINDOW", lambda: (gui.stop_execution(), root.destroy()))
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
 

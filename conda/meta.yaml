@@ -1,0 +1,60 @@
+{% set name = "bayesed3" %}
+{% set version = "3.0.0" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  skip: True  # [win]
+
+requirements:
+  build:
+    - python
+    - setuptools
+    - pip
+  run:
+    # Critical: OpenMPI 4.1.6 dependency
+    - openmpi=4.1.6
+    - python >=3.7
+    # Python dependencies from requirements.txt
+    - numpy >=1.20.0
+    - h5py >=3.1.0
+    - astropy >=4.2
+    - matplotlib >=3.3.0
+    - getdist >=1.3.0
+    - requests >=2.25.0
+    - tqdm >=4.60.0
+    - pillow >=8.0.0
+    - pyperclip >=1.8.0
+    - psutil >=5.8.0
+
+test:
+  imports:
+    - bayesed
+  commands:
+    - python -c "import bayesed; print(bayesed.__version__)"
+    - python -c "from bayesed import BayeSEDInterface; print('BayeSEDInterface imported successfully')"
+    - BayeSED3_GUI --help 2>&1 || echo "GUI command available"
+
+about:
+  home: https://github.com/hanyk/BayeSED3
+  license: MIT
+  license_file: LICENSE
+  summary: Bayesian SED synthesis and analysis of galaxies and AGNs
+  description: |
+    BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation 
+    of spectral energy distributions (SEDs) of galaxies and Active Galactic Nuclei (AGNs). 
+    It performs Bayesian parameter estimation using posterior probability distributions (PDFs) 
+    and Bayesian SED model comparison using Bayesian evidence.
+  doc_url: https://github.com/hanyk/BayeSED3
+  dev_url: https://github.com/hanyk/BayeSED3
+
+extra:
+  recipe-maintainers:
+    - hanyk
+

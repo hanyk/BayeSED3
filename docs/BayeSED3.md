@@ -116,42 +116,124 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 ## Installation
 
-1. Clone the repository:
+**Platform support:**
+- Linux x86_64
+- macOS (x86_64 and ARM64 via Rosetta 2)
+- Windows (via WSL - uses Linux binaries)
+
+### Option 1: Pip Installation (Easier Uninstall) ⭐ Recommended
+
+**Pip installation is simpler for uninstalling** - it only removes bayesed3, not its dependencies.
+
+**Installation:**
 ```bash
-git clone https://github.com/hanyk/BayeSED3.git
+# Install OpenMPI first (required)
+conda install openmpi=4.1.6
+# Or via system: brew install openmpi (macOS) or apt-get install openmpi-bin (Linux)
+
+# Install BayeSED3
+pip install .          # Regular install (for production use)
+pip install -e .      # Editable install (for development - changes immediately visible)
 ```
 
-2. Install OpenMPI (automatically installed or manual installation):
+**Uninstall:**
 ```bash
-cd BayeSED3
-wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
-tar xzvf openmpi-4.1.6.tar.gz
-cd openmpi-4.1.6
-./configure --prefix=$PWD/../openmpi
-make
-make install
+pip uninstall bayesed3
+# Dependencies (OpenMPI, matplotlib, etc.) stay installed
 ```
+
+**Benefits:**
+- ✅ Cleaner uninstall (only removes bayesed3)
+- ✅ Faster development cycle
+- ✅ Works with virtual environments
+- ⚠️ Requires OpenMPI to be installed separately
+
+**Note:** 
+- **Regular install** (`pip install .`): Copies files to site-packages. Use for production.
+- **Editable install** (`pip install -e .`): Links to source directory. Changes are immediately visible. Use for development.
+- BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will prompt you to install OpenMPI via conda (if available) or ask for permission to auto-compile it.
+- BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will prompt you to install OpenMPI or auto-compile it (with your permission).
+
+### Option 2: Conda Installation (Automatic Dependencies)
+
+**Conda automatically handles all dependencies including OpenMPI.** Note: BayeSED3 is not yet available on conda-forge. You must build it locally.
+
+**Installation:**
+```bash
+# Build conda package from source
+conda build conda/
+
+# Install the locally built package
+conda install --use-local bayesed3
+```
+
+**Uninstall:**
+```bash
+# Remove BayeSED3 (also removes dependencies like OpenMPI, matplotlib, etc.)
+conda remove bayesed3
+
+# Optional: Clean package cache
+conda clean --packages -y
+
+# Optional: Clean build cache (if you built it locally)
+conda build purge
+```
+
+**Benefits:**
+- ✅ Automatic dependency management (OpenMPI, HDF5, Python packages)
+- ✅ Works from any directory
+- ⚠️ Requires local build first (not available on conda-forge yet)
+- ⚠️ Uninstall removes dependencies: `conda remove bayesed3` also removes OpenMPI, matplotlib, etc.
+
+**Note:** BayeSED3 will be available on conda-forge in the future. See `conda/CONDA_FORGE_SUBMISSION.md` for submission status.
+
+### Manual Installation (Advanced)
+
+For manual installation from source:
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/hanyk/BayeSED3.git
+   ```
+
+2. **Install OpenMPI 4.1.6** (REQUIRED):
+   
+   **Via conda (recommended):**
+   ```bash
+   conda install -c conda-forge openmpi=4.1.6
+   ```
+   
+   **Via system package manager:**
+   - Ubuntu/Debian: `sudo apt-get install openmpi-bin openmpi-common libopenmpi-dev`
+   - Fedora: `sudo dnf install openmpi openmpi-devel`
+   - macOS (Homebrew): `brew install openmpi`
+   
+   **Or compile from source:**
+   ```bash
+   cd BayeSED3
+   wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
+   tar xzvf openmpi-4.1.6.tar.gz
+   cd openmpi-4.1.6
+   ./configure --prefix=$PWD/../openmpi
+   make
+   make install
+   ```
 
 3. Install Python dependencies:
-```bash
-pip install -r requirements.txt
-```
+   ```
+   pip install -r requirements.txt
+   ```
 
-4. Optional dependencies:
-- HDF5 utilities:
-  - Ubuntu/Debian: `sudo apt-get install h5utils`
-  - Fedora: `sudo dnf install hdf5-tools`
-  - macOS: `brew install h5utils`
-- GUI dependencies (tkinter):
-  - Ubuntu/Debian: `sudo apt-get install python3-tk`
-  - Fedora: `sudo dnf install python3-tkinter`
-  - macOS: `brew install python-tk`
+4. Install HDF5 utilities (optional):
+   - Ubuntu/Debian: `sudo apt-get install h5utils`
+   - Fedora: `sudo dnf install hdf5-tools`
+   - macOS (with Homebrew): `brew install h5utils`
 
-## System Compatibility
+5. Install tkinter (for GUI):
+   - Ubuntu/Debian: `sudo apt-get install python3-tk`
+   - Fedora: `sudo dnf install python3-tkinter`
+   - macOS (with Homebrew): `brew install python-tk`
 
-- Linux: x86_64 architecture
-- macOS: x86_64 architecture (ARM supported via Rosetta 2)
-- Windows: Supported through Windows Subsystem for Linux (WSL)
 
 ## Input Data Format
 

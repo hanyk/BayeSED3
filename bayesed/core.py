@@ -3175,7 +3175,23 @@ class BayeSEDInterface:
         openmpi_file = f"{openmpi_dir}.tar.gz"
         install_dir = os.path.abspath("openmpi")
 
-        # Check if the correct version of OpenMPI is already installed on the system
+        # Priority 1: Check for conda-installed OpenMPI (highest priority)
+        conda_prefix = os.environ.get('CONDA_PREFIX')
+        if conda_prefix:
+            conda_mpirun = os.path.join(conda_prefix, 'bin', 'mpirun')
+            if os.path.exists(conda_mpirun):
+                try:
+                    result = subprocess.run([conda_mpirun, "--version"], capture_output=True, text=True)
+                    installed_version = result.stdout.split()[3]
+                    if installed_version == openmpi_version:
+                        print(f"Using conda-installed OpenMPI {installed_version}")
+                        return conda_mpirun
+                    else:
+                        print(f"Conda has OpenMPI {installed_version}, but we need {openmpi_version}")
+                except Exception as e:
+                    print(f"Error checking conda OpenMPI version: {e}")
+
+        # Priority 2: Check if the correct version of OpenMPI is already installed on the system
         system_mpirun = shutil.which("mpirun")
         if system_mpirun:
             try:
@@ -3190,8 +3206,127 @@ class BayeSEDInterface:
             except Exception as e:
                 print(f"Error checking OpenMPI version: {e}")
 
-        # If the correct version of OpenMPI is not found, proceed with the installation
+        # Priority 3: Check for locally compiled OpenMPI
+        local_mpirun = os.path.join(install_dir, "bin", "mpirun")
+        if os.path.exists(local_mpirun):
+            print(f"Using locally compiled OpenMPI from {install_dir}")
+            # Set up environment variables for local OpenMPI
+            os.environ["PATH"] = f"{os.path.dirname(local_mpirun)}:{os.environ.get('PATH', '')}"
+            os.environ["LD_LIBRARY_PATH"] = f"{os.path.join(install_dir, 'lib')}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+            return local_mpirun
+
+        # Priority 4: Auto-compile OpenMPI (fallback for repository installations)
+        # Ask user for permission before auto-compiling
         if not os.path.exists(install_dir):
+            # Check if conda is available
+            conda_available = shutil.which("conda") is not None
+            
+            print("\n" + "="*70)
+            print("OpenMPI 4.1.6 not found!")
+            print("="*70)
+            
+            # Check if we're in an interactive environment
+            is_interactive = sys.stdin.isatty() and sys.stdout.isatty()
+            
+            # If conda is available, offer to install via conda automatically
+            if conda_available and is_interactive:
+                print("\n⚠️  Conda detected! BayeSED3 can automatically install OpenMPI via conda.")
+                print("   This is the fastest and easiest method.")
+                print("\n   Command: conda install openmpi=4.1.6")
+                
+                try:
+                    response = input("\nDo you want to install OpenMPI via conda now? [Y/n]: ").strip().lower()
+                    install_via_conda = response not in ['n', 'no']
+                except (EOFError, KeyboardInterrupt):
+                    print("\n\nCancelled by user.")
+                    install_via_conda = False
+                
+                if install_via_conda:
+                    print("\n⏳ Installing OpenMPI 4.1.6 via conda...")
+                    try:
+                        # Run conda install
+                        result = subprocess.run(
+                            ["conda", "install", "-y", "openmpi=4.1.6"],
+                            capture_output=True,
+                            text=True,
+                            check=False
+                        )
+                        
+                        if result.returncode == 0:
+                            print("✅ OpenMPI 4.1.6 successfully installed via conda!")
+                            # Re-check for conda-installed OpenMPI
+                            conda_prefix = os.environ.get('CONDA_PREFIX')
+                            if conda_prefix:
+                                conda_mpirun = os.path.join(conda_prefix, 'bin', 'mpirun')
+                                if os.path.exists(conda_mpirun):
+                                    try:
+                                        result = subprocess.run([conda_mpirun, "--version"], capture_output=True, text=True)
+                                        installed_version = result.stdout.split()[3]
+                                        if installed_version == openmpi_version:
+                                            print(f"✅ Using conda-installed OpenMPI {installed_version}")
+                                            return conda_mpirun
+                                    except Exception as e:
+                                        print(f"⚠️  Error verifying OpenMPI version: {e}")
+                            
+                            print("\n⚠️  OpenMPI was installed but not immediately detected.")
+                            print("   Please restart your Python session and try again.")
+                            raise FileNotFoundError(
+                                f"\nOpenMPI {openmpi_version} was installed via conda, but needs a Python session restart.\n"
+                                f"Please restart Python and try again."
+                            )
+                        else:
+                            print(f"⚠️  Conda installation failed with return code {result.returncode}")
+                            if result.stderr:
+                                print(f"Error: {result.stderr}")
+                            print("\nFalling back to other installation options...\n")
+                    except Exception as e:
+                        print(f"⚠️  Error running conda install: {e}")
+                        print("\nFalling back to other installation options...\n")
+            
+            # Show manual installation options
+            if conda_available:
+                print("\n⚠️  Manual installation options:")
+                print("   1. Conda: conda install openmpi=4.1.6")
+                print("   2. System package manager (see below)")
+            else:
+                print("\n⚠️  RECOMMENDED: Install OpenMPI via system package manager:")
+                print("   macOS:    brew install openmpi")
+                print("   Ubuntu:   sudo apt-get install openmpi-bin libopenmpi-dev")
+                print("   Fedora:   sudo dnf install openmpi openmpi-devel")
+            
+            print("\n" + "-"*70)
+            print("Alternatively, BayeSED3 can automatically download and compile")
+            print(f"OpenMPI {openmpi_version} from source (takes 10-30 minutes).")
+            print("-"*70)
+            
+            if is_interactive:
+                try:
+                    response = input("\nDo you want to auto-compile OpenMPI now? [y/N]: ").strip().lower()
+                    auto_compile = response in ['y', 'yes']
+                except (EOFError, KeyboardInterrupt):
+                    print("\n\nCancelled by user.")
+                    auto_compile = False
+            else:
+                # Non-interactive environment (script, GUI, etc.)
+                print("\n⚠️  Non-interactive environment detected.")
+                print("   Auto-compilation requires user interaction.")
+                print("   Please install OpenMPI manually using one of the methods above.")
+                auto_compile = False
+            
+            if not auto_compile:
+                raise FileNotFoundError(
+                    f"\nOpenMPI {openmpi_version} is required but not found.\n"
+                    f"Please install it using one of these methods:\n"
+                    f"  1. Conda (recommended): conda install openmpi=4.1.6\n"
+                    f"  2. System package manager (see above)\n"
+                    f"  3. Manual compilation (see README.md)\n"
+                    f"\nAfter installation, restart your Python session."
+                )
+            
+            # User agreed to auto-compile - proceed with compilation
+            print(f"\n⏳ Starting automatic compilation of OpenMPI {openmpi_version}...")
+            print("   This may take 10-30 minutes depending on your system.\n")
+            
             # Check if the tarball already exists and is complete
             if os.path.exists(openmpi_file):
                 print(f"OpenMPI {openmpi_version} tarball already exists. Checking if it's complete...")
@@ -3233,18 +3368,27 @@ class BayeSEDInterface:
             print("Cleaning up temporary files...")
             shutil.rmtree(openmpi_dir)
 
-        mpirun_path = os.path.join(install_dir, "bin", "mpirun")
-        if not os.path.exists(mpirun_path):
-            raise FileNotFoundError(f"mpirun not found at {mpirun_path}. OpenMPI installation may have failed.")
+            mpirun_path = os.path.join(install_dir, "bin", "mpirun")
+            if not os.path.exists(mpirun_path):
+                raise FileNotFoundError(f"mpirun not found at {mpirun_path}. OpenMPI installation may have failed.")
 
-        # Set up environment variables for OpenMPI
-        os.environ["PATH"] = f"{os.path.dirname(mpirun_path)}:{os.environ.get('PATH', '')}"
-        os.environ["LD_LIBRARY_PATH"] = f"{os.path.join(install_dir, 'lib')}:{os.environ.get('LD_LIBRARY_PATH', '')}"
+            # Set up environment variables for OpenMPI
+            os.environ["PATH"] = f"{os.path.dirname(mpirun_path)}:{os.environ.get('PATH', '')}"
+            os.environ["LD_LIBRARY_PATH"] = f"{os.path.join(install_dir, 'lib')}:{os.environ.get('LD_LIBRARY_PATH', '')}"
 
-        return mpirun_path
+            print(f"\n✅ OpenMPI {openmpi_version} successfully compiled and installed!")
+            return mpirun_path
+        
+        # If we get here, we should have found OpenMPI in one of the priorities above
+        # This should not happen, but raise an error if it does
+        raise FileNotFoundError(
+            "Could not find OpenMPI 4.1.6. "
+            "Checked conda installation, system installation, local compilation, and auto-compilation failed."
+        )
 
     def _get_executable(self):
-        base_path = "./bin"
+        from .utils import _get_resource_path
+        
         executable = f"bayesed_{self.mpi_mode}"
         if self.os == "linux" or (self.os == "windows" and "microsoft" in platform.uname().release.lower()):
             platform_dir = "linux"
@@ -3253,9 +3397,9 @@ class BayeSEDInterface:
         else:
             raise ValueError(f"Unsupported operating system: {self.os}")
 
-        executable_path = os.path.join(base_path, platform_dir, executable)
-        if not os.path.exists(executable_path):
-            raise FileNotFoundError(f"Executable not found: {executable_path}")
+        # Use resource path resolution for both conda and repository installations
+        relative_path = os.path.join("bin", platform_dir, executable)
+        executable_path = _get_resource_path(relative_path)
 
         return executable_path
 
@@ -3406,6 +3550,39 @@ class BayeSEDInterface:
         # Set TMPDIR environment variable
         os.environ['TMPDIR'] = '/tmp'
 
+        # Set working directory to BayeSED3 root so binary can find data files (data/, models/, nets/)
+        # Convert relative paths to absolute paths for both conda and repository installations
+        from .utils import _is_conda_installation, _get_bayesed3_root, _ensure_absolute_path
+        
+        cwd = None
+        try:
+            # Get BayeSED3 root directory (works for both conda and repository installations)
+            bayesed3_root = _get_bayesed3_root()
+            # Set working directory to BayeSED3 root so binary can find data files
+            cwd = bayesed3_root
+            
+            # Convert relative paths to absolute paths before changing directory
+            # This ensures user's paths work correctly regardless of working directory
+            if params.input_file and not os.path.isabs(params.input_file):
+                params.input_file = _ensure_absolute_path(params.input_file)
+            
+            if params.outdir and not os.path.isabs(params.outdir):
+                params.outdir = _ensure_absolute_path(params.outdir)
+            
+            if params.filters and not os.path.isabs(params.filters):
+                params.filters = _ensure_absolute_path(params.filters)
+            
+            if params.filters_selected and not os.path.isabs(params.filters_selected):
+                params.filters_selected = _ensure_absolute_path(params.filters_selected)
+            
+            # Rebuild args with updated paths
+            args = self._params_to_args(params)
+        except FileNotFoundError as e:
+            # Gracefully handle if BayeSED3 root cannot be determined
+            print(f"Warning: Could not determine BayeSED3 root directory: {e}")
+            print("Binary may not be able to find data files (data/, models/, nets/).")
+            cwd = None
+
         # Build MPI command - handle PBS/qsub environment
         cmd = [self.mpi_cmd]
 
@@ -3448,7 +3625,17 @@ class BayeSEDInterface:
         print("-" * 70)
 
         try:
-            self.process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, bufsize=1)
+            # Set cwd for conda installations so binary can find data files
+            popen_kwargs = {
+                'stdout': subprocess.PIPE,
+                'stderr': subprocess.STDOUT,
+                'universal_newlines': True,
+                'bufsize': 1
+            }
+            if cwd is not None:
+                popen_kwargs['cwd'] = cwd
+            
+            self.process = subprocess.Popen(cmd, **popen_kwargs)
 
             output_lines = []
             for line in iter(self.process.stdout.readline, ''):

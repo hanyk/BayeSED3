@@ -3145,3 +3145,146 @@ def create_filters_selected(
     return filter_table
 
 
+def _is_conda_installation():
+    """
+    Check if BayeSED3 is installed via conda.
+    
+    Returns
+    -------
+    bool
+        True if running from conda installation, False otherwise
+    """
+    import os
+    conda_prefix = os.environ.get('CONDA_PREFIX')
+    if not conda_prefix:
+        return False
+    
+    # Check if conda-installed resources exist AND have required bin directory
+    # This ensures consistency with _get_bayesed3_root() which requires bin/
+    share_dir = os.path.join(conda_prefix, 'share', 'bayesed3')
+    bin_dir = os.path.join(share_dir, 'bin')
+    return os.path.exists(share_dir) and os.path.exists(bin_dir)
+
+
+def _get_bayesed3_root():
+    """
+    Get the root directory of BayeSED3 installation.
+    
+    For conda installations, returns $CONDA_PREFIX/share/bayesed3/
+    For repository installations, returns the repository root.
+    
+    Returns
+    -------
+    str
+        Path to BayeSED3 root directory
+        
+    Raises
+    ------
+    FileNotFoundError
+        If BayeSED3 root cannot be determined
+    """
+    import os
+    
+    # Check for conda installation first
+    # Only return conda root if it actually exists and has content
+    if _is_conda_installation():
+        conda_prefix = os.environ.get('CONDA_PREFIX')
+        conda_root = os.path.join(conda_prefix, 'share', 'bayesed3')
+        # Check if conda installation actually has files (e.g., bin directory)
+        if os.path.exists(conda_root) and os.path.exists(os.path.join(conda_root, 'bin')):
+            return conda_root
+    
+    # Fall back to repository installation
+    # Find repository root by looking for bayesed package location
+    import bayesed
+    package_dir = os.path.dirname(os.path.abspath(bayesed.__file__))
+    # Go up from bayesed/ to repository root
+    repo_root = os.path.dirname(package_dir)
+    
+    # Verify it's the repository root by checking for bin/ directory
+    if os.path.exists(os.path.join(repo_root, 'bin')):
+        return repo_root
+    
+    raise FileNotFoundError(
+        f"Could not determine BayeSED3 root directory. "
+        f"Checked conda installation at {os.environ.get('CONDA_PREFIX', 'N/A')}/share/bayesed3 "
+        f"and repository at {repo_root}"
+    )
+
+
+def _get_resource_path(relative_path):
+    """
+    Get absolute path to a resource file.
+    
+    For conda installations, looks in $CONDA_PREFIX/share/bayesed3/
+    For repository installations, uses relative paths from repository root.
+    
+    Parameters
+    ----------
+    relative_path : str
+        Relative path from BayeSED3 root (e.g., 'bin/linux/bayesed_mn_1', 'models/...')
+        
+    Returns
+    -------
+    str
+        Absolute path to the resource
+        
+    Raises
+    ------
+    FileNotFoundError
+        If resource cannot be found
+    """
+    import os
+    
+    root = _get_bayesed3_root()
+    resource_path = os.path.join(root, relative_path)
+    
+    if not os.path.exists(resource_path):
+        # If conda root was returned but file doesn't exist, try repository root as fallback
+        if _is_conda_installation() and 'share/bayesed3' in root:
+            # Try repository root as fallback
+            import bayesed
+            package_dir = os.path.dirname(os.path.abspath(bayesed.__file__))
+            repo_root = os.path.dirname(package_dir)
+            repo_resource_path = os.path.join(repo_root, relative_path)
+            if os.path.exists(repo_resource_path):
+                return repo_resource_path
+        
+        # If still not found, raise error
+        raise FileNotFoundError(
+            f"Resource not found: {relative_path}\n"
+            f"Searched in: {root}\n"
+            f"If installed via conda, ensure the package is correctly installed.\n"
+            f"If running from repository, ensure you're in the repository root."
+        )
+    
+    return resource_path
+
+
+def _ensure_absolute_path(path, base_dir=None):
+    """
+    Convert a relative path to an absolute path.
+    
+    Parameters
+    ----------
+    path : str
+        Path to convert (can be absolute or relative)
+    base_dir : str, optional
+        Base directory for relative paths. If None, uses current working directory.
+        
+    Returns
+    -------
+    str
+        Absolute path
+    """
+    import os
+    
+    if os.path.isabs(path):
+        return path
+    
+    if base_dir is None:
+        base_dir = os.getcwd()
+    
+    return os.path.abspath(os.path.join(base_dir, path))
+
+
