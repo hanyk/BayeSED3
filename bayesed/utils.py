@@ -3170,8 +3170,10 @@ def _get_bayesed3_root():
     """
     Get the root directory of BayeSED3 installation.
     
-    For conda installations, returns $CONDA_PREFIX/share/bayesed3/
-    For repository installations, returns the repository root.
+    Priority order:
+    1. Conda installation: $CONDA_PREFIX/share/bayesed3/
+    2. Pip installation: sys.prefix/share/bayesed3/ or site.USER_BASE/share/bayesed3/
+    3. Repository installation: repository root
     
     Returns
     -------
@@ -3184,6 +3186,8 @@ def _get_bayesed3_root():
         If BayeSED3 root cannot be determined
     """
     import os
+    import sys
+    import site
     
     # Check for conda installation first
     # Only return conda root if it actually exists and has content
@@ -3193,6 +3197,17 @@ def _get_bayesed3_root():
         # Check if conda installation actually has files (e.g., bin directory)
         if os.path.exists(conda_root) and os.path.exists(os.path.join(conda_root, 'bin')):
             return conda_root
+    
+    # Check for pip installation (system-wide or user)
+    # Pip installs data files to share/bayesed3/ in the prefix
+    pip_roots = [
+        os.path.join(sys.prefix, 'share', 'bayesed3'),  # System-wide install
+        os.path.join(site.USER_BASE, 'share', 'bayesed3'),  # User install (--user)
+    ]
+    
+    for pip_root in pip_roots:
+        if os.path.exists(pip_root) and os.path.exists(os.path.join(pip_root, 'bin')):
+            return pip_root
     
     # Fall back to repository installation
     # Find repository root by looking for bayesed package location
@@ -3205,10 +3220,17 @@ def _get_bayesed3_root():
     if os.path.exists(os.path.join(repo_root, 'bin')):
         return repo_root
     
+    # Build error message with all checked locations
+    checked_locations = []
+    if _is_conda_installation():
+        checked_locations.append(f"conda: {os.environ.get('CONDA_PREFIX', 'N/A')}/share/bayesed3")
+    checked_locations.append(f"pip system: {sys.prefix}/share/bayesed3")
+    checked_locations.append(f"pip user: {site.USER_BASE}/share/bayesed3")
+    checked_locations.append(f"repository: {repo_root}")
+    
     raise FileNotFoundError(
-        f"Could not determine BayeSED3 root directory. "
-        f"Checked conda installation at {os.environ.get('CONDA_PREFIX', 'N/A')}/share/bayesed3 "
-        f"and repository at {repo_root}"
+        f"Could not determine BayeSED3 root directory.\n"
+        f"Checked locations:\n" + "\n".join(f"  - {loc}" for loc in checked_locations)
     )
 
 
@@ -3217,6 +3239,7 @@ def _get_resource_path(relative_path):
     Get absolute path to a resource file.
     
     For conda installations, looks in $CONDA_PREFIX/share/bayesed3/
+    For pip installations, looks in sys.prefix/share/bayesed3/ or site.USER_BASE/share/bayesed3/
     For repository installations, uses relative paths from repository root.
     
     Parameters
