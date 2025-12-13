@@ -45,7 +45,7 @@ from .utils import (
 from .plotting import plot_bestfit
 
 
-def compare_results(results_list, labels=None, params=None, **kwargs):
+def compare_results(results_list, labels=None, params=None, show=True, **kwargs):
     """
     Compare posterior samples from multiple BayeSEDResults objects.
     
@@ -60,6 +60,8 @@ def compare_results(results_list, labels=None, params=None, **kwargs):
         Labels for each result set (default: 'Result 1', 'Result 2', etc.)
     params : list of str, optional
         Parameters to plot. If None, uses common free parameters.
+    show : bool, optional
+        Whether to display the plot (default: True)
     **kwargs
         Additional arguments passed to GetDist triangle_plot
         
@@ -77,7 +79,7 @@ def compare_results(results_list, labels=None, params=None, **kwargs):
     ...                 labels=['Model 1', 'Model 2'],
     ...                 params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
     """
-    return BayeSEDResults.plot_posterior_comparison(results_list, labels, params, **kwargs)
+    return BayeSEDResults.plot_posterior_comparison(results_list, labels, params, show=show, **kwargs)
 
 
 class IDConstants:
