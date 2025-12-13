@@ -1440,6 +1440,16 @@ class BayeSEDResults:
     - Posterior distribution samples
     - Bayesian evidence values
     - Fit statistics
+    - Easy parameter name access and categorization
+    - Parameter value extraction and analysis
+
+    Key Features
+    ------------
+    - **Parameter Discovery**: Easy access to free and derived parameter names
+    - **Parameter Categorization**: Group parameters by type (stellar, dust, SFH, AGN, etc.)
+    - **Value Extraction**: Get parameter values for specific objects or parameters
+    - **Summary Methods**: Quick overview of parameter structure and counts
+    - **Flexible Data Sources**: Read from HDF5 files or posterior sample files
 
     BayeSED Output Structure:
     -------------------------
@@ -1509,6 +1519,30 @@ class BayeSEDResults:
         All methods will operate within this catalog's scope.
     object_id : str or int, optional
         Object ID to load results for (if None, loads first available object)
+
+    Examples
+    --------
+    >>> # Basic usage
+    >>> results = BayeSEDResults('output')
+    >>> 
+    >>> # Quick parameter overview
+    >>> results.print_parameter_summary()
+    >>> 
+    >>> # Get parameter names by type
+    >>> free_params = results.get_free_parameter_names()
+    >>> derived_params = results.get_derived_parameter_names()
+    >>> stellar_params = results.get_parameters_by_type('stellar')
+    >>> 
+    >>> # Get parameter values
+    >>> ages = results.get_parameter_values('log(age/yr)[0,1]')
+    >>> stellar_masses = results.get_parameter_values('log(M*/Msun)[0,1]')
+    >>> 
+    >>> # Get multiple parameters at once
+    >>> params = results.get_parameter_values(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
+    >>> 
+    >>> # Load full results table
+    >>> table = results.load_hdf5_results()
+    >>> print(table.colnames)  # All available parameters
     """
 
     def __init__(self, output_dir, catalog_name=None, object_id=None):
@@ -1842,7 +1876,7 @@ class BayeSEDResults:
 
     def get_posterior_samples(self, object_base=None):
         """
-        Load posterior distribution samples.
+        Load posterior distribution samples as an astropy Table.
 
         Parameters
         ----------
@@ -1851,12 +1885,19 @@ class BayeSEDResults:
 
         Returns
         -------
-        dict
-            Dictionary containing:
-            - 'paramnames': list - Parameter names
-            - 'samples': array - Sample values (N_samples, N_params)
-            - 'posterior_weights': array, optional - Posterior weights (P_{posterior}) if available
-            - 'loglike': array, optional - Log-likelihood values if available
+        astropy.table.Table
+            Table containing posterior samples with:
+            - Parameter columns: Sample values for each parameter
+            - 'posterior_weights': Posterior weights (P_{posterior}) if available
+            - 'loglike': Log-likelihood values if available
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> samples = results.get_posterior_samples()
+        >>> print(samples.colnames)  # All parameter names
+        >>> ages = samples['log(age/yr)[0,1]']  # Access parameter samples
+        >>> weights = samples['posterior_weights']  # Access weights
         """
         if not self.posterior_files:
             raise FileNotFoundError("No posterior sample files found")
@@ -1894,40 +1935,42 @@ class BayeSEDResults:
         # Read samples
         try:
             import numpy as np
+            from astropy.table import Table
+            
             samples_all = np.loadtxt(files['samples'])
             
             # The samples file typically contains P_{posterior} and loglike as first two columns
             # which are not in the paramnames file. Extract these for weighted sampling.
-            # Check if we need to skip columns (samples has more columns than paramnames)
-            result = {
-                'paramnames': paramnames,
-            }
+            table_data = {}
             
             if samples_all.shape[1] > len(paramnames):
                 # Extract P_{posterior} and loglike from first columns
                 n_skip = samples_all.shape[1] - len(paramnames)
                 if n_skip >= 1:
-                    result['posterior_weights'] = samples_all[:, 0]
+                    table_data['posterior_weights'] = samples_all[:, 0]
                 if n_skip >= 2:
-                    result['loglike'] = samples_all[:, 1]
+                    table_data['loglike'] = samples_all[:, 1]
                 # Extract parameter columns (skip the first n_skip columns)
                 samples = samples_all[:, n_skip:]
             else:
                 samples = samples_all
             
-            result['samples'] = samples
+            # Add parameter columns to table
+            for i, param_name in enumerate(paramnames):
+                table_data[param_name] = samples[:, i]
             
-            return result
+            # Create astropy table
+            return Table(table_data)
+            
         except Exception as e:
             raise RuntimeError(f"Error reading posterior samples: {e}")
 
-    def get_evidence(self, object_id=None, use_ins=True):
+    def get_evidence(self, object_id=None):
         """
-        Get Bayesian evidence value from HDF5 parameter table.
+        Get Bayesian evidence values and errors from parameter table.
 
-        Reads evidence from the parameter table obtained via load_hdf5_results(),
-        looking for columns with names containing "logZ". BayeSED provides two
-        evidence estimates:
+        Returns an astropy table with evidence-related columns for all objects
+        or a specific object. BayeSED provides two evidence estimates:
         - 'logZ': Standard nested sampling evidence
         - 'INSlogZ': Importance Nested Sampling (INS) evidence (more accurate)
         
@@ -1938,67 +1981,88 @@ class BayeSEDResults:
         Parameters
         ----------
         object_id : str or int, optional
-            Object ID to get evidence for. If None, returns evidence for first object.
-        use_ins : bool, optional
-            If True (default), prefer INSlogZ over logZ. If False, use logZ.
-            INS evidence is generally more accurate when available.
+            Object ID to get evidence for. If None, returns evidence for all objects.
 
         Returns
         -------
-        float or None
-            Bayesian evidence (log Z) if available, None otherwise
+        astropy.table.Table
+            Table containing ID and evidence-related columns:
+            - 'ID': Object identifiers
+            - 'logZ': Standard evidence (if available)
+            - 'logZerr': Standard evidence error (if available)
+            - 'INSlogZ': INS evidence (if available)
+            - 'INSlogZerr': INS evidence error (if available)
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> 
+        >>> # Get evidence for all objects
+        >>> evidence_table = results.get_evidence()
+        >>> print(evidence_table)
+        >>> 
+        >>> # Get evidence for specific object
+        >>> evidence_obj = results.get_evidence(object_id='galaxy_1')
+        >>> print(f"INS Evidence: {evidence_obj['INSlogZ'][0]:.2f} ± {evidence_obj['INSlogZerr'][0]:.2f}")
+        >>> 
+        >>> # Access specific columns
+        >>> all_evidence = results.get_evidence()
+        >>> best_evidence = all_evidence['INSlogZ'] if 'INSlogZ' in all_evidence.colnames else all_evidence['logZ']
         """
-        if self.hdf5_file is None:
-            return None
-
         try:
-            # Load parameter table
-            params_table = self.load_hdf5_results(hdf5_file=self.hdf5_file, filter_snr=False)
+            params_table = self.parameters
             
-            # Select evidence column (logZ and INSlogZ are always in the table)
-            if use_ins:
-                logz_col = 'INSlogZ' if 'INSlogZ' in params_table.colnames else 'logZ'
-            else:
-                logz_col = 'logZ' if 'logZ' in params_table.colnames else 'INSlogZ'
+            # Find evidence-related columns
+            evidence_cols = ['ID']  # Always include ID
+            for col in ['logZ', 'logZerr', 'INSlogZ', 'INSlogZerr']:
+                if col in params_table.colnames:
+                    evidence_cols.append(col)
             
-            if logz_col not in params_table.colnames:
-                return None
+            if len(evidence_cols) == 1:  # Only ID column found
+                raise ValueError("No evidence columns found in parameter table")
             
-            # Get evidence for specified object or first object
+            # Extract evidence table
+            evidence_table = params_table[evidence_cols]
+            
+            # Filter by object_id if specified
             if object_id is not None:
-                # Find row matching object_id
                 obj_str = str(object_id)
-                matching_rows = params_table[params_table['ID'] == obj_str]
+                matching_rows = evidence_table[evidence_table['ID'] == obj_str]
                 if len(matching_rows) == 0:
                     # Try partial match
-                    matching_rows = params_table[[obj_str in str(id) for id in params_table['ID']]]
-                if len(matching_rows) > 0:
-                    return float(matching_rows[logz_col][0])
-                else:
-                    return None
+                    matching_rows = evidence_table[[obj_str in str(id) for id in evidence_table['ID']]]
+                if len(matching_rows) == 0:
+                    raise ValueError(f"Object ID '{object_id}' not found in results")
+                return matching_rows
             else:
-                # Return evidence for first object
-                if len(params_table) > 0:
-                    return float(params_table[logz_col][0])
-                else:
-                    return None
+                # Return evidence for all objects
+                return evidence_table
                     
         except Exception as e:
-            # Fall back to reading from HDF5 attributes/datasets if parameter table method fails
-            try:
-                import h5py
-                with h5py.File(self.hdf5_file, 'r') as f:
-                    # Try common evidence keys
-                    for key in ['evidence', 'logZ', 'log_z', 'log_evidence']:
-                        if key in f.attrs:
-                            return f.attrs[key]
-                        if key in f:
-                            return f[key][()]
-                    return None
-            except ImportError:
-                raise ImportError("h5py is required for reading HDF5 files. Install with: pip install h5py")
-            except Exception:
-                raise RuntimeError(f"Error reading evidence from HDF5 file: {e}")
+            raise RuntimeError(f"Error reading evidence from parameter table: {e}")
+
+    @property
+    def parameters(self):
+        """
+        Get the main parameters table as an astropy Table.
+        
+        This property provides direct access to the HDF5 results table containing
+        all parameters and statistics. Parameter names can be accessed via parameters.colnames.
+        
+        Returns
+        -------
+        astropy.table.Table
+            Table containing all parameters and results
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> params = results.parameters
+        >>> print(params.colnames)  # All parameter names
+        >>> ages = params['log(age/yr)[0,1]_{median}']  # Access specific parameter
+        >>> free_param_names = [col for col in params.colnames if not any(x in col for x in ['SNR', 'logZ', 'scale'])]
+        """
+        return self.load_hdf5_results(filter_snr=False)
 
     def load_hdf5_results(self, hdf5_file=None, filter_snr=True, min_snr=0.0):
         """
@@ -2035,7 +2099,7 @@ class BayeSEDResults:
         >>> high_snr = params_table[params_table['SNR'] > 10]
         >>>
         >>> # Access specific parameter
-        >>> ages = params_table['log(age/yr)[0,1]']
+        >>> ages = params_table['log(age/yr)[0,1]_{median}']
         """
         if hdf5_file is None:
             if self.hdf5_file is None:
@@ -2297,10 +2361,10 @@ class BayeSEDResults:
                 unique_objects.append(obj)
         return unique_objects
 
-    def plot_posterior_pdf(self, params=None, object_base=None,
-                           method='getdist', filled=True, show=True,
-                           output_file=None, figsize=None, show_median=True,
-                           show_confidence_intervals=True, confidence_level=0.68, **kwargs):
+    def plot_posterior(self, params=None, object_base=None,
+                       method='getdist', filled=True, show=True,
+                       output_file=None, figsize=None, show_median=True,
+                       show_confidence_intervals=True, confidence_level=0.68, **kwargs):
         """
         Plot posterior probability distribution functions (PDFs).
 
@@ -2310,10 +2374,14 @@ class BayeSEDResults:
 
         Parameters
         ----------
-        params : list of str or str, optional
-            List of parameter names to plot, or single parameter name for 1D plot.
-            If None, plots all parameters (may be slow for many parameters).
-            For single parameter, creates a 1D PDF plot.
+        params : list of str, str, optional
+            Parameter specification. Options:
+            - List of parameter names: Plot specific parameters
+            - Single parameter name (str): Create 1D PDF plot
+            - None: Plot all available parameters (may be slow for many parameters)
+            
+            To see available parameters, use:
+            >>> print(results.get_posterior_samples().colnames)  # All available parameter names
         object_base : str, optional
             Base name for the object (if None, uses first available)
         method : str
@@ -2351,24 +2419,50 @@ class BayeSEDResults:
         >>> results = BayeSEDResults('observation/agn_host_decomp/output')
         >>>
         >>> # Plot single parameter (1D PDF)
-        >>> results.plot_posterior_pdf(
-        ...     params='log(age/yr)[0,1]'
-        ... )
+        >>> results.plot_posterior(params='log(age/yr)[0,1]')
         >>>
-        >>> # Plot multiple parameters (corner plot with 1D and 2D PDFs)
-        >>> results.plot_posterior_pdf(
+        >>> # Plot specific parameters (corner plot)
+        >>> results.plot_posterior(
         ...     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]']
         ... )
         >>>
-        >>> # Save plot to file
-        >>> results.plot_posterior_pdf(
-        ...     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'],
-        ...     output_file='posterior.pdf'
-        ... )
+        >>> # Plot all available parameters (may be slow)
+        >>> results.plot_posterior()  # params=None uses all available
+        >>>
+        >>> # Check what's available first
+        >>> print(results.get_posterior_samples().colnames)  # All available parameter names
         """
-        # Convert single parameter to list for consistency
-        if isinstance(params, str):
+        # Get available parameters from paramnames file (efficient - no sample loading)
+        # Remove '*' markers since GetDist strips them from parameter names
+        try:
+            available_params = [p.rstrip('*') for p in self._get_parameter_names_from_files()]
+        except Exception as e:
+            raise RuntimeError(f"Could not load parameter names: {e}")
+        
+        # Handle parameter specifications
+        if params is None:
+            params = available_params
+        elif isinstance(params, str):
+            # Single parameter name - convert to list
             params = [params]
+        
+        # Validate that all requested parameters are available
+        if isinstance(params, list):
+            invalid_params = [p for p in params if p not in available_params]
+            if invalid_params:
+                import warnings
+                warnings.warn(
+                    f"Some parameters are not available for plotting: {invalid_params}. "
+                    f"Available parameters: {available_params}",
+                    UserWarning
+                )
+                # Filter to only valid parameters
+                params = [p for p in params if p in available_params]
+                
+                if not params:
+                    raise ValueError(
+                        f"No valid parameters for plotting. Available parameters: {available_params}"
+                    )
 
         if method == 'getdist':
             return self._plot_posterior_getdist(
@@ -2380,426 +2474,678 @@ class BayeSEDResults:
         else:
             raise ValueError(f"Unknown plotting method: {method}. Use 'getdist'")
 
+
+
+
+
+
+
+
+
+
+
     def _plot_posterior_getdist(self, params=None, object_base=None, filled=True,
                                 show=True, output_file=None, show_median=True,
                                 show_confidence_intervals=True, confidence_level=0.68, **kwargs):
-        """Plot posterior PDFs using GetDist library."""
+        """Plot posterior PDFs using GetDist library.
+        
+        Simplified and more robust implementation that leverages GetDist's built-in
+        capabilities for parameter validation, statistics computation, and plotting.
+        """
+        import os
+        import warnings
+        import numpy as np
+        
+        # Import GetDist and matplotlib
         try:
-            import os
             import matplotlib
             import matplotlib.pyplot as plt
-
-            # GetDist often sets a non-interactive backend (like 'Agg'), which prevents plots from showing
-            # Try to switch to an interactive backend if we want to show the plot
-            if show:
-                current_backend = matplotlib.get_backend()
-                # Only switch if current backend is non-interactive
-                if current_backend.lower() in ['agg', 'pdf', 'svg', 'ps']:
-                    # Try common interactive backends in order of preference
-                    interactive_backends = ['TkAgg', 'Qt5Agg', 'QtAgg', 'MacOSX']
-                    backend_switched = False
-                    for backend in interactive_backends:
-                        try:
-                            matplotlib.use(backend, force=True)
-                            backend_switched = True
-                            break
-                        except (ImportError, ValueError):
-                            continue
-
-                    if not backend_switched:
-                        import warnings
-                        warnings.warn(
-                            "Could not switch to an interactive matplotlib backend. "
-                            "GetDist plots may not display. "
-                            "Try: import matplotlib; matplotlib.use('TkAgg') before importing getdist, "
-                            "or use method='matplotlib' for plotting.",
-                            UserWarning
-                        )
-
-            from getdist import plots
-        except ImportError:
+            from getdist import plots, loadMCSamples
+        except ImportError as e:
             raise ImportError(
-                "GetDist is required for GetDist plotting. Install with: pip install getdist\n"
-                "Alternatively, use method='matplotlib' for basic plotting."
+                f"Required libraries not available: {e}. "
+                "Install with: pip install getdist matplotlib"
             )
+        
+        # Helper: Switch to interactive backend if needed
+        def _ensure_interactive_backend():
+            if not show:
+                return
+            current_backend = matplotlib.get_backend().lower()
+            if current_backend in ['agg', 'pdf', 'svg', 'ps']:
+                for backend in ['TkAgg', 'Qt5Agg', 'QtAgg', 'MacOSX']:
+                    try:
+                        matplotlib.use(backend, force=True)
+                        return
+                    except (ImportError, ValueError):
+                        continue
+                warnings.warn(
+                    "Could not switch to interactive backend. Plot may not display.",
+                    UserWarning
+                )
+        
+        # Helper: Get parameter names from file
+        def _get_paramnames_from_file(paramnames_file):
+            with open(paramnames_file, 'r') as f:
+                return [line.strip().split()[0] for line in f if line.strip()]
+        
+        # Helper: Compute statistics from GetDist samples
+        def _compute_statistics(samples_gd, param_names):
+            """Compute medians and confidence intervals using GetDist."""
+            markers = {}
+            confidence_intervals = {}
+            
+            if not (show_median or show_confidence_intervals):
+                return markers, confidence_intervals
+            
+            lower_percentile = (1 - confidence_level) / 2
+            upper_percentile = 1 - lower_percentile
+            
+            # Get parameter indices
+            gd_param_names = samples_gd.getParamNames().list()
+            
+            for param in param_names:
+                if param not in gd_param_names:
+                    continue
+                
+                idx = gd_param_names.index(param)
+                samples_array = samples_gd.samples[:, idx]
+                weights = getattr(samples_gd, 'weights', None)
+                
+                if show_median:
+                    if weights is not None:
+                        markers[param] = np.average(samples_array, weights=weights)
+                    else:
+                        markers[param] = np.median(samples_array)
+                
+                if show_confidence_intervals:
+                    if weights is not None:
+                        # Weighted quantiles
+                        sorted_idx = np.argsort(samples_array)
+                        sorted_samples = samples_array[sorted_idx]
+                        sorted_weights = weights[sorted_idx]
+                        cumsum_weights = np.cumsum(sorted_weights)
+                        cumsum_weights = cumsum_weights / cumsum_weights[-1]
+                        lower_idx = np.searchsorted(cumsum_weights, lower_percentile)
+                        upper_idx = np.searchsorted(cumsum_weights, upper_percentile)
+                        confidence_intervals[param] = (sorted_samples[lower_idx], sorted_samples[upper_idx])
+                    else:
+                        quantiles = np.quantile(samples_array, [lower_percentile, upper_percentile])
+                        confidence_intervals[param] = (quantiles[0], quantiles[1])
+            
+            return markers, confidence_intervals
+        
+        # Helper: Add confidence intervals to 1D plot
+        def _add_ci_to_1d_plot(ax, lower, upper, confidence_level):
+            ax.axvspan(lower, upper, color='blue', alpha=0.15,
+                       label=f'{int(confidence_level*100)}% CI')
+            ax.legend()
+        
+        # Helper: Add confidence intervals to diagonal plots
+        def _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level):
+            """Add confidence intervals to diagonal (1D marginal) plots in triangle plot."""
+            if not fig or not hasattr(fig, 'axes'):
+                return
+            
+            # Find diagonal axes: 1D marginals have lines but no collections
+            diagonal_axes = [
+                ax for ax in fig.axes
+                if (len(ax.lines) > 0 and len(ax.collections) == 0 and 
+                    (not ax.get_ylabel() or ax.get_ylabel() == ''))
+            ]
+            
+            if len(diagonal_axes) != len(params):
+                # Fallback: match by parameter name in xlabel
+                import re
+                for param in params:
+                    if param not in confidence_intervals:
+                        continue
+                    lower, upper = confidence_intervals[param]
+                    param_base = param.split('[')[0].strip()
+                    
+                    for ax in diagonal_axes:
+                        xlabel = ax.get_xlabel() or ''
+                        # Try matching parameter name
+                        if (param in xlabel or param_base in xlabel or
+                            param_base in re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', xlabel)):
+                            _add_ci_to_1d_plot(ax, lower, upper, confidence_level)
+                            break
+            else:
+                # Match by position (most reliable)
+                for idx, param in enumerate(params):
+                    if param in confidence_intervals and idx < len(diagonal_axes):
+                        lower, upper = confidence_intervals[param]
+                        _add_ci_to_1d_plot(diagonal_axes[idx], lower, upper, confidence_level)
 
+        # Main function logic
+        _ensure_interactive_backend()
+        
+        # Get object_base and files
         if object_base is None:
             if not self.posterior_files:
                 raise FileNotFoundError("No posterior sample files found")
             object_base = list(self.posterior_files.keys())[0]
-
-        # Get the directory containing the posterior files
+        
         files = self.posterior_files[object_base]
         chain_dir = os.path.dirname(files['paramnames'])
-
-        # Get base name - GetDist expects root names that match the file base
-        # The notebook shows roots WITH '_sample_par' suffix, so we keep it
-        paramnames_file = os.path.basename(files['paramnames'])
-        # Remove '.paramnames' extension to get the root name
-        base_name = paramnames_file.replace('.paramnames', '')
-
-        # Create GetDist plotter
-        # Configure font sizes for better readability, especially for 1D plots
-        # Extract font size parameters from kwargs if provided
+        base_name = os.path.basename(files['paramnames']).replace('.paramnames', '')
+        root_path = os.path.join(chain_dir, base_name)
+        
+        # Load samples using GetDist (handles validation and variation checking)
+        try:
+            samples_gd = loadMCSamples(root_path)
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load GetDist samples from {root_path}: {e}. "
+                "Check that the posterior sample files are valid."
+            ) from e
+        
+        # Get available parameter names from GetDist (only parameters in samples)
+        gd_param_names = samples_gd.getParamNames().list()
+        
+        # Get parameter names to plot
+        if params is None:
+            # When params=None, use all parameters available in the samples
+            params = gd_param_names
+        else:
+            # When params is provided, validate and filter
+            params_valid = [p for p in params if p in gd_param_names]
+            params_not_found = [p for p in params if p not in gd_param_names]
+            
+            # Only warn if user explicitly provided params that don't exist
+            if params_not_found:
+                # Show first few missing params to avoid overwhelming output
+                if len(params_not_found) > 5:
+                    missing_str = f"{params_not_found[:5]} ... (and {len(params_not_found) - 5} more)"
+                else:
+                    missing_str = str(params_not_found)
+                warnings.warn(
+                    f"Parameters not found in samples (skipped): {missing_str}. "
+                    f"Use results.get_posterior_samples().colnames to see available parameters.",
+                    UserWarning
+                )
+            
+            if not params_valid:
+                # Provide helpful error message with suggestion
+                available_str = ', '.join(gd_param_names[:10])
+                if len(gd_param_names) > 10:
+                    available_str += f", ... (and {len(gd_param_names) - 10} more)"
+                raise ValueError(
+                    f"No valid parameters found. Requested: {params}. "
+                    f"Available parameters: {available_str}. "
+                    f"Use results.get_posterior_samples().colnames to see all available parameters."
+                )
+            
+            params = params_valid  # Use only valid parameters
+        
+        if not params:
+            raise ValueError(
+                "No parameters available for plotting. "
+                "The posterior samples appear to be empty or invalid."
+            )
+        
+        # Extract font settings from kwargs
         axes_fontsize = kwargs.pop('axes_fontsize', None)
         axes_labelsize = kwargs.pop('axes_labelsize', None)
         subplot_size_inch = kwargs.pop('subplot_size_inch', None)
-
-        # Set defaults for 1D plots (smaller fonts)
-        # We'll determine if this is a 1D plot after filtering params
+        
+        # Create GetDist plotter
         g = plots.get_subplot_plotter(chain_dir=chain_dir)
-
-        # Use base name as root (includes '_sample_par' suffix as shown in notebook)
         roots = [base_name]
-
-        # If params not specified, get all from paramnames file
-        if params is None:
-            with open(files['paramnames'], 'r') as f:
-                params = [line.strip().split()[0] for line in f if line.strip()]
-
-        # Filter parameters with sufficient variation for GetDist
-        # GetDist can fail with "Singular matrix" if parameters have insufficient variation
-        import numpy as np
-        try:
-            # Try to load samples to check variation
-            posterior_data = self.get_posterior_samples(object_base=object_base)
-            paramnames_all = posterior_data['paramnames']
-            samples_all = posterior_data['samples']
-
-            # Filter parameters with sufficient variation
-            params_filtered = []
-            for p in params:
-                if p in paramnames_all:
-                    idx = paramnames_all.index(p)
-                    param_samples = samples_all[:, idx]
-                    # Check for sufficient variation
-                    if len(param_samples) >= 3:
-                        unique_vals = len(np.unique(param_samples))
-                        std_val = np.std(param_samples)
-                        if unique_vals >= 3 and std_val > 1e-10:
-                            params_filtered.append(p)
-
-            # Use filtered params, handling single-parameter case
-            if len(params_filtered) >= 2:
-                params = params_filtered
-            elif len(params_filtered) == 1:
-                params = params_filtered  # Allow single parameter for 1D plot
-            elif len(params_filtered) == 0:
-                raise ValueError(
-                    f"No parameters with sufficient variation for plotting found. "
-                    f"Requested: {len(params) if params else 'all'}. "
-                    f"This may indicate that the posterior samples have very limited variation."
-                )
-            else:
-                # If only one param passed filter but we requested multiple, warn
-                if len(params) > 1:
-                    import warnings
-                    warnings.warn(
-                        f"Some parameters may have insufficient variation for GetDist KDE. "
-                        f"Attempting plot with all requested parameters.",
-                        UserWarning
-                    )
-        except Exception:
-            # If we can't check variation, proceed with original params
-            pass
-
-        # Load samples using GetDist to compute statistics
-        from getdist import loadMCSamples
-        samples_gd = None
+        
+        # Compute statistics if needed
         markers = {}
         confidence_intervals = {}
-
         if show_median or show_confidence_intervals:
             try:
-                # Load samples using GetDist's built-in function
-                # Construct full path to the root file
-                root_path = os.path.join(chain_dir, base_name)
-                samples_gd = loadMCSamples(root_path)
-
-                # Compute statistics using GetDist's built-in functions
-                # Try getStats() method (may not exist in all versions)
-                try:
-                    stats = samples_gd.getStats()
-                    param_stats = stats.parWithNames(params)
-                except AttributeError:
-                    # Fallback: compute statistics manually from samples
-                    # Get parameter indices
-                    param_names = samples_gd.getParamNames().list()
-                    param_stats = None
-                    # We'll compute medians and CIs manually below
-
-                if show_median:
-                    if param_stats is not None:
-                        # Get medians from GetDist's stats (median is at 0.5 quantile)
-                        for i, param in enumerate(params):
-                            if i < len(param_stats.pars):
-                                par = param_stats.pars[i]
-                                # Get median from limits dictionary (0.5 quantile)
-                                if hasattr(par, 'limits') and 0.5 in par.limits:
-                                    markers[param] = par.limits[0.5]
-                    else:
-                        # Compute medians manually from samples
-                        import numpy as np
-                        param_names = samples_gd.getParamNames().list()
-                        for param in params:
-                            if param in param_names:
-                                idx = param_names.index(param)
-                                samples_array = samples_gd.samples[:, idx]
-                                weights = samples_gd.weights if hasattr(samples_gd, 'weights') else None
-                                if weights is not None:
-                                    markers[param] = np.average(samples_array, weights=weights)
-                                else:
-                                    markers[param] = np.median(samples_array)
-
-                if show_confidence_intervals:
-                    # Calculate confidence interval bounds
-                    lower_percentile = (1 - confidence_level) / 2
-                    upper_percentile = 1 - lower_percentile
-
-                    if param_stats is not None:
-                        for i, param in enumerate(params):
-                            if i < len(param_stats.pars):
-                                par = param_stats.pars[i]
-                                # Get confidence limits from GetDist's limits dictionary
-                                if hasattr(par, 'limits'):
-                                    lower = par.limits.get(lower_percentile)
-                                    upper = par.limits.get(upper_percentile)
-                                    if lower is not None and upper is not None:
-                                        confidence_intervals[param] = (lower, upper)
-                    else:
-                        # Compute confidence intervals manually from samples
-                        import numpy as np
-                        param_names = samples_gd.getParamNames().list()
-                        for param in params:
-                            if param in param_names:
-                                idx = param_names.index(param)
-                                samples_array = samples_gd.samples[:, idx]
-                                weights = samples_gd.weights if hasattr(samples_gd, 'weights') else None
-                                if weights is not None:
-                                    # Weighted quantiles
-                                    sorted_idx = np.argsort(samples_array)
-                                    sorted_samples = samples_array[sorted_idx]
-                                    sorted_weights = weights[sorted_idx]
-                                    cumsum_weights = np.cumsum(sorted_weights)
-                                    cumsum_weights = cumsum_weights / cumsum_weights[-1]
-                                    lower_idx = np.searchsorted(cumsum_weights, lower_percentile)
-                                    upper_idx = np.searchsorted(cumsum_weights, upper_percentile)
-                                    confidence_intervals[param] = (sorted_samples[lower_idx], sorted_samples[upper_idx])
-                                else:
-                                    # Unweighted quantiles
-                                    quantiles = np.quantile(samples_array, [lower_percentile, upper_percentile])
-                                    confidence_intervals[param] = (quantiles[0], quantiles[1])
+                markers, confidence_intervals = _compute_statistics(samples_gd, params)
             except Exception as e:
-                import warnings
                 warnings.warn(
-                    f"Could not compute statistics using GetDist: {e}. "
-                    "Statistics will not be displayed.",
+                    f"Could not compute statistics: {e}. Statistics will not be displayed.",
                     UserWarning
                 )
                 show_median = False
                 show_confidence_intervals = False
 
-        # Handle single parameter (1D plot) vs multiple parameters (corner plot)
-        if len(params) == 1:
-            # Configure font sizes for 1D plots (smaller by default)
-            # Set font sizes if not explicitly provided
-            if axes_fontsize is None:
-                g.settings.axes_fontsize = 10  # Tick labels
-            else:
-                g.settings.axes_fontsize = axes_fontsize
-
-            if axes_labelsize is None:
-                g.settings.axes_labelsize = 12  # Axis labels
-            else:
-                g.settings.axes_labelsize = axes_labelsize
-
-            # Adjust subplot size for 1D plots if not specified
-            if subplot_size_inch is None:
-                g.settings.subplot_size_inch = 3.0  # Reasonable size for 1D plots
-            else:
-                g.settings.subplot_size_inch = subplot_size_inch
-
-            # Create 1D plot for single parameter
-            try:
-                g.plot_1d(roots, params[0], **kwargs)
-            except AttributeError:
-                # Fallback: use triangle_plot with single parameter
-                g.triangle_plot(roots, params, filled=filled, markers=markers if markers else None, **kwargs)
-
-            # Add confidence intervals manually for 1D plot
-            if show_confidence_intervals and params[0] in confidence_intervals:
-                ax = plt.gca()
-                lower, upper = confidence_intervals[params[0]]
-                ax.axvspan(lower, upper, color='blue', alpha=0.15,
-                          label=f'{int(confidence_level*100)}% CI')
-                ax.legend()
+        # Configure plot settings
+        is_1d = len(params) == 1
+        if is_1d:
+            g.settings.axes_fontsize = axes_fontsize or 10
+            g.settings.axes_labelsize = axes_labelsize or 12
+            g.settings.subplot_size_inch = subplot_size_inch or 3.0
         else:
-            # Create triangle plot with error handling for singular matrix
-            try:
-                # Use GetDist's markers parameter for medians
-                g.triangle_plot(roots, params, filled=filled,
-                              markers=markers if markers else None,
-                              marker_args={'color': 'red', 'linestyle': '--', 'linewidth': 1.5, 'alpha': 0.7},
-                              **kwargs)
-            except (ValueError, np.linalg.LinAlgError) as e:
-                error_str = str(e).lower()
-                if "singular" in error_str or "matrix" in error_str:
-                    import warnings
-                    warnings.warn(
-                        f"GetDist encountered a singular matrix error ({e}). "
-                        f"This usually means some parameters have insufficient variation or are perfectly correlated. "
-                        f"Try selecting parameters with more posterior spread.",
-                        UserWarning
-                    )
-                    raise ValueError(
-                        f"GetDist plotting failed due to singular matrix. "
-                        f"This indicates insufficient parameter variation for KDE estimation. "
-                        f"Try selecting different parameters with more variation."
-                    ) from e
-                else:
-                    # Re-raise other errors
-                    raise
-
-            # Add confidence intervals on diagonal (1D) plots
-            if show_confidence_intervals:
+            if axes_fontsize is not None:
+                g.settings.axes_fontsize = axes_fontsize
+            if axes_labelsize is not None:
+                g.settings.axes_labelsize = axes_labelsize
+            if subplot_size_inch is not None:
+                g.settings.subplot_size_inch = subplot_size_inch
+        
+        # Create plot
+        try:
+            if is_1d:
+                # 1D plot
                 try:
-                    # Get the figure from GetDist plotter
-                    fig = None
-                    if hasattr(g, 'fig') and g.fig is not None:
-                        fig = g.fig
-                    elif hasattr(g, 'figure') and g.figure is not None:
-                        fig = g.figure
-                    else:
-                        fig = plt.gcf()
+                    g.plot_1d(roots, params[0], **kwargs)
+                except AttributeError:
+                    g.triangle_plot(roots, params, filled=filled, 
+                                   markers=markers if markers else None, **kwargs)
+                
+                # Add confidence interval
+                if show_confidence_intervals and params[0] in confidence_intervals:
+                    ax = plt.gca()
+                    lower, upper = confidence_intervals[params[0]]
+                    _add_ci_to_1d_plot(ax, lower, upper, confidence_level)
+            else:
+                # Triangle plot
+                g.triangle_plot(roots, params, filled=filled,
+                               markers=markers if markers else None,
+                               marker_args={'color': 'red', 'linestyle': '--', 
+                                          'linewidth': 1.5, 'alpha': 0.7},
+                               **kwargs)
+                
+                # Add confidence intervals to diagonal plots
+                if show_confidence_intervals:
+                    try:
+                        fig = (getattr(g, 'fig', None) or 
+                              getattr(g, 'figure', None) or 
+                              plt.gcf())
+                        _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level)
+                    except Exception as e:
+                        warnings.warn(
+                            f"Could not add confidence intervals: {e}",
+                            UserWarning
+                        )
+        except (ValueError, np.linalg.LinAlgError) as e:
+            error_str = str(e).lower()
+            if "singular" in error_str or "matrix" in error_str:
+                raise ValueError(
+                    f"GetDist plotting failed: singular matrix error. "
+                    f"This indicates insufficient parameter variation for KDE. "
+                    f"Try selecting different parameters with more variation."
+                ) from e
+            raise
 
-                    if fig is not None and hasattr(fig, 'axes'):
-                        # More robust method: match parameters to diagonal axes
-                        # In GetDist triangle plots, diagonal axes are 1D marginals
-                        # They can be identified by: xlabel matches parameter, ylabel is empty or matches xlabel
-                        # Also check if it's a 1D plot (has lines but no 2D contours)
-
-                        # Strategy: First identify all diagonal (1D) axes by their characteristics
-                        # Diagonal plots have: lines (1D PDF), no collections (2D contours), empty ylabel
-                        n_params = len(params)
-                        diagonal_axes = []
-                        for ax in fig.axes:
-                            try:
-                                ylabel = ax.get_ylabel() if hasattr(ax, 'get_ylabel') else ''
-                                has_lines = len(ax.lines) > 0
-                                has_collections = len(ax.collections) > 0
-
-                                # Diagonal (1D) plot: has lines, no collections, empty ylabel
-                                if has_lines and not has_collections and ylabel == '':
-                                    diagonal_axes.append(ax)
-                            except Exception:
-                                continue
-
-                        # Match parameters to diagonal axes by position
-                        # GetDist maintains parameter order, so diagonal axes should match param order
-                        if len(diagonal_axes) == n_params:
-                            # Perfect match: same number of diagonal axes as parameters
-                            # Match by index position (most reliable method)
-                            for param_idx, param in enumerate(params):
-                                if param in confidence_intervals and param_idx < len(diagonal_axes):
-                                    lower, upper = confidence_intervals[param]
-                                    ax = diagonal_axes[param_idx]
-                                    ax.axvspan(lower, upper, color='blue', alpha=0.15,
-                                              label=f'{int(confidence_level*100)}% CI' if param_idx == 0 else '')
-                        else:
-                            # Fallback: try to match by parameter name in xlabel
-                            import re
-                            for param_idx, param in enumerate(params):
-                                if param not in confidence_intervals:
-                                    continue
-
-                                lower, upper = confidence_intervals[param]
-                                param_added = False
-
-                                # Extract base parameter name (remove brackets, etc.)
-                                param_base = param.split('[')[0].strip()
-
-                                for ax in diagonal_axes:
-                                    if param_added:
-                                        break
-                                    try:
-                                        xlabel = ax.get_xlabel() if hasattr(ax, 'get_xlabel') else ''
-
-                                        # Try multiple matching strategies
-                                        # 1. Full parameter name in label
-                                        if param in xlabel:
-                                            ax.axvspan(lower, upper, color='blue', alpha=0.15,
-                                                      label=f'{int(confidence_level*100)}% CI' if param_idx == 0 else '')
-                                            param_added = True
-                                        # 2. Base parameter name in label
-                                        elif param_base in xlabel:
-                                            ax.axvspan(lower, upper, color='blue', alpha=0.15,
-                                                      label=f'{int(confidence_level*100)}% CI' if param_idx == 0 else '')
-                                            param_added = True
-                                        # 3. Extract text from LaTeX and match
-                                        else:
-                                            # Remove LaTeX commands, keep text content
-                                            label_text = re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', xlabel)
-                                            label_text = re.sub(r'[{}]', '', label_text)
-                                            if param_base in label_text or param in label_text:
-                                                ax.axvspan(lower, upper, color='blue', alpha=0.15,
-                                                          label=f'{int(confidence_level*100)}% CI' if param_idx == 0 else '')
-                                                param_added = True
-                                    except Exception:
-                                        continue
-
-                except Exception as e:
-                    import warnings
-                    warnings.warn(
-                        f"Could not add confidence intervals to all plots: {e}. "
-                        "Some confidence intervals may be missing.",
-                        UserWarning
-                    )
-
-        # Export if output file specified
+        # Export if requested
         if output_file:
             g.export(output_file)
-
+        
+        # Show plot if requested
         if show:
-            # GetDist's triangle_plot creates a figure automatically
-            # Try to get the figure from the plotter and show it
             try:
-                # GetDist plotter may have a 'fig' or 'figure' attribute
-                if hasattr(g, 'fig') and g.fig is not None:
-                    g.fig.show()
-                elif hasattr(g, 'figure') and g.figure is not None:
-                    g.figure.show()
-                elif hasattr(g, 'subplots') and len(g.subplots) > 0:
-                    # GetDist might store figures in subplots
-                    fig = g.subplots[0].figure if hasattr(g.subplots[0], 'figure') else None
-                    if fig is not None:
-                        fig.show()
-                    else:
-                        plt.show()
-                else:
-                    # Fallback: use plt.show() which should work with interactive backends
-                    # Get the current figure if it exists
-                    fig = plt.gcf()
-                    if fig is not None and len(fig.axes) > 0:
-                        plt.show()
-                    else:
-                        # Try to get figure from GetDist's internal state
-                        plt.show()
-            except (AttributeError, Exception) as e:
-                # If GetDist doesn't expose the figure or there's an error, use plt.show()
-                # This should work if the backend is interactive
-                try:
+                fig = (getattr(g, 'fig', None) or 
+                      getattr(g, 'figure', None) or 
+                      plt.gcf())
+                if fig and len(fig.axes) > 0:
                     plt.show()
-                except Exception:
-                    import warnings
-                    warnings.warn(
-                        f"Could not display GetDist plot. Error: {e}. "
-                        "The plot may have been created but not displayed. "
-                        "Try setting an interactive backend before calling this function: "
-                        "import matplotlib; matplotlib.use('TkAgg')",
-                        UserWarning
-                    )
-
+                else:
+                    plt.show()
+            except Exception as e:
+                warnings.warn(
+                    f"Could not display plot: {e}. Plot may have been saved to file.",
+                    UserWarning
+                )
+        
         return g
+
+    def get_free_parameters(self):
+        """
+        Get list of free parameter names.
+        
+        Free parameters are the fitted parameters (those without '*' marker).
+        
+        Returns
+        -------
+        list of str
+            List of free parameter names
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> free_params = results.get_free_parameters()
+        >>> print(f"Free parameters: {free_params}")
+        """
+        param_names = self._get_parameter_names_from_files()
+        return [p for p in param_names if not p.endswith('*')]
+    
+    def get_derived_parameters(self):
+        """
+        Get list of derived parameter names.
+        
+        Derived parameters are computed from free parameters (identified by '*' marker
+        in the paramnames file, but the '*' is stripped from the returned names).
+        
+        Returns
+        -------
+        list of str
+            List of derived parameter names (without '*' markers)
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> derived_params = results.get_derived_parameters()
+        >>> print(f"Derived parameters: {derived_params}")
+        """
+        param_names = self._get_parameter_names_from_files()
+        return [p.rstrip('*') for p in param_names if p.endswith('*')]
+
+    def get_parameter_names(self):
+        """
+        Get list of all parameter names (free + derived).
+        
+        This is more efficient than using get_posterior_samples().colnames
+        since it reads only the small paramnames file instead of loading
+        the entire samples data.
+        
+        Returns
+        -------
+        list of str
+            List of all parameter names (without '*' markers)
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> all_params = results.get_parameter_names()
+        >>> print(f"All parameters: {all_params}")
+        >>> 
+        >>> # More efficient than:
+        >>> # samples = results.get_posterior_samples()
+        >>> # all_params = [col for col in samples.colnames 
+        >>> #               if col not in ['posterior_weights', 'loglike']]
+        """
+        param_names = self._get_parameter_names_from_files()
+        return [p.rstrip('*') for p in param_names]
+    
+    def _get_parameter_names_from_files(self):
+        """
+        Get parameter names directly from paramnames file without loading samples.
+        
+        This is much more efficient than loading the entire samples file when we
+        only need the parameter names.
+        
+        Returns
+        -------
+        list of str
+            List of all parameter names (excluding posterior_weights and loglike)
+        """
+        if not self.posterior_files:
+            raise FileNotFoundError("No posterior sample files found")
+        
+        # Get first available paramnames file
+        object_base = list(self.posterior_files.keys())[0]
+        files = self.posterior_files[object_base]
+        
+        # Read parameter names from paramnames file
+        with open(files['paramnames'], 'r') as f:
+            param_names = [line.strip().split()[0] for line in f if line.strip()]
+        
+        return param_names
+
+    def get_getdist_samples(self, object_base=None):
+        """
+        Get GetDist MCSamples object for direct GetDist usage.
+        
+        This method provides access to the GetDist MCSamples object, which can be
+        used for advanced plotting and analysis with the GetDist library.
+        
+        Parameters
+        ----------
+        object_base : str, optional
+            Base name for the object (if None, uses first available)
+            
+        Returns
+        -------
+        getdist.MCSamples
+            GetDist samples object that can be used with GetDist plotting functions
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> samples_gd = results.get_getdist_samples()
+        >>> 
+        >>> # Use with GetDist directly
+        >>> from getdist import plots
+        >>> g = plots.get_subplot_plotter()
+        >>> g.triangle_plot([samples_gd], ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
+        >>> 
+        >>> # Get parameter statistics
+        >>> print(samples_gd.getMargeStats())
+        """
+        import os
+        
+        try:
+            from getdist import loadMCSamples
+        except ImportError:
+            raise ImportError("GetDist is required. Install with: pip install getdist")
+        
+        if not self.posterior_files:
+            raise FileNotFoundError("No posterior sample files found")
+        
+        # Get object_base and files
+        if object_base is None:
+            object_base = list(self.posterior_files.keys())[0]
+        
+        if object_base not in self.posterior_files:
+            raise ValueError(f"Object base '{object_base}' not found in posterior files")
+        
+        files = self.posterior_files[object_base]
+        chain_dir = os.path.dirname(files['paramnames'])
+        base_name = os.path.basename(files['paramnames']).replace('.paramnames', '')
+        root_path = os.path.join(chain_dir, base_name)
+        
+        # Load samples using GetDist
+        try:
+            samples_gd = loadMCSamples(root_path)
+            return samples_gd
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load GetDist samples from {root_path}: {e}. "
+                "Check that the posterior sample files are valid."
+            ) from e
+
+    @staticmethod
+    def plot_posterior_comparison(results_list, labels=None, params=None, **kwargs):
+        """
+        Plot comparison of posterior samples from multiple BayeSEDResults objects.
+        
+        This static method allows easy comparison of results from different
+        model configurations, objects, or analysis runs.
+        
+        Parameters
+        ----------
+        results_list : list of BayeSEDResults
+            List of BayeSEDResults objects to compare
+        labels : list of str, optional
+            Labels for each result set (default: 'Result 1', 'Result 2', etc.)
+        params : list of str, optional
+            Parameters to plot. If None, uses common free parameters.
+        **kwargs
+            Additional arguments passed to GetDist triangle_plot
+            
+        Returns
+        -------
+        getdist.plots.GetDistPlotter
+            GetDist plotter object
+            
+        Examples
+        --------
+        >>> # Compare different model configurations
+        >>> results1 = BayeSEDResults('output_model1')
+        >>> results2 = BayeSEDResults('output_model2')
+        >>> BayeSEDResults.plot_posterior_comparison(
+        ...     [results1, results2], 
+        ...     labels=['Model 1', 'Model 2'],
+        ...     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]']
+        ... )
+        >>>
+        >>> # Compare different objects
+        >>> results = BayeSEDResults('output')
+        >>> obj1_results = BayeSEDResults('output', object_id='obj1')
+        >>> obj2_results = BayeSEDResults('output', object_id='obj2')
+        >>> BayeSEDResults.plot_posterior_comparison(
+        ...     [obj1_results, obj2_results],
+        ...     labels=['Object 1', 'Object 2']
+        ... )
+        """
+        try:
+            from getdist import plots
+        except ImportError:
+            raise ImportError("GetDist is required. Install with: pip install getdist")
+        
+        if not results_list:
+            raise ValueError("results_list cannot be empty")
+        
+        # Get GetDist samples for each result
+        samples_list = []
+        for i, result in enumerate(results_list):
+            samples_gd = result.get_getdist_samples()
+            
+            # Set name tag for legend
+            if labels and i < len(labels):
+                samples_gd.name_tag = labels[i]
+            else:
+                samples_gd.name_tag = f'Result {i+1}'
+            
+            samples_list.append(samples_gd)
+        
+        # Determine parameters to plot
+        if params is None:
+            # Use common free parameters across all results
+            all_free_params = [result.get_free_parameters() for result in results_list]
+            # Find intersection of all parameter lists
+            common_params = set(all_free_params[0])
+            for param_list in all_free_params[1:]:
+                common_params = common_params.intersection(set(param_list))
+            params = list(common_params)
+            
+            if not params:
+                raise ValueError("No common free parameters found across all results")
+        
+
+        
+        # Create plotter and plot
+        g = plots.get_subplot_plotter()
+        
+        # Set default plotting options
+        plot_kwargs = {
+            'filled': True,
+            'legend_labels': labels or [f'Result {i+1}' for i in range(len(results_list))]
+        }
+        plot_kwargs.update(kwargs)
+        
+        # Create comparison plot
+        g.triangle_plot(samples_list, params, **plot_kwargs)
+        
+        return g
+
+    def plot_free_parameters(self, **kwargs):
+        """
+        Plot posterior PDFs for all free parameters.
+        
+        Parameters
+        ----------
+        **kwargs
+            Additional arguments passed to plot_posterior_pdf()
+            
+        Returns
+        -------
+        matplotlib.figure.Figure or getdist.plots.GetDistPlotter
+            The figure object or GetDist plotter
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> results.plot_free_parameters()
+        """
+        free_params = self.get_free_parameters()
+        if not free_params:
+            raise ValueError("No free parameters found")
+        return self.plot_posterior(params=free_params, **kwargs)
+    
+    def plot_derived_parameters(self, max_params=None, **kwargs):
+        """
+        Plot posterior PDFs for derived parameters.
+        
+        Parameters
+        ----------
+        max_params : int, optional
+            Maximum number of parameters to plot (default: None for all).
+            Useful when there are many derived parameters.
+        **kwargs
+            Additional arguments passed to plot_posterior_pdf()
+            
+        Returns
+        -------
+        matplotlib.figure.Figure or getdist.plots.GetDistPlotter
+            The figure object or GetDist plotter
+            
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> results.plot_derived_parameters(max_params=10)
+        """
+        derived_params = self.get_derived_parameters()
+        if not derived_params:
+            raise ValueError("No derived parameters found")
+        
+        if max_params is not None and len(derived_params) > max_params:
+            derived_params = derived_params[:max_params]
+            import warnings
+            warnings.warn(
+                f"Plotting only first {max_params} derived parameters out of {len(self.get_derived_parameters())}. "
+                f"Use max_params=None to plot all, or select specific parameters manually.",
+                UserWarning
+            )
+        
+        return self.plot_posterior(params=derived_params, **kwargs)
+    
+
+    
+    def summary(self):
+        """
+        Print a summary of available parameters.
+        
+        Shows counts and examples of free and derived parameters.
+        
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> results.summary()
+        """
+        try:
+            free_params = self.get_free_parameters()
+            derived_params = self.get_derived_parameters()
+            
+            print("=" * 60)
+            print("BayeSED Results Summary")
+            print("=" * 60)
+            
+            print(f"Free parameters ({len(free_params)}):")
+            for param in free_params:
+                print(f"  - {param}")
+            
+            print(f"\nDerived parameters ({len(derived_params)}):")
+            # Show first 10 derived parameters as examples
+            for param in derived_params[:10]:
+                print(f"  - {param}")
+            if len(derived_params) > 10:
+                print(f"  - ... and {len(derived_params) - 10} more")
+            
+            print("\n" + "=" * 60)
+            print("Quick plotting commands:")
+            print("  results.plot_free_parameters()      # Plot all free parameters")
+            print("  results.plot_derived_parameters()   # Plot all derived parameters")
+            print("  results.plot_posterior(params=['param1', 'param2'])  # Plot specific parameters")
+            print("\nComparison plotting:")
+            print("  BayeSEDResults.plot_posterior_comparison([results1, results2])  # Compare multiple results")
+            print("\nTo see all parameter names:")
+            print("  results.get_parameter_names()       # List all parameters (efficient)")
+            print("  results.get_free_parameters()       # List free parameters")
+            print("  results.get_derived_parameters()    # List derived parameters")
+            print("=" * 60)
+            
+        except Exception as e:
+            print(f"Error generating summary: {e}")
 
     def plot_bestfit(self, fits_file=None, output_file=None, show=True,
                      filter_file=None, filter_selection_file=None,

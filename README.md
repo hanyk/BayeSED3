@@ -253,26 +253,46 @@ results.plot_bestfit(
     output_file='bestfit_plot.png'
 )
 
+# Access results data
+params_table = results.parameters  # All parameters as astropy Table
+free_params = results.get_free_parameters()  # List of free parameter names
+derived_params = results.get_derived_parameters()  # List of derived parameter names
+evidence_table = results.get_evidence()  # Evidence values and errors for all objects
+
 # Plot posterior distributions
 # 1D posterior (single parameter)
-results.plot_posterior_pdf(
+results.plot_posterior(
     params='log(age/yr)[0,1]',
     output_file='age_1d_posterior.png'
 )
 
 # 2D posterior (two parameters - corner plot)
-results.plot_posterior_pdf(
+results.plot_posterior(
     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'],
     output_file='age_metallicity_2d.png'
 )
 
 # Multi-dimensional posterior (corner plot with 1D and 2D marginals)
-results.plot_posterior_pdf(
+results.plot_posterior(
     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'],
     show_median=True,
     show_confidence_intervals=True,
     confidence_level=0.68,  # 1σ confidence interval
     output_file='posterior_corner.png'
+)
+
+# Convenient plotting methods
+results.plot_free_parameters()      # Plot all free parameters
+results.plot_derived_parameters(max_params=10)   # Plot all derived parameters
+
+# Compare multiple results
+results1 = bayesed.load_results('output_model1')
+results2 = bayesed.load_results('output_model2')
+from bayesed.core import BayeSEDResults
+BayeSEDResults.plot_posterior_comparison(
+    [results1, results2],
+    labels=['Model 1', 'Model 2'],
+    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]']
 )
 ```
 
@@ -290,6 +310,39 @@ params = BayeSEDParams.agn(
 )
 
 bayesed.run(params)
+```
+
+**Advanced Results Analysis:**
+
+```python
+# Load results
+results = bayesed.load_results('output')
+
+# Quick summary of available parameters
+results.summary()
+
+# Access parameter data as astropy Tables
+params_table = results.parameters  # All parameters (best-fit values)
+samples_table = results.get_posterior_samples()  # Posterior samples with weights
+
+# Get parameter names by type (efficient - reads only paramnames file)
+all_params = results.get_parameter_names()       # All parameter names (most efficient)
+free_params = results.get_free_parameters()      # ['z', 'log(age/yr)[0,1]', ...]
+derived_params = results.get_derived_parameters()  # ['log(scale)[0,1]', 'ageU(zform)/Gyr[0,1]', ...]
+
+# Get evidence values and errors for all objects
+evidence_table = results.get_evidence()
+print(evidence_table)
+#     ID          logZ    logZerr   INSlogZ  INSlogZerr
+#   str20       float64  float64   float64   float64
+# --------- ----------- -------- --------- ----------
+# galaxy_1      -1234.5      2.1   -1233.2        1.8
+# galaxy_2      -1456.7      2.3   -1455.1        2.0
+
+# Direct GetDist access for advanced analysis
+samples_gd = results.get_getdist_samples()
+stats = samples_gd.getMargeStats()
+
 ```
 
 **Working with Data Arrays:**
