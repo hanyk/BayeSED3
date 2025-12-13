@@ -283,17 +283,15 @@ results.plot_posterior(
 
 # Convenient plotting methods
 results.plot_free_parameters()      # Plot all free parameters
-results.plot_derived_parameters(max_params=10)   # Plot all derived parameters
+results.plot_derived_parameters(max_params=10)   # Plot derived parameters
 
-# Compare multiple results
+# Compare multiple results (simple syntax)
 results1 = bayesed.load_results('output_model1')
 results2 = bayesed.load_results('output_model2')
-from bayesed.core import BayeSEDResults
-BayeSEDResults.plot_posterior_comparison(
-    [results1, results2],
-    labels=['Model 1', 'Model 2'],
-    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]']
-)
+from bayesed import compare_results
+compare_results([results1, results2], 
+                labels=['Model 1', 'Model 2'],
+                params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
 ```
 
 **AGN Fitting:**

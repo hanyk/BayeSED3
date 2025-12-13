@@ -45,6 +45,41 @@ from .utils import (
 from .plotting import plot_bestfit
 
 
+def compare_results(results_list, labels=None, params=None, **kwargs):
+    """
+    Compare posterior samples from multiple BayeSEDResults objects.
+    
+    This is a convenience function that provides a simpler syntax than
+    BayeSEDResults.plot_posterior_comparison().
+    
+    Parameters
+    ----------
+    results_list : list of BayeSEDResults
+        List of BayeSEDResults objects to compare
+    labels : list of str, optional
+        Labels for each result set (default: 'Result 1', 'Result 2', etc.)
+    params : list of str, optional
+        Parameters to plot. If None, uses common free parameters.
+    **kwargs
+        Additional arguments passed to GetDist triangle_plot
+        
+    Returns
+    -------
+    getdist.plots.GetDistPlotter
+        GetDist plotter object
+        
+    Examples
+    --------
+    >>> from bayesed import compare_results
+    >>> results1 = BayeSEDResults('output_model1')
+    >>> results2 = BayeSEDResults('output_model2')
+    >>> compare_results([results1, results2], 
+    ...                 labels=['Model 1', 'Model 2'],
+    ...                 params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
+    """
+    return BayeSEDResults.plot_posterior_comparison(results_list, labels, params, **kwargs)
+
+
 class IDConstants:
     """
     Constants for ID and igroup assignment logic.
