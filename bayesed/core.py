@@ -3121,8 +3121,13 @@ class BayeSEDResults:
 
         # Apply the renaming to the cached parameter names
         for i, param_name in enumerate(self._renamed_parameter_names):
+            # Handle both regular parameters and derived parameters (with * suffix)
             if param_name in parameter_mapping:
                 self._renamed_parameter_names[i] = parameter_mapping[param_name]
+            elif param_name.endswith('*') and param_name.rstrip('*') in parameter_mapping:
+                # For derived parameters, add the * back to the renamed parameter
+                new_name = parameter_mapping[param_name.rstrip('*')]
+                self._renamed_parameter_names[i] = new_name + '*'
 
         # Clear any cached parameter lists so they get regenerated with new names
         if hasattr(self, '_free_parameters_cache'):
@@ -3588,7 +3593,8 @@ def standardize_parameter_names(results_list, standard_names=None, remove_compon
             # Collect all unique normalized parameter names across all results
             all_normalized_params = set()
             for result in results_list:
-                result_params = result.get_free_parameters()
+                # Process both free and derived parameters
+                result_params = result.get_free_parameters() + result.get_derived_parameters()
                 for param in result_params:
                     normalized = normalize_param_name(param)
                     all_normalized_params.add(normalized)
@@ -3597,12 +3603,13 @@ def standardize_parameter_names(results_list, standard_names=None, remove_compon
             standard_names = {norm_name: norm_name for norm_name in all_normalized_params}
         else:
             # Use the first result's parameter names as the standard (preserves component IDs)
-            reference_params = results_list[0].get_free_parameters()
+            reference_params = results_list[0].get_free_parameters() + results_list[0].get_derived_parameters()
             standard_names = {normalize_param_name(p): p for p in reference_params}
 
     # Rename parameters in all results
     for result in results_list:
-        result_params = result.get_free_parameters()
+        # Process both free and derived parameters
+        result_params = result.get_free_parameters() + result.get_derived_parameters()
         mapping = {}
 
         for param in result_params:
