@@ -3132,52 +3132,7 @@ class BayeSEDResults:
         if hasattr(self, '_parameter_names_cache'):
             delattr(self, '_parameter_names_cache')
 
-    def rename_parameters_to_match(self, reference_results):
-        """
-        Automatically rename parameters to match another BayeSEDResults object.
 
-        This is a convenience method that automatically creates and applies
-        parameter mapping to match the parameter names of a reference result.
-
-        Parameters
-        ----------
-        reference_results : BayeSEDResults
-            Reference BayeSEDResults object whose parameter names to match
-
-        Examples
-        --------
-        >>> results1 = BayeSEDResults('output_model1')  # has log(age/yr)[0,0]
-        >>> results2 = BayeSEDResults('output_model2')  # has log(age/yr)[0,1]
-        >>> results2.rename_parameters_to_match(results1)
-        >>> # Now results2 has log(age/yr)[0,0] to match results1
-        """
-        import re
-
-        def normalize_param_name(param_name):
-            """Remove component IDs like [0,0], [0,1] to find equivalent parameters."""
-            # Remove patterns like [0,0], [0,1], [1,0], etc.
-            normalized = re.sub(r'\[\d+,\d+\]', '', param_name)
-            return normalized
-
-        # Get parameter names
-        my_params = self.get_free_parameters()
-        ref_params = reference_results.get_free_parameters()
-
-        # Create normalized mappings
-        ref_normalized = {normalize_param_name(p): p for p in ref_params}
-
-        # Create parameter mapping
-        mapping = {}
-        for my_param in my_params:
-            normalized = normalize_param_name(my_param)
-            if normalized in ref_normalized:
-                ref_param = ref_normalized[normalized]
-                if my_param != ref_param:
-                    mapping[my_param] = ref_param
-
-        # Apply the mapping
-        if mapping:
-            self.rename_parameters(mapping)
 
     def set_parameter_labels(self, custom_labels):
         """
@@ -3196,9 +3151,9 @@ class BayeSEDResults:
         --------
         >>> results = BayeSEDResults('output')
         >>> custom_labels = {
-        ...     'log(age/yr)': r'\log(t/\mathrm{yr})',
-        ...     'log(Z/Zsun)': r'\log(Z/Z_\odot)',
-        ...     'Av_2': r'$A_V$'
+        ...     'log(age/yr)': r'\\log(t/\\mathrm{yr})',
+        ...     'log(Z/Zsun)': r'\\log(Z/Z_\\odot)',
+        ...     'Av_2': r'A_V'$'
         ... }
         >>> results.set_parameter_labels(custom_labels)
         >>> results.plot_posterior(params=['log(age/yr)', 'log(Z/Zsun)'])
@@ -3365,15 +3320,16 @@ def plot_posterior_comparison(results_list, labels=None, params=None, show=True,
     Examples
     --------
     >>> from bayesed import plot_posterior_comparison
+    >>> from bayesed import standardize_parameter_names
     >>> results1 = BayeSEDResults('output_model1')
     >>> results2 = BayeSEDResults('output_model2')
-    >>> # First, align parameter names
-    >>> results2.rename_parameters_to_match(results1)
+    >>> # Standardize parameter names for easy comparison
+    >>> standardize_parameter_names([results1, results2])
     >>> # Then compare
     >>> plot_posterior_comparison(
     ...     [results1, results2],
     ...     labels=['Model 1', 'Model 2'],
-    ...     params=['log(age/yr)[0,0]', 'log(Z/Zsun)[0,0]']
+    ...     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]']
     ... )
     """
     try:
@@ -3422,7 +3378,7 @@ def plot_posterior_comparison(results_list, labels=None, params=None, show=True,
 
         if not params:
             raise ValueError("No common free parameters found across all results. "
-                           "Use rename_parameters() or rename_parameters_to_match() to align parameter names first.")
+                           "Use standardize_parameter_names() to align parameter names first.")
 
     # Create plotter
     g = plots.get_subplot_plotter()
@@ -3495,9 +3451,9 @@ def standardize_parameter_names(results_list, standard_names=None, remove_compon
     >>>
     >>> # With custom LaTeX labels
     >>> custom_labels = {
-    ...     'log(age/yr)': r'\log(t/\mathrm{yr})',
-    ...     'log(Z/Zsun)': r'\log(Z/Z_\odot)',
-    ...     'Av_2': r'$A_V$'
+    ...     'log(age/yr)': r'\\log(t/\\mathrm{yr})',
+    ...     'log(Z/Zsun)': r'\\log(Z/Z_\\odot)',
+    ...     'Av_2': r'A_V'$'
     ... }
     >>> standardize_parameter_names([results1, results2], custom_labels=custom_labels)
     >>> plot_posterior_comparison([results1, results2], labels=['Model 1', 'Model 2'])
