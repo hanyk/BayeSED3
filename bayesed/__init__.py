@@ -13,7 +13,8 @@ from .core import (
     BayeSEDResults,
     BayeSEDValidationError,
     BayeSEDExecutionError,
-    compare_results,
+    plot_posterior_comparison,
+    standardize_parameter_names,
 )
 
 # Import data classes
@@ -103,7 +104,9 @@ __all__ = [
     'BayeSEDResults',
     'BayeSEDValidationError',
     'BayeSEDExecutionError',
-    'compare_results',
+    # Comparison functions
+    'plot_posterior_comparison',
+    'standardize_parameter_names',
     # Data classes
     'SEDObservation',
     'PhotometryObservation',

@@ -238,14 +238,14 @@ params = BayeSEDParams.galaxy(
 # Run analysis
 result = bayesed.run(params)
 
-# Load and access results
+# Load and visualize results
 results = bayesed.load_results('output')
-spectrum = results.get_bestfit_spectrum()
-evidence = results.get_evidence()
-posteriors = results.get_posterior_samples()
+params_table = results.parameters  # All parameters as astropy Table
+free_params = results.get_free_parameters()  # List of free parameter names
+derived_params = results.get_derived_parameters()  # List of derived parameter names
+evidence_table = results.get_evidence()  # Evidence values and errors for all objects
 
-# Plot best-fit SED
-results.plot_bestfit()  # Basic plot
+results.plot_bestfit()                    # Best-fit SED
 results.plot_bestfit(
     use_rest_frame=True,
     flux_unit='nufnu',
@@ -253,45 +253,32 @@ results.plot_bestfit(
     output_file='bestfit_plot.png'
 )
 
-# Access results data
-params_table = results.parameters  # All parameters as astropy Table
-free_params = results.get_free_parameters()  # List of free parameter names
-derived_params = results.get_derived_parameters()  # List of derived parameter names
-evidence_table = results.get_evidence()  # Evidence values and errors for all objects
+results.plot_free_parameters()            # All fitted parameters
+# Enhanced plotting with custom LaTeX labels (free + derived parameters)
+custom_labels = {
+    # Free parameters
+    'log(age/yr)[0,1]': r'\log(age/\mathrm{yr})',
+    'log(tau/yr)[0,1]': r'\log(\tau/\mathrm{yr})',
+    'log(Z/Zsun)[0,1]': r'\log(Z/Z_\odot)',
+    'Av_2[0,1]': r'A_V',
+    # Derived parameters
+    'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)',
+    'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]': r'\log(\mathrm{SFR}/M_\odot\,\mathrm{yr}^{-1})'
+}
+results.set_parameter_labels(custom_labels)
+results.plot_free_parameters()  # Now with beautiful labels
 
-# Plot posterior distributions
-# 1D posterior (single parameter)
-results.plot_posterior(
-    params='log(age/yr)[0,1]',
-    output_file='age_1d_posterior.png'
-)
-
-# 2D posterior (two parameters - corner plot)
-results.plot_posterior(
-    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'],
-    output_file='age_metallicity_2d.png'
-)
-
-# Multi-dimensional posterior (corner plot with 1D and 2D marginals)
-results.plot_posterior(
-    params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'],
-    show_median=True,
-    show_confidence_intervals=True,
-    confidence_level=0.68,  # 1σ confidence interval
-    output_file='posterior_corner.png'
-)
-
-# Convenient plotting methods
-results.plot_free_parameters()      # Plot all free parameters
 results.plot_derived_parameters(max_params=10)   # Plot derived parameters
+results.plot_posterior(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]'])  # Mixed free+derived parameters
 
-# Compare multiple results (simple syntax)
+# Compare multiple models
+from bayesed import plot_posterior_comparison, standardize_parameter_names
 results1 = bayesed.load_results('output_model1')
 results2 = bayesed.load_results('output_model2')
-from bayesed import compare_results
-compare_results([results1, results2], 
-                labels=['Model 1', 'Model 2'],
-                params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
+
+# Automatic parameter standardization for easy comparison
+standardize_parameter_names([results1, results2])
+plot_posterior_comparison([results1, results2], labels=['Model 1', 'Model 2'])
 ```
 
 **AGN Fitting:**

@@ -45,61 +45,25 @@ from .utils import (
 from .plotting import plot_bestfit
 
 
-def compare_results(results_list, labels=None, params=None, show=True, **kwargs):
-    """
-    Compare posterior samples from multiple BayeSEDResults objects.
-    
-    This is a convenience function that provides a simpler syntax than
-    BayeSEDResults.plot_posterior_comparison().
-    
-    Parameters
-    ----------
-    results_list : list of BayeSEDResults
-        List of BayeSEDResults objects to compare
-    labels : list of str, optional
-        Labels for each result set (default: 'Result 1', 'Result 2', etc.)
-    params : list of str, optional
-        Parameters to plot. If None, uses common free parameters.
-    show : bool, optional
-        Whether to display the plot (default: True)
-    **kwargs
-        Additional arguments passed to GetDist triangle_plot
-        
-    Returns
-    -------
-    getdist.plots.GetDistPlotter
-        GetDist plotter object
-        
-    Examples
-    --------
-    >>> from bayesed import compare_results
-    >>> results1 = BayeSEDResults('output_model1')
-    >>> results2 = BayeSEDResults('output_model2')
-    >>> compare_results([results1, results2], 
-    ...                 labels=['Model 1', 'Model 2'],
-    ...                 params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
-    """
-    return BayeSEDResults.plot_posterior_comparison(results_list, labels, params, show=show, **kwargs)
-
 
 class IDConstants:
     """
     Constants for ID and igroup assignment logic.
-    
+
     These constants define the spacing and offsets used when automatically
     assigning IDs to galaxy and AGN instances.
     """
     # Galaxy ID spacing
     GALAXY_ID_INCREMENT = 2  # Increment by 2 to leave room for DEM (uses base_id + 1)
     GALAXY_IGROUP_INCREMENT = 1  # Increment igroup by 1 for each galaxy
-    
+
     # AGN ID spacing
     AGN_COMPONENT_COUNT = 5  # Maximum components: disk, blr, feii, nlr, torus
     AGN_ID_INCREMENT_FIRST = 2  # When no existing AGN, increment id by 2
     AGN_ID_INCREMENT_SUBSEQUENT = 6  # When existing AGN, increment by 6 (conservative)
     AGN_IGROUP_INCREMENT_FIRST = 1  # When no existing AGN, increment igroup by 1
     AGN_IGROUP_INCREMENT_SUBSEQUENT = 6  # When existing AGN, increment by 6
-    
+
     # AGN Component Offsets (relative to base_igroup and base_id)
     # Updated: Disk now uses base+0 (was base+1) to eliminate wasted ID space
     AGN_OFFSET_DISK = 0
@@ -741,7 +705,7 @@ class BayeSEDParams:
         if base_igroup is None or base_id is None:
             # Get max IDs from params after galaxy is added
             max_id_after_galaxy, max_igroup_after_galaxy = cls._get_max_ids_igroups(params)
-            
+
             if base_igroup is None:
                 # AGN components start after galaxy components
                 # If there are existing AGN instances, increment by 6 to leave room for all components
@@ -1278,9 +1242,9 @@ class BayeSEDParams:
             (next_igroup, next_id) - Next available igroup and id for a galaxy instance
         """
         max_id, max_igroup = self.__class__._get_max_ids_igroups(self)
-        next_igroup = (max_igroup + IDConstants.GALAXY_IGROUP_INCREMENT 
+        next_igroup = (max_igroup + IDConstants.GALAXY_IGROUP_INCREMENT
                       if max_igroup >= 0 else 0)
-        next_id = (max_id + IDConstants.GALAXY_ID_INCREMENT 
+        next_id = (max_id + IDConstants.GALAXY_ID_INCREMENT
                   if max_id >= 0 else 0)
         return next_igroup, next_id
 
@@ -1314,25 +1278,25 @@ class BayeSEDParams:
             next_base_id = 0
 
         return next_base_igroup, next_base_id
-    
+
     def validate_ids(self, new_id, new_igroup=None):
         """
         Validate that new IDs don't conflict with existing ones.
-        
+
         Parameters
         ----------
         new_id : int
             Proposed new id value
         new_igroup : int, optional
             Proposed new igroup value (if applicable)
-        
+
         Returns
         -------
         tuple
             (is_valid, conflicts) - True if valid, False with list of conflict messages
         """
         max_id, max_igroup = self.__class__._get_max_ids_igroups(self)
-        
+
         conflicts = []
         if new_id <= max_id:
             conflicts.append(
@@ -1344,13 +1308,13 @@ class BayeSEDParams:
                 f"igroup {new_igroup} conflicts with existing igroup {max_igroup} "
                 f"(must be > {max_igroup})"
             )
-        
+
         return (len(conflicts) == 0, conflicts)
-    
+
     def get_used_ids(self):
         """
         Return all currently used IDs and igroups.
-        
+
         Returns
         -------
         dict
@@ -1358,44 +1322,44 @@ class BayeSEDParams:
         """
         used_ids = set()
         used_igroups = set()
-        
+
         # Check SSP
         if self.ssp:
             for ssp in self.ssp:
                 used_ids.add(ssp.id)
                 used_igroups.add(ssp.igroup)
-        
+
         # Check AGN
         if self.AGN:
             for agn in self.AGN:
                 used_ids.add(agn.id)
                 used_igroups.add(agn.igroup)
-        
+
         # Check Big Blue Bump
         if self.big_blue_bump:
             for bbb in self.big_blue_bump:
                 used_ids.add(bbb.id)
                 used_igroups.add(bbb.igroup)
-        
+
         # Check Greybody, Blackbody, FANN, AKNN
         for param_list in [self.greybody, self.blackbody, self.fann, self.aknn]:
             if param_list:
                 for param in param_list:
                     used_ids.add(param.id)
                     used_igroups.add(param.igroup)
-        
+
         # Check lines1
         if self.lines1:
             for line in self.lines1:
                 used_ids.add(line.id)
                 used_igroups.add(line.igroup)
-        
+
         # Check SFH, DAL, Kin (id only)
         for param_list in [self.sfh, self.dal, self.kin]:
             if param_list:
                 for param in param_list:
                     used_ids.add(param.id)
-        
+
         return {
             'ids': sorted(used_ids),
             'igroups': sorted(used_igroups)
@@ -1491,7 +1455,7 @@ class BayeSEDResults:
     BayeSED Output Structure:
     -------------------------
     A single BayeSED run with specific SED model, galaxy sample, and outdir produces:
-    
+
     1. **Global HDF5 File** (one per model configuration):
        - Location: Top-level of output_dir
        - Naming: `{catalog_name}_{model_name}.hdf5`
@@ -1503,30 +1467,30 @@ class BayeSEDResults:
          * 'parameters_name' dataset: Parameter names (strings)
          * Columns include: logZ, INSlogZ, logZerr, INSlogZerr (Bayesian evidence)
        - Example: `test_inoise1_0Stellar+Nebular_2dal8_10_sys_err0.hdf5`
-    
+
     2. **Catalog Name Subdirectory** (created when any save_ command is used):
        - Location: `{output_dir}/{catalog_name}/`
        - catalog_name: Extracted from input file header (first line: `# catalog_name ...`)
        - Contains: Subdirectories for each object in the sample
-    
+
     3. **Object-Specific Subdirectories**:
        - Location: `{output_dir}/{catalog_name}/{object_id}/`
        - Structure: One subdirectory per object
        - Example: `output1/test_inoise1/spec-0285-51930-0184_GALAXY_STARFORMING/`
-    
+
     4. **Best-fit FITS Files** (if save_bestfit > 0):
        - Location: Inside object subdirectories
        - Naming: `{model_name}_bestfit.fits`
        - Contains: Best-fit SED spectrum, observed data, residuals, component contributions
        - Example: `0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits`
-    
+
     5. **Posterior Sample Files** (if save_sample_par=True):
        - Location: Inside object subdirectories
        - Files:
          * `{model_name}_sample_par.paramnames`: Parameter definitions (GetDist format)
          * `{model_name}_sample_par.txt`: Posterior samples (GetDist format)
        - Example: `0Stellar+Nebular_2dal8_10_sys_err0_sample_par.paramnames`
-    
+
     Complete Example Structure:
         output1/
         ├── test_inoise1_0Stellar+Nebular_2dal8_10_sys_err0.hdf5  # Global results (catalog_name prefix)
@@ -1538,7 +1502,7 @@ class BayeSEDResults:
             │   └── 0Stellar+Nebular_2dal8_10_sys_err0_sample_par.txt
             └── spec-0508-52366-0522_GALAXY_/
                 └── ...
-    
+
     Notes:
     - All HDF5 files in the same output_dir typically contain all objects from the same sample
     - HDF5 filenames use catalog_name as prefix (from input file header)
@@ -1561,22 +1525,22 @@ class BayeSEDResults:
     --------
     >>> # Basic usage
     >>> results = BayeSEDResults('output')
-    >>> 
+    >>>
     >>> # Quick parameter overview
     >>> results.print_parameter_summary()
-    >>> 
+    >>>
     >>> # Get parameter names by type
     >>> free_params = results.get_free_parameter_names()
     >>> derived_params = results.get_derived_parameter_names()
     >>> stellar_params = results.get_parameters_by_type('stellar')
-    >>> 
+    >>>
     >>> # Get parameter values
     >>> ages = results.get_parameter_values('log(age/yr)[0,1]')
     >>> stellar_masses = results.get_parameter_values('log(M*/Msun)[0,1]')
-    >>> 
+    >>>
     >>> # Get multiple parameters at once
     >>> params = results.get_parameter_values(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
-    >>> 
+    >>>
     >>> # Load full results table
     >>> table = results.load_hdf5_results()
     >>> print(table.colnames)  # All available parameters
@@ -1594,7 +1558,7 @@ class BayeSEDResults:
 
         # Find output files first (to detect available catalog_names)
         self._find_output_files()
-        
+
         # Set catalog_name (auto-detect if not provided)
         if catalog_name is None:
             if self.catalog_names:
@@ -1614,7 +1578,7 @@ class BayeSEDResults:
                     f"Available catalog names: {available}"
                 )
             self.catalog_name = catalog_name
-        
+
         # Re-filter files to scope to this catalog_name
         if self.catalog_name:
             self._scope_to_catalog()
@@ -1622,7 +1586,7 @@ class BayeSEDResults:
     def _find_output_files(self):
         """
         Find all output files in the directory and organize by model configuration.
-        
+
         This method:
         1. Finds all HDF5 files (global results) in top-level directory
         2. Detects catalog_name subdirectories (from input file header)
@@ -1630,7 +1594,7 @@ class BayeSEDResults:
         4. Finds all posterior sample files recursively
         5. Organizes files by catalog_name, model configuration, and object ID
         6. Selects appropriate files based on object_id if specified
-        
+
         Note: When save_ commands are used, BayeSED creates a subdirectory named
         after the catalog_name (from input file header) containing object subdirectories.
         Path structure: {output_dir}/{catalog_name}/{object_id}/{model_name}_bestfit.fits
@@ -1642,7 +1606,7 @@ class BayeSEDResults:
         hdf5_files = glob.glob(os.path.join(self.output_dir, '*.hdf5'))
         self.hdf5_files = sorted(hdf5_files) if hdf5_files else []
         self.hdf5_file = self.hdf5_files[0] if self.hdf5_files else None
-        
+
         # Detect catalog_name subdirectories first (more reliable than parsing filenames)
         # These are created when save_ commands are used
         self.catalog_names = []
@@ -1659,14 +1623,14 @@ class BayeSEDResults:
                             self.catalog_names.append(item)
                     except (OSError, PermissionError):
                         pass
-        
+
         # Organize HDF5 files by catalog_name (which is the prefix in the filename)
         # Filename format: {catalog_name}_{model_name}.hdf5
         # Since catalog_name can contain underscores, we match HDF5 files to catalog_names
         # by checking if the filename starts with catalog_name + '_'
         self.hdf5_files_by_catalog = {}
         self.catalog_names_from_hdf5 = set()
-        
+
         # First, try to match HDF5 files to known catalog_names from subdirectories
         for hdf5_file in self.hdf5_files:
             basename = os.path.basename(hdf5_file)
@@ -1680,7 +1644,7 @@ class BayeSEDResults:
                     self.catalog_names_from_hdf5.add(catalog_name)
                     matched = True
                     break
-            
+
             # If no match found, fall back to splitting on first underscore
             # (for cases where catalog_name subdirectory doesn't exist)
             if not matched and '_' in basename:
@@ -1690,7 +1654,7 @@ class BayeSEDResults:
                 if catalog_name not in self.hdf5_files_by_catalog:
                     self.hdf5_files_by_catalog[catalog_name] = []
                 self.hdf5_files_by_catalog[catalog_name].append(hdf5_file)
-        
+
         # For backward compatibility, also maintain hdf5_files_by_prefix
         # (in case some files use old naming convention)
         self.hdf5_files_by_prefix = {}
@@ -1706,31 +1670,31 @@ class BayeSEDResults:
         self.catalog_names.extend(self.catalog_names_from_hdf5)
         # Remove duplicates and sort
         self.catalog_names = sorted(set(self.catalog_names))
-        
+
         # If we have a single catalog_name, prefer its HDF5 file as default
         if len(self.catalog_names) == 1 and self.catalog_names[0] in self.hdf5_files_by_catalog:
             catalog_hdf5_files = self.hdf5_files_by_catalog[self.catalog_names[0]]
             if catalog_hdf5_files:
                 self.hdf5_file = catalog_hdf5_files[0]
-        
+
         # Find best-fit FITS files (recursively in subdirectories)
         bestfit_files = glob.glob(os.path.join(self.output_dir, '**', '*_bestfit.fits'), recursive=True)
         self.bestfit_files = sorted(bestfit_files)
-        
+
         # Organize bestfit files by catalog_name and object ID
         self.bestfit_files_by_catalog = {}
         self.bestfit_files_by_object = {}
         for bfile in self.bestfit_files:
             rel_path = os.path.relpath(bfile, self.output_dir)
             parts = rel_path.split(os.sep) if os.sep in rel_path else [os.path.basename(bfile)]
-            
+
             # Path structure: {catalog_name}/{object_id}/{model_name}_bestfit.fits
             # or legacy: {prefix}/{object_id}/{model_name}_bestfit.fits
             if len(parts) >= 2:
                 # Check if first part is a catalog_name
                 catalog_name = parts[0] if parts[0] in self.catalog_names else None
                 obj_id = parts[1]  # Second part is object ID
-                
+
                 # Organize by catalog_name
                 if catalog_name:
                     if catalog_name not in self.bestfit_files_by_catalog:
@@ -1738,7 +1702,7 @@ class BayeSEDResults:
                     if obj_id not in self.bestfit_files_by_catalog[catalog_name]:
                         self.bestfit_files_by_catalog[catalog_name][obj_id] = []
                     self.bestfit_files_by_catalog[catalog_name][obj_id].append(bfile)
-                
+
                 # Also organize by object ID (for backward compatibility)
                 if obj_id not in self.bestfit_files_by_object:
                     self.bestfit_files_by_object[obj_id] = []
@@ -1759,7 +1723,7 @@ class BayeSEDResults:
                     'paramnames': pfile,
                     'samples': sfile
                 }
-                
+
                 # Organize by catalog_name and object ID
                 rel_path = os.path.relpath(pfile, self.output_dir)
                 if os.sep in rel_path:
@@ -1767,7 +1731,7 @@ class BayeSEDResults:
                     if len(parts) >= 2:
                         catalog_name = parts[0] if parts[0] in self.catalog_names else None
                         obj_id = parts[1]
-                        
+
                         # Organize by catalog_name
                         if catalog_name:
                             if catalog_name not in self.posterior_files_by_catalog:
@@ -1778,7 +1742,7 @@ class BayeSEDResults:
                                 'paramnames': pfile,
                                 'samples': sfile
                             }
-                        
+
                         # Also organize by object ID (for backward compatibility)
                         if obj_id not in self.posterior_files_by_object:
                             self.posterior_files_by_object[obj_id] = {}
@@ -1790,7 +1754,7 @@ class BayeSEDResults:
         # Select object if specified (before catalog scoping)
         if self.object_id is not None:
             obj_str = str(self.object_id)
-            
+
             # Try to find bestfit file for this object
             # First check organized by object ID
             if obj_str in self.bestfit_files_by_object:
@@ -1808,17 +1772,17 @@ class BayeSEDResults:
         else:
             # No object specified - use first available
             self.bestfit_file = self.bestfit_files[0] if self.bestfit_files else None
-    
+
     def _scope_to_catalog(self):
         """
         Filter all file lists to scope to the selected catalog_name.
         This ensures all methods operate within a single catalog's scope.
         """
         import os
-        
+
         if not self.catalog_name:
             return
-        
+
         # Filter HDF5 files to this catalog
         if hasattr(self, 'hdf5_files_by_catalog') and self.catalog_name in self.hdf5_files_by_catalog:
             self.hdf5_files = self.hdf5_files_by_catalog[self.catalog_name]
@@ -1826,12 +1790,12 @@ class BayeSEDResults:
                 self.hdf5_file = self.hdf5_files[0]
         elif hasattr(self, 'hdf5_files'):
             # Try to find HDF5 files with this catalog_name prefix
-            filtered = [f for f in self.hdf5_files 
+            filtered = [f for f in self.hdf5_files
                         if os.path.basename(f).startswith(self.catalog_name + '_')]
             if filtered:
                 self.hdf5_files = filtered
                 self.hdf5_file = filtered[0]
-        
+
         # Filter bestfit files to this catalog
         if hasattr(self, 'bestfit_files_by_catalog') and self.catalog_name in self.bestfit_files_by_catalog:
             # Rebuild bestfit_files list from catalog-scoped files
@@ -1839,12 +1803,12 @@ class BayeSEDResults:
             for obj_id, files in self.bestfit_files_by_catalog[self.catalog_name].items():
                 self.bestfit_files.extend(files)
             self.bestfit_files = sorted(self.bestfit_files)
-            
+
             # Update bestfit_files_by_object to only include this catalog's objects
             self.bestfit_files_by_object = {}
             for obj_id, files in self.bestfit_files_by_catalog[self.catalog_name].items():
                 self.bestfit_files_by_object[obj_id] = files
-            
+
             # Update bestfit_file selection for object_id
             if self.object_id is not None:
                 obj_str = str(self.object_id)
@@ -1861,14 +1825,14 @@ class BayeSEDResults:
             if not hasattr(self, 'bestfit_files_by_object'):
                 self.bestfit_files_by_object = {}
             self.bestfit_file = None
-        
+
         # Filter posterior files to this catalog
         if hasattr(self, 'posterior_files_by_catalog') and self.catalog_name in self.posterior_files_by_catalog:
             # Rebuild posterior_files dict from catalog-scoped files
             self.posterior_files = {}
             for obj_id, obj_files in self.posterior_files_by_catalog[self.catalog_name].items():
                 self.posterior_files.update(obj_files)
-            
+
             # Update posterior_files_by_object to only include this catalog's objects
             self.posterior_files_by_object = {}
             for obj_id, obj_files in self.posterior_files_by_catalog[self.catalog_name].items():
@@ -1927,7 +1891,7 @@ class BayeSEDResults:
             - Parameter columns: Sample values for each parameter
             - 'posterior_weights': Posterior weights (P_{posterior}) if available
             - 'loglike': Log-likelihood values if available
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
@@ -1959,10 +1923,10 @@ class BayeSEDResults:
             # No object_id specified, use object_base or first available
             if object_base is None:
                 object_base = list(self.posterior_files.keys())[0]
-            
+
             if object_base not in self.posterior_files:
                 raise ValueError(f"Object base '{object_base}' not found in posterior files")
-            
+
             files = self.posterior_files[object_base]
 
         # Read parameter names
@@ -1973,13 +1937,13 @@ class BayeSEDResults:
         try:
             import numpy as np
             from astropy.table import Table
-            
+
             samples_all = np.loadtxt(files['samples'])
-            
+
             # The samples file typically contains P_{posterior} and loglike as first two columns
             # which are not in the paramnames file. Extract these for weighted sampling.
             table_data = {}
-            
+
             if samples_all.shape[1] > len(paramnames):
                 # Extract P_{posterior} and loglike from first columns
                 n_skip = samples_all.shape[1] - len(paramnames)
@@ -1991,14 +1955,14 @@ class BayeSEDResults:
                 samples = samples_all[:, n_skip:]
             else:
                 samples = samples_all
-            
+
             # Add parameter columns to table
             for i, param_name in enumerate(paramnames):
                 table_data[param_name] = samples[:, i]
-            
+
             # Create astropy table
             return Table(table_data)
-            
+
         except Exception as e:
             raise RuntimeError(f"Error reading posterior samples: {e}")
 
@@ -2010,7 +1974,7 @@ class BayeSEDResults:
         or a specific object. BayeSED provides two evidence estimates:
         - 'logZ': Standard nested sampling evidence
         - 'INSlogZ': Importance Nested Sampling (INS) evidence (more accurate)
-        
+
         Corresponding error estimates:
         - 'logZerr': Error for standard evidence
         - 'INSlogZerr': Error for INS evidence
@@ -2029,38 +1993,38 @@ class BayeSEDResults:
             - 'logZerr': Standard evidence error (if available)
             - 'INSlogZ': INS evidence (if available)
             - 'INSlogZerr': INS evidence error (if available)
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
-        >>> 
+        >>>
         >>> # Get evidence for all objects
         >>> evidence_table = results.get_evidence()
         >>> print(evidence_table)
-        >>> 
+        >>>
         >>> # Get evidence for specific object
         >>> evidence_obj = results.get_evidence(object_id='galaxy_1')
         >>> print(f"INS Evidence: {evidence_obj['INSlogZ'][0]:.2f} ± {evidence_obj['INSlogZerr'][0]:.2f}")
-        >>> 
+        >>>
         >>> # Access specific columns
         >>> all_evidence = results.get_evidence()
         >>> best_evidence = all_evidence['INSlogZ'] if 'INSlogZ' in all_evidence.colnames else all_evidence['logZ']
         """
         try:
             params_table = self.parameters
-            
+
             # Find evidence-related columns
             evidence_cols = ['ID']  # Always include ID
             for col in ['logZ', 'logZerr', 'INSlogZ', 'INSlogZerr']:
                 if col in params_table.colnames:
                     evidence_cols.append(col)
-            
+
             if len(evidence_cols) == 1:  # Only ID column found
                 raise ValueError("No evidence columns found in parameter table")
-            
+
             # Extract evidence table
             evidence_table = params_table[evidence_cols]
-            
+
             # Filter by object_id if specified
             if object_id is not None:
                 obj_str = str(object_id)
@@ -2074,7 +2038,7 @@ class BayeSEDResults:
             else:
                 # Return evidence for all objects
                 return evidence_table
-                    
+
         except Exception as e:
             raise RuntimeError(f"Error reading evidence from parameter table: {e}")
 
@@ -2082,15 +2046,15 @@ class BayeSEDResults:
     def parameters(self):
         """
         Get the main parameters table as an astropy Table.
-        
+
         This property provides direct access to the HDF5 results table containing
         all parameters and statistics. Parameter names can be accessed via parameters.colnames.
-        
+
         Returns
         -------
         astropy.table.Table
             Table containing all parameters and results
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
@@ -2199,12 +2163,12 @@ class BayeSEDResults:
     def list_model_configurations(self, catalog_name=None):
         """
         List all model configurations found in the output directory.
-        
+
         Parameters
         ----------
         catalog_name : str, optional
             Filter by catalog_name (prefix in HDF5 filename). If None, returns all configurations.
-        
+
         Returns
         -------
         dict
@@ -2218,7 +2182,7 @@ class BayeSEDResults:
         if catalog_name is not None and hasattr(self, 'hdf5_files_by_catalog'):
             if catalog_name in self.hdf5_files_by_catalog:
                 hdf5_files_to_use = self.hdf5_files_by_catalog[catalog_name]
-        
+
         for hdf5_file in hdf5_files_to_use:
             basename = os.path.basename(hdf5_file)
             # Model name is the full filename without .hdf5 extension
@@ -2227,15 +2191,15 @@ class BayeSEDResults:
                 model_name = basename.replace('.hdf5', '')
                 configs[model_name] = hdf5_file
         return configs
-    
+
     def list_catalog_names(self):
         """
         List all catalog names found in the output directory.
-        
+
         Catalog names are extracted from input file headers and used as subdirectory
         names when save_ commands are enabled. Each catalog_name subdirectory contains
         object-specific result files.
-        
+
         Returns
         -------
         list
@@ -2243,7 +2207,7 @@ class BayeSEDResults:
             Empty list if no catalog_name subdirectories are found.
         """
         return self.catalog_names.copy() if hasattr(self, 'catalog_names') else []
-    
+
     def list_objects(self, catalog_name=None, hdf5_prefix=None):
         """
         List all objects with results in the output directory.
@@ -2252,7 +2216,7 @@ class BayeSEDResults:
         Since all HDF5 files in the same output_dir typically contain all objects
         from the same sample, this method reads from the first available HDF5 file
         unless a specific catalog_name is requested.
-        
+
         When catalog_name is provided, this method uses the organized file structure
         for faster lookups. The catalog_name is the prefix used in HDF5 filenames.
 
@@ -2283,7 +2247,7 @@ class BayeSEDResults:
             if catalog_name in self.bestfit_files_by_catalog:
                 objects = list(self.bestfit_files_by_catalog[catalog_name].keys())
                 return sorted(objects)
-        
+
         # Try to read object IDs from HDF5 files first
         # Since all HDF5 files in the same output_dir typically contain all objects
         # from the same sample, we can use any HDF5 file unless catalog_name is specified
@@ -2291,7 +2255,7 @@ class BayeSEDResults:
             try:
                 import h5py
                 all_ids = []
-                
+
                 # Select HDF5 files to read from
                 hdf5_files_to_read = []
                 if catalog_name is not None:
@@ -2307,7 +2271,7 @@ class BayeSEDResults:
                 else:
                     # No catalog_name specified - use all files (but typically all contain same objects)
                     hdf5_files_to_read = self.hdf5_files
-                
+
                 # Read object IDs from selected HDF5 files
                 for hdf5_file in hdf5_files_to_read:
                     with h5py.File(hdf5_file, 'r') as f:
@@ -2354,12 +2318,12 @@ class BayeSEDResults:
                                 filtered_objects.append(obj_id)
                 return filtered_objects
             return objects
-        
+
         # Final fallback: Extract from file paths directly
         objects = []
         for f in self.bestfit_files:
             rel_path = os.path.relpath(f, self.output_dir)
-            
+
             # Filter by prefix if specified
             if hdf5_prefix is not None:
                 if os.sep in rel_path:
@@ -2369,7 +2333,7 @@ class BayeSEDResults:
                 else:
                     if not os.path.basename(f).startswith(hdf5_prefix + '_'):
                         continue
-            
+
             # Filter by catalog_name if specified
             if catalog_name is not None:
                 if os.sep in rel_path:
@@ -2388,7 +2352,7 @@ class BayeSEDResults:
             else:
                 base = os.path.basename(f).replace('_bestfit.fits', '')
                 objects.append(base)
-        
+
         # Remove duplicates while preserving order
         seen = set()
         unique_objects = []
@@ -2416,7 +2380,7 @@ class BayeSEDResults:
             - List of parameter names: Plot specific parameters
             - Single parameter name (str): Create 1D PDF plot
             - None: Plot all available parameters (may be slow for many parameters)
-            
+
             To see available parameters, use:
             >>> print(results.get_posterior_samples().colnames)  # All available parameter names
         object_base : str, optional
@@ -2469,20 +2433,20 @@ class BayeSEDResults:
         >>> # Check what's available first
         >>> print(results.get_posterior_samples().colnames)  # All available parameter names
         """
-        # Get available parameters from paramnames file (efficient - no sample loading)
-        # Remove '*' markers since GetDist strips them from parameter names
+        # Get available parameters from GetDist samples (includes renamed parameters)
         try:
-            available_params = [p.rstrip('*') for p in self._get_parameter_names_from_files()]
+            samples_gd = self.get_getdist_samples(object_base=object_base)
+            available_params = [param.name for param in samples_gd.paramNames.names]
         except Exception as e:
             raise RuntimeError(f"Could not load parameter names: {e}")
-        
+
         # Handle parameter specifications
         if params is None:
             params = available_params
         elif isinstance(params, str):
             # Single parameter name - convert to list
             params = [params]
-        
+
         # Validate that all requested parameters are available
         if isinstance(params, list):
             invalid_params = [p for p in params if p not in available_params]
@@ -2495,7 +2459,7 @@ class BayeSEDResults:
                 )
                 # Filter to only valid parameters
                 params = [p for p in params if p in available_params]
-                
+
                 if not params:
                     raise ValueError(
                         f"No valid parameters for plotting. Available parameters: {available_params}"
@@ -2525,14 +2489,14 @@ class BayeSEDResults:
                                 show=True, output_file=None, show_median=True,
                                 show_confidence_intervals=True, confidence_level=0.68, **kwargs):
         """Plot posterior PDFs using GetDist library.
-        
+
         Simplified and more robust implementation that leverages GetDist's built-in
         capabilities for parameter validation, statistics computation, and plotting.
         """
         import os
         import warnings
         import numpy as np
-        
+
         # Import GetDist and matplotlib
         try:
             import matplotlib
@@ -2543,7 +2507,7 @@ class BayeSEDResults:
                 f"Required libraries not available: {e}. "
                 "Install with: pip install getdist matplotlib"
             )
-        
+
         # Helper: Switch to interactive backend if needed
         def _ensure_interactive_backend():
             if not show:
@@ -2560,41 +2524,41 @@ class BayeSEDResults:
                     "Could not switch to interactive backend. Plot may not display.",
                     UserWarning
                 )
-        
+
         # Helper: Get parameter names from file
         def _get_paramnames_from_file(paramnames_file):
             with open(paramnames_file, 'r') as f:
                 return [line.strip().split()[0] for line in f if line.strip()]
-        
+
         # Helper: Compute statistics from GetDist samples
         def _compute_statistics(samples_gd, param_names):
             """Compute medians and confidence intervals using GetDist."""
             markers = {}
             confidence_intervals = {}
-            
+
             if not (show_median or show_confidence_intervals):
                 return markers, confidence_intervals
-            
+
             lower_percentile = (1 - confidence_level) / 2
             upper_percentile = 1 - lower_percentile
-            
+
             # Get parameter indices
             gd_param_names = samples_gd.getParamNames().list()
-            
+
             for param in param_names:
                 if param not in gd_param_names:
                     continue
-                
+
                 idx = gd_param_names.index(param)
                 samples_array = samples_gd.samples[:, idx]
                 weights = getattr(samples_gd, 'weights', None)
-                
+
                 if show_median:
                     if weights is not None:
                         markers[param] = np.average(samples_array, weights=weights)
                     else:
                         markers[param] = np.median(samples_array)
-                
+
                 if show_confidence_intervals:
                     if weights is not None:
                         # Weighted quantiles
@@ -2609,28 +2573,28 @@ class BayeSEDResults:
                     else:
                         quantiles = np.quantile(samples_array, [lower_percentile, upper_percentile])
                         confidence_intervals[param] = (quantiles[0], quantiles[1])
-            
+
             return markers, confidence_intervals
-        
+
         # Helper: Add confidence intervals to 1D plot
         def _add_ci_to_1d_plot(ax, lower, upper, confidence_level):
             ax.axvspan(lower, upper, color='blue', alpha=0.15,
                        label=f'{int(confidence_level*100)}% CI')
             ax.legend()
-        
+
         # Helper: Add confidence intervals to diagonal plots
         def _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level):
             """Add confidence intervals to diagonal (1D marginal) plots in triangle plot."""
             if not fig or not hasattr(fig, 'axes'):
                 return
-            
+
             # Find diagonal axes: 1D marginals have lines but no collections
             diagonal_axes = [
                 ax for ax in fig.axes
-                if (len(ax.lines) > 0 and len(ax.collections) == 0 and 
+                if (len(ax.lines) > 0 and len(ax.collections) == 0 and
                     (not ax.get_ylabel() or ax.get_ylabel() == ''))
             ]
-            
+
             if len(diagonal_axes) != len(params):
                 # Fallback: match by parameter name in xlabel
                 import re
@@ -2639,7 +2603,7 @@ class BayeSEDResults:
                         continue
                     lower, upper = confidence_intervals[param]
                     param_base = param.split('[')[0].strip()
-                    
+
                     for ax in diagonal_axes:
                         xlabel = ax.get_xlabel() or ''
                         # Try matching parameter name
@@ -2656,30 +2620,31 @@ class BayeSEDResults:
 
         # Main function logic
         _ensure_interactive_backend()
-        
+
         # Get object_base and files
         if object_base is None:
             if not self.posterior_files:
                 raise FileNotFoundError("No posterior sample files found")
             object_base = list(self.posterior_files.keys())[0]
-        
+
         files = self.posterior_files[object_base]
         chain_dir = os.path.dirname(files['paramnames'])
         base_name = os.path.basename(files['paramnames']).replace('.paramnames', '')
         root_path = os.path.join(chain_dir, base_name)
-        
+
         # Load samples using GetDist (handles validation and variation checking)
+        # Use get_getdist_samples() to ensure parameter renaming is applied
         try:
-            samples_gd = loadMCSamples(root_path)
+            samples_gd = self.get_getdist_samples(object_base=object_base)
         except Exception as e:
             raise RuntimeError(
-                f"Failed to load GetDist samples from {root_path}: {e}. "
+                f"Failed to load GetDist samples: {e}. "
                 "Check that the posterior sample files are valid."
             ) from e
-        
+
         # Get available parameter names from GetDist (only parameters in samples)
         gd_param_names = samples_gd.getParamNames().list()
-        
+
         # Get parameter names to plot
         if params is None:
             # When params=None, use all parameters available in the samples
@@ -2688,7 +2653,7 @@ class BayeSEDResults:
             # When params is provided, validate and filter
             params_valid = [p for p in params if p in gd_param_names]
             params_not_found = [p for p in params if p not in gd_param_names]
-            
+
             # Only warn if user explicitly provided params that don't exist
             if params_not_found:
                 # Show first few missing params to avoid overwhelming output
@@ -2701,7 +2666,7 @@ class BayeSEDResults:
                     f"Use results.get_posterior_samples().colnames to see available parameters.",
                     UserWarning
                 )
-            
+
             if not params_valid:
                 # Provide helpful error message with suggestion
                 available_str = ', '.join(gd_param_names[:10])
@@ -2712,24 +2677,27 @@ class BayeSEDResults:
                     f"Available parameters: {available_str}. "
                     f"Use results.get_posterior_samples().colnames to see all available parameters."
                 )
-            
+
             params = params_valid  # Use only valid parameters
-        
+
         if not params:
             raise ValueError(
                 "No parameters available for plotting. "
                 "The posterior samples appear to be empty or invalid."
             )
-        
+
         # Extract font settings from kwargs
         axes_fontsize = kwargs.pop('axes_fontsize', None)
         axes_labelsize = kwargs.pop('axes_labelsize', None)
         subplot_size_inch = kwargs.pop('subplot_size_inch', None)
-        
+
+        # Get the (possibly renamed) samples and use them directly
+        samples_gd = self.get_getdist_samples(object_base=object_base)
+
         # Create GetDist plotter
-        g = plots.get_subplot_plotter(chain_dir=chain_dir)
-        roots = [base_name]
-        
+        g = plots.get_subplot_plotter()
+        roots = [samples_gd]  # Use MCSamples object directly instead of file paths
+
         # Compute statistics if needed
         markers = {}
         confidence_intervals = {}
@@ -2757,7 +2725,7 @@ class BayeSEDResults:
                 g.settings.axes_labelsize = axes_labelsize
             if subplot_size_inch is not None:
                 g.settings.subplot_size_inch = subplot_size_inch
-        
+
         # Create plot
         try:
             if is_1d:
@@ -2765,9 +2733,9 @@ class BayeSEDResults:
                 try:
                     g.plot_1d(roots, params[0], **kwargs)
                 except AttributeError:
-                    g.triangle_plot(roots, params, filled=filled, 
+                    g.triangle_plot(roots, params, filled=filled,
                                    markers=markers if markers else None, **kwargs)
-                
+
                 # Add confidence interval
                 if show_confidence_intervals and params[0] in confidence_intervals:
                     ax = plt.gca()
@@ -2777,15 +2745,15 @@ class BayeSEDResults:
                 # Triangle plot
                 g.triangle_plot(roots, params, filled=filled,
                                markers=markers if markers else None,
-                               marker_args={'color': 'red', 'linestyle': '--', 
+                               marker_args={'color': 'red', 'linestyle': '--',
                                           'linewidth': 1.5, 'alpha': 0.7},
                                **kwargs)
-                
+
                 # Add confidence intervals to diagonal plots
                 if show_confidence_intervals:
                     try:
-                        fig = (getattr(g, 'fig', None) or 
-                              getattr(g, 'figure', None) or 
+                        fig = (getattr(g, 'fig', None) or
+                              getattr(g, 'figure', None) or
                               plt.gcf())
                         _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level)
                     except Exception as e:
@@ -2806,36 +2774,34 @@ class BayeSEDResults:
         # Export if requested
         if output_file:
             g.export(output_file)
-        
+
         # Show plot if requested
         if show:
             try:
-                fig = (getattr(g, 'fig', None) or 
-                      getattr(g, 'figure', None) or 
-                      plt.gcf())
-                if fig and len(fig.axes) > 0:
-                    plt.show()
-                else:
-                    plt.show()
+                import matplotlib.pyplot as plt
+                # Use the most reliable display method
+                plt.show()
             except Exception as e:
+                import warnings
                 warnings.warn(
-                    f"Could not display plot: {e}. Plot may have been saved to file.",
+                    f"Could not display plot: {e}. "
+                    f"Try using output_file parameter to save the plot instead.",
                     UserWarning
                 )
-        
+
         return g
 
     def get_free_parameters(self):
         """
         Get list of free parameter names.
-        
+
         Free parameters are the fitted parameters (those without '*' marker).
-        
+
         Returns
         -------
         list of str
             List of free parameter names
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
@@ -2844,19 +2810,19 @@ class BayeSEDResults:
         """
         param_names = self._get_parameter_names_from_files()
         return [p for p in param_names if not p.endswith('*')]
-    
+
     def get_derived_parameters(self):
         """
         Get list of derived parameter names.
-        
+
         Derived parameters are computed from free parameters (identified by '*' marker
         in the paramnames file, but the '*' is stripped from the returned names).
-        
+
         Returns
         -------
         list of str
             List of derived parameter names (without '*' markers)
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
@@ -2869,320 +2835,724 @@ class BayeSEDResults:
     def get_parameter_names(self):
         """
         Get list of all parameter names (free + derived).
-        
+
         This is more efficient than using get_posterior_samples().colnames
         since it reads only the small paramnames file instead of loading
         the entire samples data.
-        
+
         Returns
         -------
         list of str
             List of all parameter names (without '*' markers)
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
         >>> all_params = results.get_parameter_names()
         >>> print(f"All parameters: {all_params}")
-        >>> 
+        >>>
         >>> # More efficient than:
         >>> # samples = results.get_posterior_samples()
-        >>> # all_params = [col for col in samples.colnames 
+        >>> # all_params = [col for col in samples.colnames
         >>> #               if col not in ['posterior_weights', 'loglike']]
         """
         param_names = self._get_parameter_names_from_files()
         return [p.rstrip('*') for p in param_names]
-    
+
     def _get_parameter_names_from_files(self):
         """
         Get parameter names directly from paramnames file without loading samples.
-        
+
         This is much more efficient than loading the entire samples file when we
         only need the parameter names.
-        
+
         Returns
         -------
         list of str
             List of all parameter names (excluding posterior_weights and loglike)
         """
+        # If we have renamed parameter names, use those instead
+        if hasattr(self, '_renamed_parameter_names'):
+            return self._renamed_parameter_names
+
         if not self.posterior_files:
             raise FileNotFoundError("No posterior sample files found")
-        
+
         # Get first available paramnames file
         object_base = list(self.posterior_files.keys())[0]
         files = self.posterior_files[object_base]
-        
+
         # Read parameter names from paramnames file
         with open(files['paramnames'], 'r') as f:
             param_names = [line.strip().split()[0] for line in f if line.strip()]
-        
+
         return param_names
 
     def get_getdist_samples(self, object_base=None):
         """
         Get GetDist MCSamples object for direct GetDist usage.
-        
+
         This method provides access to the GetDist MCSamples object, which can be
         used for advanced plotting and analysis with the GetDist library.
-        
+
         Parameters
         ----------
         object_base : str, optional
             Base name for the object (if None, uses first available)
-            
+
         Returns
         -------
         getdist.MCSamples
             GetDist samples object that can be used with GetDist plotting functions
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
         >>> samples_gd = results.get_getdist_samples()
-        >>> 
+        >>>
         >>> # Use with GetDist directly
         >>> from getdist import plots
         >>> g = plots.get_subplot_plotter()
         >>> g.triangle_plot([samples_gd], ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]'])
-        >>> 
+        >>>
         >>> # Get parameter statistics
         >>> print(samples_gd.getMargeStats())
         """
         import os
-        
+
         try:
-            from getdist import loadMCSamples
+            from getdist import loadMCSamples, MCSamples
         except ImportError:
             raise ImportError("GetDist is required. Install with: pip install getdist")
-        
+
         if not self.posterior_files:
             raise FileNotFoundError("No posterior sample files found")
-        
+
         # Get object_base and files
         if object_base is None:
             object_base = list(self.posterior_files.keys())[0]
-        
+
         if object_base not in self.posterior_files:
             raise ValueError(f"Object base '{object_base}' not found in posterior files")
-        
+
         files = self.posterior_files[object_base]
         chain_dir = os.path.dirname(files['paramnames'])
         base_name = os.path.basename(files['paramnames']).replace('.paramnames', '')
         root_path = os.path.join(chain_dir, base_name)
-        
-        # Load samples using GetDist
+
+        # Load samples using GetDist first
         try:
             samples_gd = loadMCSamples(root_path)
-            return samples_gd
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load GetDist samples from {root_path}: {e}. "
                 "Check that the posterior sample files are valid."
             ) from e
 
-    @staticmethod
-    def plot_posterior_comparison(results_list, labels=None, params=None, **kwargs):
+        # Check if we need to apply parameter renaming
+        if hasattr(self, '_renamed_parameter_names'):
+            # Read original parameter names from file
+            original_names = []
+            original_labels = []
+            with open(files['paramnames'], 'r') as f:
+                for line in f:
+                    if line.strip():
+                        parts = line.strip().split(None, 1)  # Split on first whitespace only
+                        original_names.append(parts[0])
+                        # Use label if provided, otherwise use parameter name
+                        original_labels.append(parts[1] if len(parts) > 1 else parts[0])
+
+            # Create mapping from original to renamed
+            rename_mapping = {}
+            renamed_labels = []
+            for i, (orig_name, new_name) in enumerate(zip(original_names, self._renamed_parameter_names)):
+                if orig_name != new_name:
+                    rename_mapping[orig_name] = new_name
+                # Update labels to match renamed parameters
+                if i < len(original_labels):
+                    label = original_labels[i]
+                    # If the label was the same as the parameter name, update it
+                    if label == orig_name:
+                        renamed_labels.append(new_name)
+                    else:
+                        renamed_labels.append(label)
+                else:
+                    renamed_labels.append(new_name)
+
+            if rename_mapping:
+                # Create new MCSamples object with renamed parameters
+                # Get the sample data, weights, and likelihoods
+                samples_data = samples_gd.samples
+                weights = getattr(samples_gd, 'weights', None)
+                loglikes = getattr(samples_gd, 'loglikes', None)
+
+                # Get the actual parameter names from the loaded samples (after GetDist processing)
+                # This accounts for any parameters that GetDist may have removed (fixed parameters, etc.)
+                actual_param_names = [param.name for param in samples_gd.paramNames.names]
+                actual_param_labels = [param.label for param in samples_gd.paramNames.names]
+
+                # Apply renaming to the parameters that actually exist in the samples
+                renamed_actual_names = []
+                renamed_actual_labels = []
+
+                for name, label in zip(actual_param_names, actual_param_labels):
+                    # Apply renaming if this parameter should be renamed
+                    if name in rename_mapping:
+                        new_name = rename_mapping[name]
+                        renamed_actual_names.append(new_name)
+                        # Update label if it was the same as the parameter name
+                        if label == name:
+                            renamed_actual_labels.append(new_name)
+                        else:
+                            renamed_actual_labels.append(label)
+                    else:
+                        renamed_actual_names.append(name)
+                        renamed_actual_labels.append(label)
+
+                # Apply custom labels if they exist
+                if hasattr(self, '_custom_labels') and self._custom_labels:
+                    for i, name in enumerate(renamed_actual_names):
+                        if name in self._custom_labels:
+                            renamed_actual_labels[i] = self._custom_labels[name]
+
+                # Create new MCSamples with the correctly sized parameter lists
+                new_samples = MCSamples(
+                    samples=samples_data,
+                    names=renamed_actual_names,
+                    labels=renamed_actual_labels,
+                    weights=weights,
+                    loglikes=loglikes,
+                    name_tag=getattr(samples_gd, 'name_tag', None),
+                    label=getattr(samples_gd, 'label', None)
+                )
+
+                # Copy other important attributes if they exist
+                if hasattr(samples_gd, 'ranges'):
+                    new_samples.ranges = samples_gd.ranges
+                if hasattr(samples_gd, 'sampler'):
+                    new_samples.sampler = samples_gd.sampler
+
+                return new_samples
+
+        # Apply custom labels even if no parameter renaming is needed
+        if hasattr(self, '_custom_labels') and self._custom_labels:
+            # Get the parameter names and labels
+            param_names = [param.name for param in samples_gd.paramNames.names]
+            param_labels = [param.label for param in samples_gd.paramNames.names]
+
+            # Apply custom labels
+            updated_labels = []
+            for i, name in enumerate(param_names):
+                if name in self._custom_labels:
+                    updated_labels.append(self._custom_labels[name])
+                else:
+                    updated_labels.append(param_labels[i])
+
+            # Create new MCSamples with custom labels
+            samples_data = samples_gd.samples
+            weights = getattr(samples_gd, 'weights', None)
+            loglikes = getattr(samples_gd, 'loglikes', None)
+
+            new_samples = MCSamples(
+                samples=samples_data,
+                names=param_names,
+                labels=updated_labels,
+                weights=weights,
+                loglikes=loglikes,
+                name_tag=getattr(samples_gd, 'name_tag', None),
+                label=getattr(samples_gd, 'label', None)
+            )
+
+            # Copy other important attributes if they exist
+            if hasattr(samples_gd, 'ranges'):
+                new_samples.ranges = samples_gd.ranges
+            if hasattr(samples_gd, 'sampler'):
+                new_samples.sampler = samples_gd.sampler
+
+            return new_samples
+
+        return samples_gd
+
+    def rename_parameters(self, parameter_mapping):
         """
-        Plot comparison of posterior samples from multiple BayeSEDResults objects.
-        
-        This static method allows easy comparison of results from different
-        model configurations, objects, or analysis runs.
-        
+        Rename parameters in this BayeSEDResults object.
+
+        This method permanently renames parameters in the loaded samples,
+        making it easier to compare results with different parameter naming schemes.
+
         Parameters
         ----------
-        results_list : list of BayeSEDResults
-            List of BayeSEDResults objects to compare
-        labels : list of str, optional
-            Labels for each result set (default: 'Result 1', 'Result 2', etc.)
-        params : list of str, optional
-            Parameters to plot. If None, uses common free parameters.
-        **kwargs
-            Additional arguments passed to GetDist triangle_plot
-            
-        Returns
-        -------
-        getdist.plots.GetDistPlotter
-            GetDist plotter object
-            
+        parameter_mapping : dict
+            Dictionary mapping old parameter names to new parameter names.
+            Format: {old_name: new_name}
+
         Examples
         --------
-        >>> # Compare different model configurations
-        >>> results1 = BayeSEDResults('output_model1')
-        >>> results2 = BayeSEDResults('output_model2')
-        >>> BayeSEDResults.plot_posterior_comparison(
-        ...     [results1, results2], 
-        ...     labels=['Model 1', 'Model 2'],
-        ...     params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]']
-        ... )
-        >>>
-        >>> # Compare different objects
         >>> results = BayeSEDResults('output')
-        >>> obj1_results = BayeSEDResults('output', object_id='obj1')
-        >>> obj2_results = BayeSEDResults('output', object_id='obj2')
-        >>> BayeSEDResults.plot_posterior_comparison(
-        ...     [obj1_results, obj2_results],
-        ...     labels=['Object 1', 'Object 2']
-        ... )
+        >>> results.rename_parameters({
+        ...     'log(age/yr)[0,1]': 'log(age/yr)[0,0]',
+        ...     'log(Z/Zsun)[0,1]': 'log(Z/Zsun)[0,0]'
+        ... })
+        >>> # Now parameters have consistent names for comparison
         """
-        try:
-            from getdist import plots
-        except ImportError:
-            raise ImportError("GetDist is required. Install with: pip install getdist")
-        
-        if not results_list:
-            raise ValueError("results_list cannot be empty")
-        
-        # Get GetDist samples for each result
-        samples_list = []
-        for i, result in enumerate(results_list):
-            samples_gd = result.get_getdist_samples()
-            
-            # Set name tag for legend
-            if labels and i < len(labels):
-                samples_gd.name_tag = labels[i]
-            else:
-                samples_gd.name_tag = f'Result {i+1}'
-            
-            samples_list.append(samples_gd)
-        
-        # Determine parameters to plot
-        if params is None:
-            # Use common free parameters across all results
-            all_free_params = [result.get_free_parameters() for result in results_list]
-            # Find intersection of all parameter lists
-            common_params = set(all_free_params[0])
-            for param_list in all_free_params[1:]:
-                common_params = common_params.intersection(set(param_list))
-            params = list(common_params)
-            
-            if not params:
-                raise ValueError("No common free parameters found across all results")
-        
+        if not hasattr(self, '_samples_cache'):
+            self._samples_cache = {}
 
-        
-        # Create plotter and plot
-        g = plots.get_subplot_plotter()
-        
-        # Set default plotting options
-        plot_kwargs = {
-            'filled': True,
-            'legend_labels': labels or [f'Result {i+1}' for i in range(len(results_list))]
-        }
-        plot_kwargs.update(kwargs)
-        
-        # Create comparison plot
-        g.triangle_plot(samples_list, params, **plot_kwargs)
-        
-        return g
+        # Apply renaming to all cached samples
+        for object_base, samples_gd in self._samples_cache.items():
+            for old_name, new_name in parameter_mapping.items():
+                # Find and rename the parameter in ParamInfo objects
+                for param_info in samples_gd.paramNames.names:
+                    if param_info.name == old_name:
+                        param_info.name = new_name
+                        break
 
-    def plot_free_parameters(self, **kwargs):
+                # Also update the paramNames.list if it exists
+                if hasattr(samples_gd.paramNames, 'list'):
+                    for param_info in samples_gd.paramNames.list:
+                        if param_info.name == old_name:
+                            param_info.name = new_name
+                            break
+
+        # Create a renamed parameter names cache to override file-based reading
+        if not hasattr(self, '_renamed_parameter_names'):
+            # Start with original parameter names
+            self._renamed_parameter_names = self._get_parameter_names_from_files().copy()
+
+        # Apply the renaming to the cached parameter names
+        for i, param_name in enumerate(self._renamed_parameter_names):
+            if param_name in parameter_mapping:
+                self._renamed_parameter_names[i] = parameter_mapping[param_name]
+
+        # Clear any cached parameter lists so they get regenerated with new names
+        if hasattr(self, '_free_parameters_cache'):
+            delattr(self, '_free_parameters_cache')
+        if hasattr(self, '_derived_parameters_cache'):
+            delattr(self, '_derived_parameters_cache')
+        if hasattr(self, '_parameter_names_cache'):
+            delattr(self, '_parameter_names_cache')
+
+    def rename_parameters_to_match(self, reference_results):
         """
-        Plot posterior PDFs for all free parameters.
-        
+        Automatically rename parameters to match another BayeSEDResults object.
+
+        This is a convenience method that automatically creates and applies
+        parameter mapping to match the parameter names of a reference result.
+
         Parameters
         ----------
+        reference_results : BayeSEDResults
+            Reference BayeSEDResults object whose parameter names to match
+
+        Examples
+        --------
+        >>> results1 = BayeSEDResults('output_model1')  # has log(age/yr)[0,0]
+        >>> results2 = BayeSEDResults('output_model2')  # has log(age/yr)[0,1]
+        >>> results2.rename_parameters_to_match(results1)
+        >>> # Now results2 has log(age/yr)[0,0] to match results1
+        """
+        import re
+
+        def normalize_param_name(param_name):
+            """Remove component IDs like [0,0], [0,1] to find equivalent parameters."""
+            # Remove patterns like [0,0], [0,1], [1,0], etc.
+            normalized = re.sub(r'\[\d+,\d+\]', '', param_name)
+            return normalized
+
+        # Get parameter names
+        my_params = self.get_free_parameters()
+        ref_params = reference_results.get_free_parameters()
+
+        # Create normalized mappings
+        ref_normalized = {normalize_param_name(p): p for p in ref_params}
+
+        # Create parameter mapping
+        mapping = {}
+        for my_param in my_params:
+            normalized = normalize_param_name(my_param)
+            if normalized in ref_normalized:
+                ref_param = ref_normalized[normalized]
+                if my_param != ref_param:
+                    mapping[my_param] = ref_param
+
+        # Apply the mapping
+        if mapping:
+            self.rename_parameters(mapping)
+
+    def set_parameter_labels(self, custom_labels):
+        """
+        Set custom LaTeX labels for parameters in GetDist plots.
+
+        This method allows you to customize how parameter names appear in plots
+        by providing LaTeX-formatted labels.
+
+        Parameters
+        ----------
+        custom_labels : dict
+            Dictionary mapping parameter names to LaTeX labels.
+            Example: {'log(age/yr)': r'\\log(t/\\mathrm{yr})'}
+
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> custom_labels = {
+        ...     'log(age/yr)': r'\log(t/\mathrm{yr})',
+        ...     'log(Z/Zsun)': r'\log(Z/Z_\odot)',
+        ...     'Av_2': r'$A_V$'
+        ... }
+        >>> results.set_parameter_labels(custom_labels)
+        >>> results.plot_posterior(params=['log(age/yr)', 'log(Z/Zsun)'])
+        """
+        if not hasattr(self, '_custom_labels'):
+            self._custom_labels = {}
+
+        self._custom_labels.update(custom_labels)
+
+        # Clear any cached samples so they get regenerated with new labels
+        if hasattr(self, '_samples_cache'):
+            delattr(self, '_samples_cache')
+
+    def plot_free_parameters(self, object_base=None, method='getdist', filled=True,
+                           show=True, output_file=None, figsize=None, **kwargs):
+        """
+        Plot all free parameters in a corner plot.
+
+        This is a convenience method that plots all free parameters (fitted model parameters)
+        in a triangle/corner plot. Custom labels set with set_parameter_labels() are automatically used.
+
+        Parameters
+        ----------
+        object_base : str, optional
+            Base name for the object (if None, uses first available)
+        method : str
+            Plotting method: 'getdist' (default and only supported method)
+        filled : bool
+            If True, use filled contours for 2D PDFs (default: True)
+        show : bool
+            Whether to display the plot (default: True)
+        output_file : str, optional
+            Output file path for saving the plot
+        figsize : tuple, optional
+            Figure size (width, height) in inches. If None, auto-sized
         **kwargs
-            Additional arguments passed to plot_posterior_pdf()
-            
+            Additional keyword arguments passed to plotting functions
+
         Returns
         -------
         matplotlib.figure.Figure or getdist.plots.GetDistPlotter
             The figure object or GetDist plotter
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
+        >>> # Plot all free parameters
+        >>> results.plot_free_parameters()
+        >>>
+        >>> # With custom labels
+        >>> results.set_parameter_labels({'log(age/yr)': r'\\log(t/\\mathrm{yr})'})
         >>> results.plot_free_parameters()
         """
         free_params = self.get_free_parameters()
-        if not free_params:
-            raise ValueError("No free parameters found")
-        return self.plot_posterior(params=free_params, **kwargs)
-    
-    def plot_derived_parameters(self, max_params=None, **kwargs):
+        return self.plot_posterior(
+            params=free_params,
+            object_base=object_base,
+            method=method,
+            filled=filled,
+            show=show,
+            output_file=output_file,
+            figsize=figsize,
+            **kwargs
+        )
+
+    def plot_derived_parameters(self, max_params=10, object_base=None, method='getdist',
+                              filled=True, show=True, output_file=None, figsize=None, **kwargs):
         """
-        Plot posterior PDFs for derived parameters.
-        
+        Plot derived parameters in a corner plot.
+
+        This is a convenience method that plots derived parameters (computed from fitted parameters)
+        in a triangle/corner plot. Custom labels set with set_parameter_labels() are automatically used.
+
         Parameters
         ----------
         max_params : int, optional
-            Maximum number of parameters to plot (default: None for all).
-            Useful when there are many derived parameters.
+            Maximum number of derived parameters to plot (default: 10)
+        object_base : str, optional
+            Base name for the object (if None, uses first available)
+        method : str
+            Plotting method: 'getdist' (default and only supported method)
+        filled : bool
+            If True, use filled contours for 2D PDFs (default: True)
+        show : bool
+            Whether to display the plot (default: True)
+        output_file : str, optional
+            Output file path for saving the plot
+        figsize : tuple, optional
+            Figure size (width, height) in inches. If None, auto-sized
         **kwargs
-            Additional arguments passed to plot_posterior_pdf()
-            
+            Additional keyword arguments passed to plotting functions
+
         Returns
         -------
         matplotlib.figure.Figure or getdist.plots.GetDistPlotter
             The figure object or GetDist plotter
-            
+
         Examples
         --------
         >>> results = BayeSEDResults('output')
-        >>> results.plot_derived_parameters(max_params=10)
+        >>> # Plot first 10 derived parameters
+        >>> results.plot_derived_parameters()
+        >>>
+        >>> # Plot more derived parameters
+        >>> results.plot_derived_parameters(max_params=20)
+        >>>
+        >>> # With custom labels
+        >>> results.set_parameter_labels({'log(Mstar)[0,1]': r'\\log(M_\\star/M_\\odot)'})
+        >>> results.plot_derived_parameters()
         """
         derived_params = self.get_derived_parameters()
-        if not derived_params:
-            raise ValueError("No derived parameters found")
-        
-        if max_params is not None and len(derived_params) > max_params:
+
+        # Limit the number of parameters to avoid overcrowded plots
+        if len(derived_params) > max_params:
             derived_params = derived_params[:max_params]
             import warnings
             warnings.warn(
                 f"Plotting only first {max_params} derived parameters out of {len(self.get_derived_parameters())}. "
-                f"Use max_params=None to plot all, or select specific parameters manually.",
+                f"Use max_params to change this limit.",
                 UserWarning
             )
-        
-        return self.plot_posterior(params=derived_params, **kwargs)
-    
 
-    
-    def summary(self):
-        """
-        Print a summary of available parameters.
-        
-        Shows counts and examples of free and derived parameters.
-        
-        Examples
-        --------
-        >>> results = BayeSEDResults('output')
-        >>> results.summary()
-        """
+        if not derived_params:
+            raise ValueError("No derived parameters found to plot.")
+
+        return self.plot_posterior(
+            params=derived_params,
+            object_base=object_base,
+            method=method,
+            filled=filled,
+            show=show,
+            output_file=output_file,
+            figsize=figsize,
+            **kwargs
+        )
+
+def plot_posterior_comparison(results_list, labels=None, params=None, show=True, output_file=None, **kwargs):
+    """
+    Plot comparison of posterior samples from multiple BayeSEDResults objects.
+
+    This function allows easy comparison of results from different
+    model configurations, objects, or analysis runs.
+
+    Parameters
+    ----------
+    results_list : list of BayeSEDResults
+        List of BayeSEDResults objects to compare
+    labels : list of str, optional
+        Labels for each result set (default: 'Result 1', 'Result 2', etc.)
+    params : list of str, optional
+        Parameters to plot. If None (default), uses all common free parameters
+        across all results. This excludes derived parameters and focuses on
+        the fitted model parameters.
+    show : bool, optional
+        Whether to display the plot (default: True)
+    **kwargs
+        Additional arguments passed to GetDist triangle_plot
+
+    Returns
+    -------
+    getdist.plots.GetDistPlotter
+        GetDist plotter object
+
+    Examples
+    --------
+    >>> from bayesed import plot_posterior_comparison
+    >>> results1 = BayeSEDResults('output_model1')
+    >>> results2 = BayeSEDResults('output_model2')
+    >>> # First, align parameter names
+    >>> results2.rename_parameters_to_match(results1)
+    >>> # Then compare
+    >>> plot_posterior_comparison(
+    ...     [results1, results2],
+    ...     labels=['Model 1', 'Model 2'],
+    ...     params=['log(age/yr)[0,0]', 'log(Z/Zsun)[0,0]']
+    ... )
+    """
+    try:
+        from getdist import plots
+    except ImportError:
+        raise ImportError("GetDist is required. Install with: pip install getdist")
+
+    if not results_list:
+        raise ValueError("results_list cannot be empty")
+
+    # Get GetDist samples for each result
+    samples_list = []
+
+    for i, result in enumerate(results_list):
+        samples_gd = result.get_getdist_samples()
+
+        # Set name tag for legend
+        if labels and i < len(labels):
+            label = labels[i]
+        else:
+            label = f'Result {i+1}'
+
+        # Set multiple label attributes for GetDist compatibility
+        samples_gd.name_tag = label
+        samples_gd.label = label
+        if hasattr(samples_gd, 'name'):
+            samples_gd.name = label
+
+        samples_list.append(samples_gd)
+
+    # Determine parameters to plot
+    if params is None:
+        # Use common free parameters across all results (after any renaming)
+        all_free_params = []
+        for result in results_list:
+            # Get actual free parameters (not all parameters)
+            free_params = result.get_free_parameters()
+            all_free_params.append(set(free_params))
+
+        # Find intersection of all parameter lists
+        common_params = all_free_params[0]
+        for param_set in all_free_params[1:]:
+            common_params = common_params.intersection(param_set)
+
+        params = list(common_params)
+
+        if not params:
+            raise ValueError("No common free parameters found across all results. "
+                           "Use rename_parameters() or rename_parameters_to_match() to align parameter names first.")
+
+    # Create plotter
+    g = plots.get_subplot_plotter()
+
+    # Set plotting options for better comparison visibility
+    plot_kwargs = {
+        'filled': True,
+        'contour_colors': ['red', 'blue', 'green', 'orange', 'purple'],
+        'contour_ls': ['-', '--', '-.', ':', '-'],  # Different line styles
+        'contour_lws': [1.5, 1.5, 1.5, 1.5, 1.5],  # Line widths
+    }
+    plot_kwargs.update(kwargs)
+
+    # Use triangle_plot with samples list and params
+    g.triangle_plot(samples_list, params, **plot_kwargs)
+
+    # Export if requested
+    if output_file:
+        g.export(output_file)
+
+    # Show plot if requested
+    if show:
         try:
-            free_params = self.get_free_parameters()
-            derived_params = self.get_derived_parameters()
-            
-            print("=" * 60)
-            print("BayeSED Results Summary")
-            print("=" * 60)
-            
-            print(f"Free parameters ({len(free_params)}):")
-            for param in free_params:
-                print(f"  - {param}")
-            
-            print(f"\nDerived parameters ({len(derived_params)}):")
-            # Show first 10 derived parameters as examples
-            for param in derived_params[:10]:
-                print(f"  - {param}")
-            if len(derived_params) > 10:
-                print(f"  - ... and {len(derived_params) - 10} more")
-            
-            print("\n" + "=" * 60)
-            print("Quick plotting commands:")
-            print("  results.plot_free_parameters()      # Plot all free parameters")
-            print("  results.plot_derived_parameters()   # Plot all derived parameters")
-            print("  results.plot_posterior(params=['param1', 'param2'])  # Plot specific parameters")
-            print("\nComparison plotting:")
-            print("  BayeSEDResults.plot_posterior_comparison([results1, results2])  # Compare multiple results")
-            print("\nTo see all parameter names:")
-            print("  results.get_parameter_names()       # List all parameters (efficient)")
-            print("  results.get_free_parameters()       # List free parameters")
-            print("  results.get_derived_parameters()    # List derived parameters")
-            print("=" * 60)
-            
+            import matplotlib.pyplot as plt
+            # Use the most reliable display method
+            plt.show()
         except Exception as e:
-            print(f"Error generating summary: {e}")
+            import warnings
+            warnings.warn(
+                f"Could not display plot: {e}. "
+                f"Try using output_file parameter to save the plot instead.",
+                UserWarning
+            )
+
+    return g
+
+
+# Helper function to standardize parameter names
+def standardize_parameter_names(results_list, standard_names=None, remove_component_ids=True, custom_labels=None):
+    """
+    Standardize parameter names across multiple BayeSEDResults objects.
+
+    This function renames parameters in all results to use consistent names,
+    making comparison easier. It automatically detects equivalent parameters
+    and renames them to a standard format.
+
+    Parameters
+    ----------
+    results_list : list of BayeSEDResults
+        List of BayeSEDResults objects to standardize
+    standard_names : dict, optional
+        Dictionary mapping normalized parameter names to standard names.
+        If None, automatically generates clean parameter names.
+    remove_component_ids : bool, optional
+        If True (default), removes component IDs like [0,0], [0,1] from parameter names.
+        This creates cleaner names like 'log(age/yr)' instead of 'log(age/yr)[0,0]'.
+        If False, uses the first result's parameter names as the standard.
+    custom_labels : dict, optional
+        Dictionary mapping parameter names to custom LaTeX labels for plotting.
+        Example: {'log(age/yr)': r'\\log(t/\\mathrm{yr})', 'log(Z/Zsun)': r'\\log(Z/Z_\\odot)'}
+
+    Examples
+    --------
+    >>> from bayesed import standardize_parameter_names, plot_posterior_comparison
+    >>> results1 = BayeSEDResults('output_model1')  # has log(age/yr)[0,0]
+    >>> results2 = BayeSEDResults('output_model2')  # has log(age/yr)[0,1]
+    >>>
+    >>> # Basic standardization
+    >>> standardize_parameter_names([results1, results2])
+    >>>
+    >>> # With custom LaTeX labels
+    >>> custom_labels = {
+    ...     'log(age/yr)': r'\log(t/\mathrm{yr})',
+    ...     'log(Z/Zsun)': r'\log(Z/Z_\odot)',
+    ...     'Av_2': r'$A_V$'
+    ... }
+    >>> standardize_parameter_names([results1, results2], custom_labels=custom_labels)
+    >>> plot_posterior_comparison([results1, results2], labels=['Model 1', 'Model 2'])
+    """
+    import re
+
+    def normalize_param_name(param_name):
+        """Remove component IDs like [0,0], [0,1] to find equivalent parameters."""
+        # Remove patterns like [0,0], [0,1], [1,0], etc.
+        normalized = re.sub(r'\[\d+,\d+\]', '', param_name)
+        return normalized
+
+    # If no standard names provided, create them based on remove_component_ids setting
+    if standard_names is None:
+        if remove_component_ids:
+            # Create clean parameter names without component IDs
+            # Collect all unique normalized parameter names across all results
+            all_normalized_params = set()
+            for result in results_list:
+                result_params = result.get_free_parameters()
+                for param in result_params:
+                    normalized = normalize_param_name(param)
+                    all_normalized_params.add(normalized)
+
+            # Use normalized names as the standard (clean names without [0,0], [0,1], etc.)
+            standard_names = {norm_name: norm_name for norm_name in all_normalized_params}
+        else:
+            # Use the first result's parameter names as the standard (preserves component IDs)
+            reference_params = results_list[0].get_free_parameters()
+            standard_names = {normalize_param_name(p): p for p in reference_params}
+
+    # Rename parameters in all results
+    for result in results_list:
+        result_params = result.get_free_parameters()
+        mapping = {}
+
+        for param in result_params:
+            normalized = normalize_param_name(param)
+            if normalized in standard_names:
+                standard_param = standard_names[normalized]
+                if param != standard_param:
+                    mapping[param] = standard_param
+
+        if mapping:
+            result.rename_parameters(mapping)
+
+    # Apply custom labels if provided
+    if custom_labels:
+        for result in results_list:
+            result.set_parameter_labels(custom_labels)
+
+
+# Add missing methods to BayeSEDResults class
+def _add_missing_methods_to_bayesed_results():
+    """Add the missing plot_bestfit and summary methods to BayeSEDResults class."""
 
     def plot_bestfit(self, fits_file=None, output_file=None, show=True,
                      filter_file=None, filter_selection_file=None,
@@ -3213,9 +3583,6 @@ class BayeSEDResults:
             Flux unit: 'fnu' (μJy), 'nufnu' (νFν in μJy*Hz), or 'flambda' (default: 'fnu')
         use_log_scale : bool, optional
             Use logarithmic scale for axes. If None (default), auto-detects based on data range.
-            Auto-detection uses log scale when either axis spans more than 1 order of magnitude
-            (range ratio > 10). If negative values are present, defaults to linear scale.
-            Set to True to force log scale, or False to force linear scale.
         model_names : list of str, optional
             Custom names for model components. If None, auto-generates from HDU names
         show_emission_lines : bool
@@ -3226,8 +3593,6 @@ class BayeSEDResults:
             Resolution for saved figure (default: 300)
         focus_on_data_range : bool
             If True, set x-axis limits to focus on the wavelength range where data exists
-            (photometry and spectroscopy), ignoring the full model range. If False, use
-            the full wavelength range from both models and data (default: True)
         **kwargs
             Additional keyword arguments passed to matplotlib plotting functions
 
@@ -3235,26 +3600,6 @@ class BayeSEDResults:
         -------
         matplotlib.figure.Figure
             The matplotlib figure object
-
-        Examples
-        --------
-        >>> # Basic usage with BayeSEDResults
-        >>> results = BayeSEDResults('output')
-        >>> results.plot_bestfit()
-        >>>
-        >>> # Customize plot
-        >>> results.plot_bestfit(
-        ...     use_rest_frame=True,
-        ...     flux_unit='nufnu',
-        ...     use_log_scale=True,
-        ...     output_file='my_plot.png'
-        ... )
-        >>>
-        >>> # With filter overlay
-        >>> results.plot_bestfit(
-        ...     filter_file='filters.txt',
-        ...     filter_selection_file='filters_selected.txt'
-        ... )
         """
         # Determine which fits_file to use
         fits_file_to_use = fits_file or self.bestfit_file
@@ -3264,8 +3609,9 @@ class BayeSEDResults:
                 "Ensure save_bestfit > 0 was used when running BayeSED, "
                 "or provide a fits_file parameter."
             )
-        
-        return plot_bestfit(
+
+        from .plotting import plot_bestfit as plot_bestfit_func
+        return plot_bestfit_func(
             fits_file=fits_file_to_use,
             output_file=output_file,
             show=show,
@@ -3282,6 +3628,54 @@ class BayeSEDResults:
             **kwargs
         )
 
+    def summary(self):
+        """
+        Print a summary of available parameters.
+
+        Shows counts and examples of free and derived parameters.
+        """
+        try:
+            free_params = self.get_free_parameters()
+            derived_params = self.get_derived_parameters()
+
+            print("=" * 60)
+            print("BayeSED Results Summary")
+            print("=" * 60)
+
+            print(f"Free parameters ({len(free_params)}):")
+            for param in free_params:
+                print(f"  - {param}")
+
+            print(f"\nDerived parameters ({len(derived_params)}):")
+            # Show first 10 derived parameters as examples
+            for param in derived_params[:10]:
+                print(f"  - {param}")
+            if len(derived_params) > 10:
+                print(f"  - ... and {len(derived_params) - 10} more")
+
+            print("\n" + "=" * 60)
+            print("Quick plotting commands:")
+            print("  results.plot_free_parameters()      # Plot all free parameters")
+            print("  results.plot_derived_parameters()   # Plot all derived parameters")
+            print("  results.plot_posterior(params=['param1', 'param2'])  # Plot specific parameters")
+            print("  results.plot_bestfit()              # Plot best-fit SED")
+            print("\nComparison plotting:")
+            print("  plot_posterior_comparison([results1, results2])  # Compare multiple results")
+            print("\nTo see all parameter names:")
+            print("  results.get_parameter_names()       # List all parameters (efficient)")
+            print("  results.get_free_parameters()       # List free parameters")
+            print("  results.get_derived_parameters()    # List derived parameters")
+            print("=" * 60)
+
+        except Exception as e:
+            print(f"Error generating summary: {e}")
+
+    # Add methods to BayeSEDResults class
+    BayeSEDResults.plot_bestfit = plot_bestfit
+    BayeSEDResults.summary = summary
+
+# Call the function to add the missing methods
+_add_missing_methods_to_bayesed_results()
 
 
 class BayeSEDInterface:
@@ -3603,27 +3997,27 @@ class BayeSEDInterface:
         if not os.path.exists(install_dir):
             # Check if conda is available
             conda_available = shutil.which("conda") is not None
-            
+
             print("\n" + "="*70)
             print("OpenMPI 4.1.6 not found!")
             print("="*70)
-            
+
             # Check if we're in an interactive environment
             is_interactive = sys.stdin.isatty() and sys.stdout.isatty()
-            
+
             # If conda is available, offer to install via conda automatically
             if conda_available and is_interactive:
                 print("\n⚠️  Conda detected! BayeSED3 can automatically install OpenMPI via conda.")
                 print("   This is the fastest and easiest method.")
                 print("\n   Command: conda install openmpi=4.1.6")
-                
+
                 try:
                     response = input("\nDo you want to install OpenMPI via conda now? [Y/n]: ").strip().lower()
                     install_via_conda = response not in ['n', 'no']
                 except (EOFError, KeyboardInterrupt):
                     print("\n\nCancelled by user.")
                     install_via_conda = False
-                
+
                 if install_via_conda:
                     print("\n⏳ Installing OpenMPI 4.1.6 via conda...")
                     try:
@@ -3634,7 +4028,7 @@ class BayeSEDInterface:
                             text=True,
                             check=False
                         )
-                        
+
                         if result.returncode == 0:
                             print("✅ OpenMPI 4.1.6 successfully installed via conda!")
                             # Re-check for conda-installed OpenMPI
@@ -3650,7 +4044,7 @@ class BayeSEDInterface:
                                             return conda_mpirun
                                     except Exception as e:
                                         print(f"⚠️  Error verifying OpenMPI version: {e}")
-                            
+
                             print("\n⚠️  OpenMPI was installed but not immediately detected.")
                             print("   Please restart your Python session and try again.")
                             raise FileNotFoundError(
@@ -3665,7 +4059,7 @@ class BayeSEDInterface:
                     except Exception as e:
                         print(f"⚠️  Error running conda install: {e}")
                         print("\nFalling back to other installation options...\n")
-            
+
             # Show manual installation options
             if conda_available:
                 print("\n⚠️  Manual installation options:")
@@ -3676,12 +4070,12 @@ class BayeSEDInterface:
                 print("   macOS:    brew install openmpi")
                 print("   Ubuntu:   sudo apt-get install openmpi-bin libopenmpi-dev")
                 print("   Fedora:   sudo dnf install openmpi openmpi-devel")
-            
+
             print("\n" + "-"*70)
             print("Alternatively, BayeSED3 can automatically download and compile")
             print(f"OpenMPI {openmpi_version} from source (takes 10-30 minutes).")
             print("-"*70)
-            
+
             if is_interactive:
                 try:
                     response = input("\nDo you want to auto-compile OpenMPI now? [y/N]: ").strip().lower()
@@ -3695,7 +4089,7 @@ class BayeSEDInterface:
                 print("   Auto-compilation requires user interaction.")
                 print("   Please install OpenMPI manually using one of the methods above.")
                 auto_compile = False
-            
+
             if not auto_compile:
                 raise FileNotFoundError(
                     f"\nOpenMPI {openmpi_version} is required but not found.\n"
@@ -3705,11 +4099,11 @@ class BayeSEDInterface:
                     f"  3. Manual compilation (see README.md)\n"
                     f"\nAfter installation, restart your Python session."
                 )
-            
+
             # User agreed to auto-compile - proceed with compilation
             print(f"\n⏳ Starting automatic compilation of OpenMPI {openmpi_version}...")
             print("   This may take 10-30 minutes depending on your system.\n")
-            
+
             # Check if the tarball already exists and is complete
             if os.path.exists(openmpi_file):
                 print(f"OpenMPI {openmpi_version} tarball already exists. Checking if it's complete...")
@@ -3761,7 +4155,7 @@ class BayeSEDInterface:
 
             print(f"\n✅ OpenMPI {openmpi_version} successfully compiled and installed!")
             return mpirun_path
-        
+
         # If we get here, we should have found OpenMPI in one of the priorities above
         # This should not happen, but raise an error if it does
         raise FileNotFoundError(
@@ -3771,7 +4165,7 @@ class BayeSEDInterface:
 
     def _get_executable(self):
         from .utils import _get_resource_path
-        
+
         executable = f"bayesed_{self.mpi_mode}"
         if self.os == "linux" or (self.os == "windows" and "microsoft" in platform.uname().release.lower()):
             platform_dir = "linux"
@@ -3936,28 +4330,28 @@ class BayeSEDInterface:
         # Set working directory to BayeSED3 root so binary can find data files (data/, models/, nets/)
         # Convert relative paths to absolute paths for both conda and repository installations
         from .utils import _is_conda_installation, _get_bayesed3_root, _ensure_absolute_path
-        
+
         cwd = None
         try:
             # Get BayeSED3 root directory (works for both conda and repository installations)
             bayesed3_root = _get_bayesed3_root()
             # Set working directory to BayeSED3 root so binary can find data files
             cwd = bayesed3_root
-            
+
             # Convert relative paths to absolute paths before changing directory
             # This ensures user's paths work correctly regardless of working directory
             if params.input_file and not os.path.isabs(params.input_file):
                 params.input_file = _ensure_absolute_path(params.input_file)
-            
+
             if params.outdir and not os.path.isabs(params.outdir):
                 params.outdir = _ensure_absolute_path(params.outdir)
-            
+
             if params.filters and not os.path.isabs(params.filters):
                 params.filters = _ensure_absolute_path(params.filters)
-            
+
             if params.filters_selected and not os.path.isabs(params.filters_selected):
                 params.filters_selected = _ensure_absolute_path(params.filters_selected)
-            
+
             # Rebuild args with updated paths
             args = self._params_to_args(params)
         except FileNotFoundError as e:
@@ -4017,7 +4411,7 @@ class BayeSEDInterface:
             }
             if cwd is not None:
                 popen_kwargs['cwd'] = cwd
-            
+
             self.process = subprocess.Popen(cmd, **popen_kwargs)
 
             output_lines = []
