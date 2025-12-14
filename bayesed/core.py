@@ -2894,6 +2894,10 @@ class BayeSEDResults:
 
         This method provides access to the GetDist MCSamples object, which can be
         used for advanced plotting and analysis with the GetDist library.
+        
+        The samples are cached after first load to improve performance for repeated
+        plotting calls. The cache is automatically invalidated when parameter 
+        renaming or custom labels are applied.
 
         Parameters
         ----------
@@ -2934,6 +2938,16 @@ class BayeSEDResults:
 
         if object_base not in self.posterior_files:
             raise ValueError(f"Object base '{object_base}' not found in posterior files")
+
+        # Initialize cache if it doesn't exist
+        if not hasattr(self, '_getdist_samples_cache'):
+            self._getdist_samples_cache = {}
+
+        # Check if we have cached samples for this object_base
+        cache_key = object_base
+        if cache_key in self._getdist_samples_cache:
+            # Return cached samples
+            return self._getdist_samples_cache[cache_key]
 
         files = self.posterior_files[object_base]
         chain_dir = os.path.dirname(files['paramnames'])
@@ -3032,6 +3046,8 @@ class BayeSEDResults:
                 if hasattr(samples_gd, 'sampler'):
                     new_samples.sampler = samples_gd.sampler
 
+                # Cache the processed samples
+                self._getdist_samples_cache[cache_key] = new_samples
                 return new_samples
 
         # Apply custom labels even if no parameter renaming is needed
@@ -3069,8 +3085,12 @@ class BayeSEDResults:
             if hasattr(samples_gd, 'sampler'):
                 new_samples.sampler = samples_gd.sampler
 
+            # Cache the processed samples
+            self._getdist_samples_cache[cache_key] = new_samples
             return new_samples
 
+        # Cache the original samples
+        self._getdist_samples_cache[cache_key] = samples_gd
         return samples_gd
 
     def rename_parameters(self, parameter_mapping):
@@ -3136,6 +3156,10 @@ class BayeSEDResults:
             delattr(self, '_derived_parameters_cache')
         if hasattr(self, '_parameter_names_cache'):
             delattr(self, '_parameter_names_cache')
+        
+        # Clear the GetDist samples cache since parameter names have changed
+        if hasattr(self, '_getdist_samples_cache'):
+            delattr(self, '_getdist_samples_cache')
 
 
 
@@ -3171,6 +3195,29 @@ class BayeSEDResults:
         # Clear any cached samples so they get regenerated with new labels
         if hasattr(self, '_samples_cache'):
             delattr(self, '_samples_cache')
+        
+        # Clear the GetDist samples cache since labels have changed
+        if hasattr(self, '_getdist_samples_cache'):
+            delattr(self, '_getdist_samples_cache')
+
+    def clear_samples_cache(self):
+        """
+        Clear the cached GetDist samples.
+        
+        This forces the samples to be reloaded from disk on the next call to
+        get_getdist_samples() or any plotting method. Useful if the underlying
+        sample files have been modified.
+        
+        Examples
+        --------
+        >>> results = BayeSEDResults('output')
+        >>> results.plot_posterior(['log(age/yr)'])  # Loads and caches samples
+        >>> results.plot_posterior(['log(Z/Zsun)'])  # Uses cached samples
+        >>> results.clear_samples_cache()           # Clear cache
+        >>> results.plot_posterior(['Av_2'])        # Loads samples again
+        """
+        if hasattr(self, '_getdist_samples_cache'):
+            delattr(self, '_getdist_samples_cache')
 
     def plot_free_parameters(self, object_base=None, method='getdist', filled=True,
                            show=True, output_file=None, figsize=None, **kwargs):
