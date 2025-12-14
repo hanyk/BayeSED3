@@ -3290,6 +3290,121 @@ class BayeSEDResults:
             **kwargs
         )
 
+    def plot_bestfit(self, fits_file=None, output_file=None, show=True,
+                     filter_file=None, filter_selection_file=None,
+                     use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
+                     model_names=None, show_emission_lines=True,
+                     figsize=(12, 8), dpi=300, focus_on_data_range=True, **kwargs):
+        """
+        Plot best-fit SED from FITS file.
+
+        This is a general-purpose plotting function that handles various data types
+        (photometry, spectroscopy) and supports customization options.
+
+        Parameters
+        ----------
+        fits_file : str, optional
+            Path to FITS file. If None, uses self.bestfit_file
+        output_file : str, optional
+            Output file path for saving the plot. If None, saves as {fits_file}.png
+        show : bool
+            Whether to display the plot (default: True)
+        filter_file : str, optional
+            Path to filter response file for overlay
+        filter_selection_file : str, optional
+            Path to filter selection file (filters_selected format)
+        use_rest_frame : bool
+            Use rest-frame wavelengths (default: True). If False, uses observed-frame
+        flux_unit : str
+            Flux unit: 'fnu' (μJy), 'nufnu' (νFν in μJy*Hz), or 'flambda' (default: 'fnu')
+        use_log_scale : bool, optional
+            Use logarithmic scale for axes. If None (default), auto-detects based on data range.
+        model_names : list of str, optional
+            Custom names for model components. If None, auto-generates from HDU names
+        show_emission_lines : bool
+            Show emission line markers for spectroscopy (default: True)
+        figsize : tuple
+            Figure size (width, height) in inches (default: (12, 8))
+        dpi : int
+            Resolution for saved figure (default: 300)
+        focus_on_data_range : bool
+            If True, set x-axis limits to focus on the wavelength range where data exists
+        **kwargs
+            Additional keyword arguments passed to matplotlib plotting functions
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The matplotlib figure object
+        """
+        # Determine which fits_file to use
+        fits_file_to_use = fits_file or self.bestfit_file
+        if fits_file_to_use is None:
+            raise FileNotFoundError(
+                "No best-fit FITS file found. "
+                "Ensure save_bestfit > 0 was used when running BayeSED, "
+                "or provide a fits_file parameter."
+            )
+
+        from .plotting import plot_bestfit as plot_bestfit_func
+        return plot_bestfit_func(
+            fits_file=fits_file_to_use,
+            output_file=output_file,
+            show=show,
+            filter_file=filter_file,
+            filter_selection_file=filter_selection_file,
+            use_rest_frame=use_rest_frame,
+            flux_unit=flux_unit,
+            use_log_scale=use_log_scale,
+            model_names=model_names,
+            show_emission_lines=show_emission_lines,
+            figsize=figsize,
+            dpi=dpi,
+            focus_on_data_range=focus_on_data_range,
+            **kwargs
+        )
+
+    def summary(self):
+        """
+        Print a summary of available parameters.
+
+        Shows counts and examples of free and derived parameters.
+        """
+        try:
+            free_params = self.get_free_parameters()
+            derived_params = self.get_derived_parameters()
+
+            print("=" * 60)
+            print("BayeSED Results Summary")
+            print("=" * 60)
+
+            print(f"Free parameters ({len(free_params)}):")
+            for param in free_params:
+                print(f"  - {param}")
+
+            print(f"\nDerived parameters ({len(derived_params)}):")
+            # Show first 10 derived parameters as examples
+            for param in derived_params[:10]:
+                print(f"  - {param}")
+            if len(derived_params) > 10:
+                print(f"  - ... and {len(derived_params) - 10} more")
+
+            print("\n" + "=" * 60)
+            print("Quick plotting commands:")
+            print("  results.plot_free_parameters()      # Plot all free parameters")
+            print("  results.plot_derived_parameters()   # Plot all derived parameters")
+            print("  results.plot_posterior(params=['param1', 'param2'])  # Plot specific parameters")
+            print("  results.plot_bestfit()              # Plot best-fit SED")
+            print("\nComparison plotting:")
+            print("  plot_posterior_comparison([results1, results2])  # Compare multiple results")
+            print("\nTo see all parameter names:")
+            print("  results.get_parameter_names()       # List all parameters (efficient)")
+            print("  results.get_free_parameters()       # List free parameters")
+            print("  results.get_derived_parameters()    # List derived parameters")
+            print("=" * 60)
+
+        except Exception as e:
+            print(f"Error generating summary: {e}")
 def plot_posterior_comparison(results_list, labels=None, params=None, show=True, output_file=None, **kwargs):
     """
     Plot comparison of posterior samples from multiple BayeSEDResults objects.
@@ -3504,134 +3619,6 @@ def standardize_parameter_names(results_list, standard_names=None, remove_compon
     if custom_labels:
         for result in results_list:
             result.set_parameter_labels(custom_labels)
-
-
-# Add missing methods to BayeSEDResults class
-def _add_missing_methods_to_bayesed_results():
-    """Add the missing plot_bestfit and summary methods to BayeSEDResults class."""
-
-    def plot_bestfit(self, fits_file=None, output_file=None, show=True,
-                     filter_file=None, filter_selection_file=None,
-                     use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
-                     model_names=None, show_emission_lines=True,
-                     figsize=(12, 8), dpi=300, focus_on_data_range=True, **kwargs):
-        """
-        Plot best-fit SED from FITS file.
-
-        This is a general-purpose plotting function that handles various data types
-        (photometry, spectroscopy) and supports customization options.
-
-        Parameters
-        ----------
-        fits_file : str, optional
-            Path to FITS file. If None, uses self.bestfit_file
-        output_file : str, optional
-            Output file path for saving the plot. If None, saves as {fits_file}.png
-        show : bool
-            Whether to display the plot (default: True)
-        filter_file : str, optional
-            Path to filter response file for overlay
-        filter_selection_file : str, optional
-            Path to filter selection file (filters_selected format)
-        use_rest_frame : bool
-            Use rest-frame wavelengths (default: True). If False, uses observed-frame
-        flux_unit : str
-            Flux unit: 'fnu' (μJy), 'nufnu' (νFν in μJy*Hz), or 'flambda' (default: 'fnu')
-        use_log_scale : bool, optional
-            Use logarithmic scale for axes. If None (default), auto-detects based on data range.
-        model_names : list of str, optional
-            Custom names for model components. If None, auto-generates from HDU names
-        show_emission_lines : bool
-            Show emission line markers for spectroscopy (default: True)
-        figsize : tuple
-            Figure size (width, height) in inches (default: (12, 8))
-        dpi : int
-            Resolution for saved figure (default: 300)
-        focus_on_data_range : bool
-            If True, set x-axis limits to focus on the wavelength range where data exists
-        **kwargs
-            Additional keyword arguments passed to matplotlib plotting functions
-
-        Returns
-        -------
-        matplotlib.figure.Figure
-            The matplotlib figure object
-        """
-        # Determine which fits_file to use
-        fits_file_to_use = fits_file or self.bestfit_file
-        if fits_file_to_use is None:
-            raise FileNotFoundError(
-                "No best-fit FITS file found. "
-                "Ensure save_bestfit > 0 was used when running BayeSED, "
-                "or provide a fits_file parameter."
-            )
-
-        from .plotting import plot_bestfit as plot_bestfit_func
-        return plot_bestfit_func(
-            fits_file=fits_file_to_use,
-            output_file=output_file,
-            show=show,
-            filter_file=filter_file,
-            filter_selection_file=filter_selection_file,
-            use_rest_frame=use_rest_frame,
-            flux_unit=flux_unit,
-            use_log_scale=use_log_scale,
-            model_names=model_names,
-            show_emission_lines=show_emission_lines,
-            figsize=figsize,
-            dpi=dpi,
-            focus_on_data_range=focus_on_data_range,
-            **kwargs
-        )
-
-    def summary(self):
-        """
-        Print a summary of available parameters.
-
-        Shows counts and examples of free and derived parameters.
-        """
-        try:
-            free_params = self.get_free_parameters()
-            derived_params = self.get_derived_parameters()
-
-            print("=" * 60)
-            print("BayeSED Results Summary")
-            print("=" * 60)
-
-            print(f"Free parameters ({len(free_params)}):")
-            for param in free_params:
-                print(f"  - {param}")
-
-            print(f"\nDerived parameters ({len(derived_params)}):")
-            # Show first 10 derived parameters as examples
-            for param in derived_params[:10]:
-                print(f"  - {param}")
-            if len(derived_params) > 10:
-                print(f"  - ... and {len(derived_params) - 10} more")
-
-            print("\n" + "=" * 60)
-            print("Quick plotting commands:")
-            print("  results.plot_free_parameters()      # Plot all free parameters")
-            print("  results.plot_derived_parameters()   # Plot all derived parameters")
-            print("  results.plot_posterior(params=['param1', 'param2'])  # Plot specific parameters")
-            print("  results.plot_bestfit()              # Plot best-fit SED")
-            print("\nComparison plotting:")
-            print("  plot_posterior_comparison([results1, results2])  # Compare multiple results")
-            print("\nTo see all parameter names:")
-            print("  results.get_parameter_names()       # List all parameters (efficient)")
-            print("  results.get_free_parameters()       # List free parameters")
-            print("  results.get_derived_parameters()    # List derived parameters")
-            print("=" * 60)
-
-        except Exception as e:
-            print(f"Error generating summary: {e}")
-
-    # Add methods to BayeSEDResults class
-    BayeSEDResults.plot_bestfit = plot_bestfit
-    BayeSEDResults.summary = summary
-
-# Call the function to add the missing methods
-_add_missing_methods_to_bayesed_results()
 
 
 class BayeSEDInterface:
