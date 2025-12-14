@@ -33,7 +33,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - macOS (x86_64 and ARM64 via Rosetta 2)
 - Windows (via WSL - uses Linux binaries)
 
-### Quick Start (No Installation Required)
+### Quick Start
 
 **BayeSED3 can be used directly from the repository root** without system-level installation:
 
@@ -63,7 +63,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 **Note:** When using from repository root, you must run commands from the BayeSED3 directory or use absolute paths.
 
-### Option 1: Pip Installation (System-Level) ⭐ Recommended for Convenience
+### Pip Installation (System-Level) ⭐ Recommended for Convenience
 
 **System-level installation using pip** - allows you to use BayeSED3 from any directory. Simpler for uninstalling (only removes bayesed3, not its dependencies).
 
@@ -98,7 +98,7 @@ pip uninstall bayesed3
 - **Editable install** (`pip install -e .`): Links to source directory. Changes are immediately visible. Use for development.
 - BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will auto-compile OpenMPI 4.1.6.
 
-### Option 2: Conda Installation (System-Level, Automatic Dependencies)
+### Conda Installation (System-Level, Automatic Dependencies)
 
 **System-level installation using conda** - automatically handles all dependencies including OpenMPI. Note: BayeSED3 is not yet available on conda-forge. You must build it locally.
 
