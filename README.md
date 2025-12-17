@@ -289,31 +289,33 @@ import numpy as np
 from bayesed import BayeSEDInterface, BayeSEDParams
 from bayesed.data import SEDObservation
 
-# Create observation from arrays
+# Create observations from arrays (synthetic data for demonstration)
 obs = SEDObservation(
-    ids=[1, 2, 3],
-    z_min=[0.1, 0.2, 0.3],
-    z_max=[0.2, 0.3, 0.4],
-    phot_filters=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
-    phot_fluxes=np.array([[10.0, 20.0, 30.0], [15.0, 25.0, 35.0], [20.0, 30.0, 40.0]]),
-    phot_errors=np.array([[1.0, 2.0, 3.0], [1.5, 2.5, 3.5], [2.0, 3.0, 4.0]]),
+    ids=['galaxy_001', 'galaxy_002'],
+    z_min=[0.1, 0.2],
+    z_max=[0.15, 0.25],
+    phot_filters=['SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i'],
+    phot_fluxes=np.array([[12.5, 25.1, 18.3], [15.2, 28.9, 22.1]]),
+    phot_errors=np.array([[1.2, 2.5, 1.8], [1.5, 2.9, 2.2]]),
     input_type=0  # Flux in μJy
 )
 
 # Convert to BayeSED input format
-input_file = obs.to_bayesed_input('observation/my_analysis', 'input_catalog')
+import os
+os.makedirs('observation/demo_analysis', exist_ok=True)
+input_file = obs.to_bayesed_input('observation/demo_analysis', 'demo_catalog')
 
 # Download filters from SVO
 bayesed = BayeSEDInterface()
 filter_files = bayesed.prepare_filters_from_svo(
-    svo_filter_ids=['SLOAN/SDSS.u', 'SLOAN/SDSS.g', 'SLOAN/SDSS.r'],
-    output_dir='observation/my_analysis/filters'
+    svo_filter_ids=['SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i'],
+    output_dir='observation/demo_analysis/filters'
 )
 
 # Create and run analysis
 params = BayeSEDParams.galaxy(
     input_file=input_file,
-    outdir='observation/my_analysis/output',
+    outdir='observation/demo_analysis/output',
     filters=filter_files['filters_file'],
     filters_selected=filter_files['filters_selected_file']
 )
@@ -323,23 +325,54 @@ bayesed.run(params)
 ### Custom Model Configuration
 
 ```python
+from bayesed import BayeSEDInterface, BayeSEDParams
 from bayesed.model import SEDModel
-from bayesed import BayeSEDParams
 
-# Create galaxy instance and customize
+bayesed = BayeSEDInterface(mpi_mode='auto')
+
+# Create galaxy instance with dust emission (using real data from observation/test2/)
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_lr_BaSeL_chab',
+    sfh_type='exponential',
+    dal_law='smc'
+)
+galaxy.add_dust_emission()  # Add dust emission component
+
+# Create AGN instance with torus
+agn = SEDModel.create_agn(agn_components=['tor'])
+
+# Assemble configuration using real data files
+params = BayeSEDParams(
+    input_type=0,  # Flux in μJy
+    input_file='observation/test2/test.txt',
+    outdir='test2_output',
+    filters='observation/test2/filters.txt',
+    filters_selected='observation/test2/filters_selected.txt',
+    save_sample_par=True  # Enable posterior sample generation
+)
+params.add_galaxy(galaxy)
+params.add_agn(agn)
+bayesed.run(params)
+
+# For AGN with all components (disk, BLR, NLR, FeII) using real emission line files
 galaxy = SEDModel.create_galaxy(
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti'
 )
-galaxy.add_dust_emission()  # Add dust emission
 
-# Create AGN instance
-agn = SEDModel.create_agn(agn_components=['dsk', 'blr', 'nlr', 'feii'])
-agn.add_torus_fann(name='clumpy201410tor')  # Add torus
+agn = SEDModel.create_agn(
+    agn_components=['dsk', 'blr', 'nlr', 'feii'],
+    blr_lines_file='observation/test/lines_BLR.txt',
+    nlr_lines_file='observation/test/lines_NLR.txt'
+)
 
-# Assemble configuration
-params = BayeSEDParams(input_type=0, input_file='observation/test/qso.txt', outdir='output')
+params = BayeSEDParams(
+    input_type=0,
+    input_file='observation/test/qso.txt',
+    outdir='output_qso',
+    save_sample_par=True
+)
 params.add_galaxy(galaxy)
 params.add_agn(agn)
 bayesed.run(params)
@@ -347,21 +380,57 @@ bayesed.run(params)
 
 ### Multi-Model Comparison
 
-Compare different model configurations and standardize parameters across models:
 
 ```python
-from bayesed import BayeSEDResults
+from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults
 from bayesed.results import standardize_parameter_names, plot_posterior_comparison
+from bayesed.model import SEDModel
 
-# Compare different model configurations (or different catalogs)
-# Example: Compare galaxy and AGN results
-results1 = BayeSEDResults('output', catalog_name='gal')
-results2 = BayeSEDResults('output', catalog_name='qso')
+bayesed = BayeSEDInterface(mpi_mode='auto')
 
-# Standardize parameters across models and create comparison plots
-standardize_parameter_names([results1, results2])
-plot_posterior_comparison([results1, results2], labels=['Galaxy', 'AGN'], 
-                          params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
+# Same input data, different models
+input_file = 'observation/test/gal.txt'
+
+# Model 1: Exponential SFH with Calzetti dust law
+params1 = BayeSEDParams.galaxy(
+    input_file=input_file,
+    outdir='output_model1_exp_calzetti',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti',
+    save_sample_par=True
+)
+bayesed.run(params1)
+
+# Model 2: Delayed SFH with SMC dust law
+params2 = BayeSEDParams.galaxy(
+    input_file=input_file,
+    outdir='output_model2_delayed_smc',
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='delayed',
+    dal_law='smc',
+    save_sample_par=True
+)
+bayesed.run(params2)
+
+# Compare results for the same object with different models
+results1 = BayeSEDResults('output_model1_exp_calzetti')
+results2 = BayeSEDResults('output_model2_delayed_smc')
+
+# Standardize parameter names across models for comparison
+results_list = [results1, results2]
+standardize_parameter_names(results_list)
+
+# Create comparison plots showing how model choice affects parameter inference
+plot_posterior_comparison(
+    results_list,
+    labels=['Exp+Calzetti', 'Delayed+SMC'],
+    output_file='model_comparison.png'
+)
+
+# Compare Bayesian evidence to determine which model is preferred
+print(f"Model 1 log-evidence: {results1.get_log_evidence()}")
+print(f"Model 2 log-evidence: {results2.get_log_evidence()}")
 ```
 
 ### Advanced Analytics
@@ -371,11 +440,21 @@ Compute parameter correlations, statistics, and integrate with GetDist for advan
 ```python
 from bayesed import BayeSEDResults
 
-results = BayeSEDResults('output', catalog_name='gal')
+# Load results with intelligent configuration detection
+results = BayeSEDResults('output_gal', validate_on_init=True)
+
+# Enhanced introspection
+scope_info = results.get_access_scope()
+print(f"Analysis scope: {scope_info.scope_type}")
+print(f"Objects available: {scope_info.total_objects}")
 
 # Get available parameter names (with component IDs like [0,1])
 free_params = results.get_free_parameters()
+derived_params = results.get_derived_parameters()
 # Example: ['z', 'log(age/yr)[0,1]', 'log(tau/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]', ...]
+
+# Load HDF5 data with SNR filtering
+hdf5_table = results.load_hdf5_results(filter_snr=True, min_snr=3.0)
 
 # Compute parameter correlations (use actual parameter names with component IDs)
 correlations = results.compute_parameter_correlations(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
@@ -383,9 +462,11 @@ correlations = results.compute_parameter_correlations(['log(age/yr)[0,1]', 'log(
 # Get parameter statistics
 stats = results.get_parameter_statistics(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
 
+# Object-level analysis
+objects = results.list_objects()
+object_id = objects[0]  # e.g., 'spec-0285-51930-0184_GALAXY_STARFORMING'
+
 # GetDist integration with intelligent caching for custom posterior analysis
-# Use real object ID from the catalog
-object_id = 'spec-0285-51930-0184_GALAXY_STARFORMING'
 samples = results.get_getdist_samples(object_id=object_id)
 samples.label = 'Galaxy Model'
 
