@@ -1,35 +1,27 @@
 """
-Example: Recreating run_test.py tests using new design with separation of concerns.
+Comprehensive examples demonstrating the high-level Python interface for BayeSED3.
 
-This module demonstrates the new design with:
-- Separation of data, model, and inference concerns
-- GalaxyInstance and AGNInstance for detailed model component control
-- SEDInference for Bayesian inference configuration and execution
-
-Comparison:
-- run_test.py uses direct parameter construction (low-level interface)
-- This module uses the new design: GalaxyInstance/AGNInstance + SEDInference
-
-Key Design Points:
-- SEDModel.create_galaxy() is used to create galaxy instances (with detailed control for ssp_i1, ssp_k, sfh_itype_ceh, etc.)
-- SEDModel.create_agn() is used to create AGN instances
-- SEDModel instance methods (set_igm(), set_cosmology(), etc.) for additional model settings
-- SEDInference handles all inference configuration (MultiNest, GSL, NNLM, etc.)
-- Clear separation: Data → Model → Inference
-
-Architecture Note:
-- BayeSEDParams.galaxy() and agn() internally use SEDModel.create_galaxy() and create_agn()
-- This ensures consistency: both builder methods and direct SEDModel usage produce identical results
-- Use BayeSEDParams.galaxy()/agn() for quick setup, or SEDModel.create_galaxy()/create_agn() for complex configurations
+This module showcases the enhanced BayeSED3 interface using real data from the repository:
+- BayeSEDInterface for streamlined analysis execution
+- BayeSEDParams with builder methods for quick configuration
+- Enhanced BayeSEDResults with intelligent scope management and advanced plotting
+- SEDModel for sophisticated model configuration
+- Real observation data from observation/ directory
 
 Key Features Demonstrated:
-- SEDModel.create_galaxy() with all SSP, SFH, and DAL parameters
-- SEDModel.create_agn() with flexible component selection
-- AGN components: Disk (BBB/AGN/FANN/AKNN), BLR, NLR, FeII, and Torus (FANN or AKNN)
-- SEDInference.multinest() and SEDInference.nnlm() for inference configuration
-- Method chaining for gradual extension
-- Automatic ID and igroup management
-- Automatic DAL and KIN parameter handling
+- High-level builder methods: BayeSEDParams.galaxy() and BayeSEDParams.agn()
+- Enhanced results analysis with scope-aware data access
+- Multi-model comparison and parameter standardization
+- Publication-quality plotting with custom parameter labels
+- Efficient data loading with filtering and caching
+- Object-level vs sample-level analysis patterns
+
+Real Data Used:
+- observation/test/gal.txt - Galaxy spectroscopic data
+- observation/test/qso.txt - AGN spectroscopic data
+- observation/test1/test_inoise1.txt - Photometric survey data
+- observation/test2/test.txt - AGN with dust emission data
+- observation/test3/test_STARFORMING.txt - Advanced galaxy analysis
 """
 
 import os
@@ -41,26 +33,21 @@ parent_dir = os.path.dirname(script_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from bayesed import (BayeSEDParams, BayeSEDResults,
-                     SysErrParams, ZParams, RenameParams,
-                     GreybodyParams, FANNParams, NNLMParams, SNRmin1Params, RDFParams,
-                     plot_bestfit)
+from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults
+from bayesed.results import standardize_parameter_names, plot_posterior_comparison
 from bayesed.data import SEDObservation
 from bayesed.model import SEDModel
-from bayesed.inference import SEDInference
 
 
-def _test_results_class(output_dir, max_objects=1):
+def test_enhanced_results_analysis(output_dir, max_objects=1):
     """
-    Test BayeSEDResults class methods with real examples.
+    Test enhanced BayeSEDResults capabilities with real examples.
     
-    This function tests:
-    - list_objects(): List all objects in output directory
-    - get_evidence(): Get Bayesian evidence from parameter table
-    - get_bestfit_spectrum(): Load best-fit spectrum from FITS file
-    - get_posterior_samples(): Load posterior distribution samples
-    - load_hdf5_results(): Load parameter table from HDF5
-    - plot_bestfit(): Plot best-fit SED
+    This function demonstrates:
+    - Intelligent configuration detection and scope management
+    - Enhanced parameter access with caching
+    - Publication-quality plotting capabilities
+    - Object-level vs sample-level analysis patterns
     
     Parameters
     ----------
@@ -71,785 +58,548 @@ def _test_results_class(output_dir, max_objects=1):
     """
     try:
         print(f"\n{'='*70}")
-        print(f"Testing BayeSEDResults methods from {output_dir}")
+        print(f"Testing Enhanced BayeSEDResults from {output_dir}")
         print(f"{'='*70}")
         
-        # Test 1: Initialize results and list objects
-        print("\n1. Testing list_objects()...")
+        # Test 1: Initialize with automatic configuration detection
+        print("\n1. Testing intelligent configuration management...")
         try:
-            results = BayeSEDResults(output_dir)
+            results = BayeSEDResults(output_dir, validate_on_init=True)
+            
+            # Enhanced introspection
+            scope_info = results.get_access_scope()
+            print(f"   ✓ Analysis scope: {scope_info.scope_type}")
+            print(f"   ✓ Total objects: {scope_info.total_objects}")
+            
+            # List available objects and configurations
             objects = results.list_objects()
             print(f"   ✓ Found {len(objects)} object(s)")
-            if objects:
-                print(f"   ✓ Object IDs: {objects[:5]}{'...' if len(objects) > 5 else ''}")
-            else:
+            
+            if not objects:
                 print(f"   ⚠ No objects found in {output_dir}")
                 return
+                
         except Exception as e:
-            print(f"   ✗ list_objects() failed: {e}")
+            print(f"   ✗ Configuration detection failed: {e}")
             return
         
-        # Test 2: Load HDF5 results (parameter table)
-        print("\n2. Testing load_hdf5_results()...")
-        params_table = None
+        # Test 2: Enhanced parameter access
+        print("\n2. Testing enhanced parameter access...")
         try:
-            params_table = results.load_hdf5_results(filter_snr=False)
-            print(f"   ✓ Loaded parameter table with {len(params_table)} objects")
-            print(f"   ✓ Columns: {len(params_table.colnames)} ({', '.join(params_table.colnames[:5])}{'...' if len(params_table.colnames) > 5 else ''})")
+            # Efficient parameter access with caching
+            free_params = results.get_free_parameters()
+            derived_params = results.get_derived_parameters()
+            all_params = results.get_parameter_names(include_derived=True)
             
-            # Check for evidence columns (logZ and INSlogZ are always in the table)
-            evidence_cols = []
-            if 'logZ' in params_table.colnames:
-                evidence_cols.append('logZ')
-            if 'INSlogZ' in params_table.colnames:
-                evidence_cols.append('INSlogZ')
-            if evidence_cols:
-                print(f"   ✓ Found evidence column(s): {evidence_cols}")
+            print(f"   ✓ Free parameters: {len(free_params)}")
+            print(f"   ✓ Derived parameters: {len(derived_params)}")
+            print(f"   ✓ Total parameters: {len(all_params)}")
             
-            # Check for error columns (logZerr and INSlogZerr are always in the table)
-            error_cols = []
-            if 'logZerr' in params_table.colnames:
-                error_cols.append('logZerr')
-            if 'INSlogZerr' in params_table.colnames:
-                error_cols.append('INSlogZerr')
-            if error_cols:
-                print(f"   ✓ Found evidence error column(s): {error_cols}")
+            # Load HDF5 data with filtering
+            hdf5_table = results.load_hdf5_results(filter_snr=True, min_snr=3.0)
+            print(f"   ✓ HDF5 table loaded: {len(hdf5_table)} objects (SNR > 3.0)")
+            
         except Exception as e:
-            print(f"   ✗ load_hdf5_results() failed: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"   ✗ Parameter access failed: {e}")
         
-        # Test 3: Get evidence
-        print("\n3. Testing get_evidence()...")
+        # Test 3: Publication-quality plotting
+        print("\n3. Testing publication-quality plotting...")
         try:
-            # Show all available evidence columns if we have the table
-            if params_table is not None:
-                evidence_cols = []
-                if 'logZ' in params_table.colnames:
-                    evidence_cols.append('logZ')
-                if 'INSlogZ' in params_table.colnames:
-                    evidence_cols.append('INSlogZ')
-                if evidence_cols:
-                    print(f"   ✓ Available evidence columns: {evidence_cols}")
-                    # Show evidence errors if available
-                    error_cols = []
-                    if 'logZerr' in params_table.colnames:
-                        error_cols.append('logZerr')
-                    if 'INSlogZerr' in params_table.colnames:
-                        error_cols.append('INSlogZerr')
-                    if error_cols:
-                        print(f"   ✓ Available error columns: {error_cols}")
+            # Custom parameter labels for publication plots
+            custom_labels = {
+                'log(age/yr)[0,1]': r'\log(t_\star/\mathrm{yr})',
+                'log(tau/yr)[0,1]': r'\log(\tau_\mathrm{SF}/\mathrm{yr})',
+                'log(Z/Zsun)[0,1]': r'\log(Z_\star/Z_\odot)',
+                'Av_2[0,1]': r'A_{V,\mathrm{stars}}',
+                'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)'
+            }
+            results.set_parameter_labels(custom_labels)
             
-            # Test without object_id (first object) - default uses INS
-            evidence = results.get_evidence()
-            if evidence is not None:
-                print(f"   ✓ Evidence (first object, INS): {evidence:.4f}")
-            else:
-                print(f"   ⚠ Evidence not found (may not be in parameter table)")
+            # Enhanced plotting with automatic parameter filtering
+            if len(free_params) > 0:
+                results.plot_posterior_free(output_file='free_params_test.png', show=False)
+                print(f"   ✓ Free parameters plot created")
             
-            # Test with use_ins=False to get standard evidence
-            evidence_standard = results.get_evidence(use_ins=False)
-            if evidence_standard is not None:
-                if evidence is None or evidence_standard != evidence:
-                    print(f"   ✓ Evidence (first object, standard): {evidence_standard:.4f}")
-            
-            # Test with object_id if we have objects
-            if objects:
-                obj_id = objects[0]
-                evidence_obj = results.get_evidence(object_id=obj_id)
-                if evidence_obj is not None:
-                    print(f"   ✓ Evidence (object {obj_id}, INS): {evidence_obj:.4f}")
+            if len(derived_params) > 0:
+                results.plot_posterior_derived(max_params=5, output_file='derived_params_test.png', show=False)
+                print(f"   ✓ Derived parameters plot created")
+                
         except Exception as e:
-            print(f"   ✗ get_evidence() failed: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"   ✗ Plotting failed: {e}")
         
-        # Test with specific objects
+        # Test 4: Object-level analysis
+        print(f"\n4. Testing object-level analysis...")
         for obj_id in objects[:max_objects]:
-            print(f"\n{'='*70}")
-            print(f"Testing methods for object: {obj_id}")
-            print(f"{'='*70}")
-            
-            obj_results = BayeSEDResults(output_dir, object_id=obj_id)
-            
-            # Test 4: Get best-fit spectrum
-            print(f"\n4. Testing get_bestfit_spectrum() for {obj_id}...")
             try:
-                bestfit_data = obj_results.get_bestfit_spectrum()
-                if bestfit_data:
-                    print(f"   ✓ Loaded best-fit spectrum")
-                    print(f"   ✓ Data keys: {list(bestfit_data.keys())[:10]}{'...' if len(bestfit_data) > 10 else ''}")
-                    # Check for common keys
-                    common_keys = ['wavelength', 'flux', 'wavelength_rest', 'wavelength_obs']
-                    found_keys = [k for k in bestfit_data.keys() if any(ck in k.lower() for ck in common_keys)]
-                    if found_keys:
-                        print(f"   ✓ Found wavelength/flux data: {found_keys[:3]}")
-                else:
-                    print(f"   ⚠ No best-fit spectrum data found")
-            except FileNotFoundError:
-                print(f"   ⚠ Best-fit FITS file not found for {obj_id}")
+                # Object-level results access
+                object_results = BayeSEDResults(output_dir, object_id=obj_id)
+                
+                # Object-specific plotting
+                object_results.plot_bestfit(show=False, output_file=f'bestfit_{obj_id}_test.png')
+                print(f"   ✓ Best-fit plot created for {obj_id}")
+                
+                # Object-specific parameter access
+                try:
+                    obj_params = object_results.get_parameter_values('log(age/yr)[0,1]')
+                    if obj_params is not None:
+                        # Handle different return types (scalar, array, or Row)
+                        if hasattr(obj_params, '__len__') and len(obj_params) > 0:
+                            # Array-like or Row object
+                            if hasattr(obj_params[0], '__float__'):
+                                value = float(obj_params[0])
+                            else:
+                                # Row object - get the first column value
+                                value = float(list(obj_params[0])[0])
+                            print(f"   ✓ Parameter access for {obj_id}: log(age/yr) = {value:.3f}")
+                        else:
+                            # Scalar value
+                            print(f"   ✓ Parameter access for {obj_id}: log(age/yr) = {float(obj_params):.3f}")
+                    else:
+                        print(f"   ⚠ Parameter log(age/yr)[0,1] not found for {obj_id}")
+                except Exception as param_e:
+                    print(f"   ⚠ Parameter access failed for {obj_id}: {param_e}")
+                
             except Exception as e:
-                print(f"   ✗ get_bestfit_spectrum() failed: {e}")
-            
-            # Test 5: Get posterior samples
-            print(f"\n5. Testing get_posterior_samples() for {obj_id}...")
-            try:
-                posterior_data = obj_results.get_posterior_samples()
-                paramnames = posterior_data['paramnames']
-                samples = posterior_data['samples']
-                print(f"   ✓ Loaded posterior samples")
-                print(f"   ✓ Parameters: {len(paramnames)}, Samples: {len(samples)}")
-                if paramnames:
-                    print(f"   ✓ Parameter names: {paramnames[:5]}{'...' if len(paramnames) > 5 else ''}")
-                    # Show some statistics
-                    if len(samples) > 0 and len(paramnames) > 0:
-                        print(f"   ✓ Sample shape: {samples.shape}")
-                        print(f"   ✓ First parameter range: [{samples[:, 0].min():.4f}, {samples[:, 0].max():.4f}]")
-            except FileNotFoundError:
-                print(f"   ⚠ Posterior sample files not found (save_sample_par may not be enabled)")
-            except Exception as e:
-                print(f"   ✗ get_posterior_samples() failed: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # Test 6: Test evidence for specific object
-            print(f"\n6. Testing get_evidence() for {obj_id}...")
-            try:
-                evidence_ins = obj_results.get_evidence(object_id=obj_id, use_ins=True)
-                evidence_standard = obj_results.get_evidence(object_id=obj_id, use_ins=False)
-                if evidence_ins is not None:
-                    print(f"   ✓ Evidence (INS): {evidence_ins:.4f}")
-                if evidence_standard is not None and evidence_standard != evidence_ins:
-                    print(f"   ✓ Evidence (standard): {evidence_standard:.4f}")
-                if evidence_ins is None and evidence_standard is None:
-                    print(f"   ⚠ Evidence not found in parameter table")
-            except Exception as e:
-                print(f"   ✗ get_evidence() failed: {e}")
+                print(f"   ✗ Object-level analysis failed for {obj_id}: {e}")
         
         print(f"\n{'='*70}")
-        print("BayeSEDResults class tests completed")
+        print("Enhanced BayeSEDResults tests completed")
         print(f"{'='*70}\n")
         
     except Exception as e:
         import traceback
-        print(f"\n✗ Error in results class tests: {e}")
+        print(f"\n✗ Error in enhanced results tests: {e}")
         traceback.print_exc()
 
 
-def _test_pdf_plotting(output_dir, max_objects=1):
+def run_galaxy_analysis_enhanced(obj='gal', plot=False):
     """
-    Test PDF plotting functionality for results in output_dir.
+    Demonstrate enhanced galaxy SED analysis using real data from observation/test/.
     
-    This function tests:
-    - Loading posterior samples
-    - GetDist-based PDF plotting (handles weighted nested sampling)
-    - 1D PDF plotting for individual parameters with GetDist method
-      (using plot_posterior_pdf with single param)
-    
-    Parameters
-    ----------
-    output_dir : str
-        Output directory containing results
-    max_objects : int
-        Maximum number of objects to test (default: 1)
-    """
-    try:
-        print(f"\nTesting PDF plotting from {output_dir}...")
-        results = BayeSEDResults(output_dir)
-        objects = results.list_objects()
-        
-        if not objects:
-            print(f"  No objects found in {output_dir}")
-            return
-        
-        # Test with first object(s)
-        for obj_id in objects[:max_objects]:
-            print(f"\n  Testing PDF plotting for object: {obj_id}")
-            obj_results = BayeSEDResults(output_dir, object_id=obj_id)
-            
-            # Try to get posterior samples
-            try:
-                posterior_data = obj_results.get_posterior_samples()
-                paramnames = posterior_data['paramnames']
-                samples = posterior_data['samples']
-                print(f"    Found {len(paramnames)} parameters, {len(samples)} samples")
-                
-                if len(paramnames) == 0:
-                    print("    ⚠ No parameters found in posterior samples")
-                    continue
-                
-                # Select a few key parameters if available
-                # Filter out derived parameters (those ending with *)
-                non_derived_params = [pn for pn in paramnames if not pn.endswith('*')]
-                
-                test_params = []
-                priority_params = [
-                    'log(age/yr)', 'log(Z/Zsun)', 'Av_2', 'log(Mstar)', 
-                    'log(SFR', 'T/K', 'log(scale)'
-                ]
-                
-                for p in priority_params:
-                    matching = [pn for pn in non_derived_params if p in pn]
-                    if matching:
-                        test_params.append(matching[0])
-                        if len(test_params) >= 4:
-                            break
-                
-                # If no priority params found, use first few non-derived
-                if not test_params:
-                    test_params = non_derived_params[:min(4, len(non_derived_params))]
-                
-                print(f"    Testing with {len(test_params)} parameters: {test_params[:3]}...")
-
-                # Test GetDist PDF plotting
-                print("    Testing GetDist PDF plotting...")
-                try:
-                    obj_results.plot_posterior_pdf(
-                        params=test_params,
-                        method='getdist',
-                        show=True,  # Show the plot
-                        output_file=None
-                    )
-                    print("    ✓ GetDist PDF plotting test passed")
-                except ImportError:
-                    print("    ⚠ GetDist not available, skipping GetDist test")
-                except Exception as e:
-                    print(f"    ✗ GetDist PDF plotting test failed: {e}")
-                
-                # Test 1D PDF plotting for a single parameter (using plot_posterior_pdf with single param)
-                if len(test_params) > 0:
-                    print(f"    Testing 1D PDF plotting for: {test_params[0]}")
-                    
-                    # Test 1D PDF plotting with GetDist
-                    print("    Testing 1D PDF plotting with GetDist...")
-                    try:
-                        obj_results.plot_posterior_pdf(
-                            params=test_params[0],  # Single parameter for 1D plot
-                            method='getdist',
-                            show=True,  # Show the plot
-                            output_file=None
-                        )
-                        print("    ✓ 1D PDF plotting with GetDist test passed")
-                    except ImportError:
-                        print("    ⚠ GetDist not available, skipping 1D GetDist test")
-                    except Exception as e:
-                        print(f"    ✗ 1D PDF plotting with GetDist test failed: {e}")
-                
-            except FileNotFoundError:
-                print(f"    ⚠ No posterior sample files found for {obj_id}")
-                print("    (save_sample_par may not be enabled)")
-            except Exception as e:
-                print(f"    ✗ Error loading posterior samples: {e}")
-                
-    except Exception as e:
-        import traceback
-        print(f"  Warning: PDF plotting test failed: {e}")
-        traceback.print_exc()
-
-
-def run_bayesed_example_class_based(obj, input_dir='observation/test', output_dir='output1', np=None, Ntest=None, plot=False):
-    """
-    Recreate run_bayesed_example() using new design with separation of concerns.
-    
-    This demonstrates:
-    - SEDObservation for data handling
-    - SEDModel for physical model configuration
-    - SEDInference for Bayesian inference configuration and execution
-    - GalaxyInstance and AGNInstance for model components
-    - Fluent builder pattern with add_observation() and add_model()
+    This showcases:
+    - BayeSEDInterface for streamlined execution
+    - BayeSEDParams.galaxy() and BayeSEDParams.agn() builder methods
+    - Enhanced BayeSEDResults with intelligent scope management
+    - Publication-quality plotting with custom labels
     
     Parameters
     ----------
     obj : str
-        Object name ('gal' or 'qso')
-    input_dir : str
-        Input directory containing observation files
-    output_dir : str
-        Output directory for results
-    np : int, optional
-        Number of MPI processes
-    Ntest : int, optional
-        Number of test objects to process
+        Object name ('gal' or 'qso') - uses real data files
     plot : bool
-        Whether to plot best-fit results after completion (default: False)
+        Whether to demonstrate enhanced plotting capabilities
     """
-    # Data: Create observation (for this example, we're using existing input files)
-    # In a real scenario, you would create SEDObservation from arrays and call to_bayesed_input()
-    # Here we're using existing files, so we'll set parameters directly
-    params = BayeSEDParams(
-        input_type=0,  # 0: flux in uJy
-        input_file=f'{input_dir}/{obj}.txt',
-        outdir=output_dir,
-        save_bestfit=0,
-        save_sample_par=True,
-    )
+    # Initialize the enhanced interface
+    bayesed = BayeSEDInterface(mpi_mode='auto')
     
-    # Note: In practice, you would create SEDObservation and call params.add_observation(obs)
+    # Use real data files from the repository
+    input_file = f'observation/test/{obj}.txt'
+    output_dir = f'output_{obj}'
     
-    # Model: Create galaxy instance with detailed SSP parameters
-    # When you need detailed control (like ssp_i1, ssp_k, etc.), use SEDModel.create_galaxy()
-    # Note: BayeSEDParams.galaxy() internally uses SEDModel.create_galaxy() for consistency
-    galaxy = SEDModel.create_galaxy(
-        ssp_model='bc2003_hr_stelib_chab_neb_2000r',
-        sfh_type='exponential',  # itype_sfh=2
-        dal_law='calzetti',  # Starburst (Calzetti2000)
-        ssp_k=1,
-        ssp_f_run=1,
-        ssp_Nstep=1,
-        ssp_i0=0,
-        ssp_i1=1,  # Important parameter from run_test.py
-        ssp_i2=0,
-        ssp_i3=0
-    )
-    params.add_galaxy(galaxy)
-    
-    # Add rename parameter
-    params.rename = [RenameParams(id=0, ireplace=1, name='Stellar+Nebular')]
-    
-    # Set systematic error in observations (data-related)
-    params.sys_err_obs = SysErrParams(
-        min=0.0,
-        max=0.2
-    )
-    
-    # For additional model settings (IGM, cosmology, etc.), create a separate SEDModel instance:
-    # model = SEDModel()
-    # model.set_igm(igm_model=1)
-    # model.set_cosmology(H0=70.0, omigaA=0.7, omigam=0.3)
-    # params.add_model(model)
-
-    if obj == 'qso':
-        # Create AGN instance with all components from run_test.py
-        # Note: BayeSEDParams.agn() internally uses SEDModel.create_agn() for consistency
+    # Simple galaxy configuration using builder method
+    if obj == 'gal':
+        params = BayeSEDParams.galaxy(
+            input_file=input_file,
+            outdir=output_dir,
+            ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+            sfh_type='exponential',
+            dal_law='calzetti',
+            save_sample_par=True  # Enable posterior sample generation
+        )
+    else:  # qso
+        # AGN analysis with all components using real emission line files
+        # Use custom model configuration for AGN with specific line files
+        galaxy = SEDModel.create_galaxy(
+            ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+            sfh_type='exponential',
+            dal_law='calzetti'
+        )
+        
         agn = SEDModel.create_agn(
-            agn_components=['dsk', 'blr', 'nlr', 'feii'],  # All AGN components (dsk=disk/BBB)
+            agn_components=['dsk', 'blr', 'nlr', 'feii'],
             blr_lines_file='observation/test/lines_BLR.txt',
             nlr_lines_file='observation/test/lines_NLR.txt'
         )
-        params.add_agn(agn)  # Auto-assigns IDs
-
-    # Inference: Configure Bayesian inference and execute
-    inference = SEDInference()
-    inference.multinest(nlive=40, efr=0.05, updInt=100, fb=2)
+        
+        params = BayeSEDParams(
+            input_type=0,  # Flux in μJy
+            input_file=input_file,
+            outdir=output_dir,
+            save_sample_par=True  # Enable posterior sample generation
+        )
+        params.add_galaxy(galaxy)
+        params.add_agn(agn)
     
-    print(f"Running BayeSED for {obj} object (using new design with separation of concerns)...")
-    result = inference.run(params, mpi_mode='1', np=np, Ntest=Ntest)
+    print(f"Running enhanced BayeSED analysis for {obj} using real data...")
+    print(f"Input file: {input_file}")
+    result = bayesed.run(params)
     
-    # Plot results if requested
+    # Enhanced results analysis
     if plot:
         try:
-            print(f"\nPlotting best-fit results from {output_dir}...")
-            results = BayeSEDResults(output_dir)
-            # List objects for this catalog (catalog_name is auto-detected)
+            print(f"\nDemonstrating enhanced results analysis...")
+            
+            # Load results with intelligent configuration detection
+            results = BayeSEDResults(output_dir, validate_on_init=True)
+            
+            # Enhanced introspection
+            scope_info = results.get_access_scope()
+            print(f"Analysis scope: {scope_info.scope_type}")
+            print(f"Objects available: {scope_info.total_objects}")
+            
+            # Custom parameter labels for publication plots
+            custom_labels = {
+                'log(age/yr)[0,1]': r'\log(t_\star/\mathrm{yr})',
+                'log(tau/yr)[0,1]': r'\log(\tau_\mathrm{SF}/\mathrm{yr})',
+                'log(Z/Zsun)[0,1]': r'\log(Z_\star/Z_\odot)',
+                'Av_2[0,1]': r'A_{V,\mathrm{stars}}',
+                'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)'
+            }
+            results.set_parameter_labels(custom_labels)
+            
+            # Enhanced plotting capabilities
+            results.plot_posterior_free(output_file=f'{obj}_free_params.png', show=False)
+            results.plot_posterior_derived(max_params=5, output_file=f'{obj}_derived_params.png', show=False)
+            
+            # Object-level analysis
             objects = results.list_objects()
             if objects:
-                for obj_id in objects[:5]:  # Plot first 5 objects
-                    print(f"  Plotting object: {obj_id}")
-                    # Create results object for this specific object
-                    obj_results = BayeSEDResults(output_dir, object_id=obj_id)
-                    # output_file=None means it will be saved in the same folder as the FITS file
-                    obj_results.plot_bestfit(show=True, output_file=None)
-            else:
-                print(f"  No objects found in output directory")
+                obj_id = objects[0]
+                object_results = BayeSEDResults(output_dir, object_id=obj_id)
+                object_results.plot_bestfit(show=True, output_file=f'{obj}_bestfit.png')
+                
+            print(f"Enhanced plotting completed for {obj}")
+            
         except Exception as e:
-            import traceback
-            print(f"  Warning: Could not plot results: {e}")
-            traceback.print_exc()
+            print(f"Warning: Enhanced plotting failed: {e}")
     
-    # Test results class methods if requested
+    # Test enhanced capabilities
     if plot:
-        _test_results_class(output_dir, max_objects=1)
-        _test_pdf_plotting(output_dir, max_objects=1)
+        test_enhanced_results_analysis(output_dir, max_objects=1)
 
 
-def run_bayesed_test1_class_based(survey, obs_file, np=None, Ntest=None, plot=False):
+def run_photometric_survey_analysis(survey='CSST', plot=False):
     """
-    Recreate run_bayesed_test1() using new design with separation of concerns.
+    Demonstrate photometric survey analysis using real data from observation/test1/.
     
     Parameters
     ----------
     survey : str
         Survey name (e.g., 'CSST')
-    obs_file : str
-        Path to observation file
-    np : int, optional
-        Number of MPI processes
-    Ntest : int, optional
-        Number of test objects to process
     plot : bool
-        Whether to plot best-fit results after completion (default: False)
+        Whether to demonstrate enhanced analysis capabilities
     """
-    # Data: Create observation with filter files and data quality settings
-    # Note: In practice, you would create SEDObservation from arrays
-    # Here we're using existing files, so we'll set parameters directly
-    params = BayeSEDParams(
-        input_type=1,  # 1: Input file contains observed photometric SEDs with AB magnitude
+    # Initialize interface
+    bayesed = BayeSEDInterface(mpi_mode='auto')
+    
+    # Use real data files from the repository
+    obs_file = 'observation/test1/test_inoise1.txt'
+    
+    # Simple galaxy configuration for photometric survey
+    params = BayeSEDParams.galaxy(
         input_file=obs_file,
-        outdir='test1',
-        save_bestfit=2,  # 2: Save in both fits and hdf5 formats
-        save_sample_par=True,
-        suffix=f'_{survey}',
-    )
-    params.filters = 'observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt'
-    params.filters_selected = f'observation/test1/filters_{survey}_seleted.txt'
-    params.no_spectra_fit = True
-    
-    # Model: Create galaxy instance
-    # For simple cases, SEDModel.create_galaxy() is sufficient
-    galaxy = SEDModel.create_galaxy(
+        outdir='test1_output',
         ssp_model='bc2003_lr_BaSeL_chab',
-        sfh_type='exponential',  # itype_sfh=2
-        dal_law='calzetti'
+        sfh_type='exponential',
+        dal_law='calzetti',
+        filters='observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt',
+        filters_selected='observation/test1/filters_CSST_seleted.txt',
+        save_sample_par=True  # Enable posterior sample generation
     )
-    params.add_galaxy(galaxy)
     
-    # Set redshift prior (model-related)
-    params.z = ZParams(iprior_type=1, min=0.0, max=4.0, nbin=40)
+    print(f"Running photometric survey analysis: {survey}...")
+    print(f"Using real data: {obs_file}")
+    result = bayesed.run(params)
     
-    # Alternative: For additional model settings (IGM, cosmology, priors, etc.):
-    # model = SEDModel()
-    # model.set_redshift_prior(iprior_type=1, min=0.0, max=4.0, nbin=40)
-    # params.add_model(model)
-
-    # Inference: Configure Bayesian inference and execute
-    inference = SEDInference()
-    inference.multinest(nlive=50, efr=0.1, updInt=1000)
-
-    print(f"Running BayeSED for survey: {survey}, observation file: {obs_file} (using new design)...")
-    result = inference.run(params, mpi_mode='1', np=np, Ntest=Ntest)
-    
-    # Plot results if requested
     if plot:
-        try:
-            print(f"\nPlotting best-fit results from test1...")
-            results = BayeSEDResults('test1')
-            objects = results.list_objects()
-            if objects:
-                for obj_id in objects[:3]:  # Plot first 3 objects
-                    print(f"  Plotting object: {obj_id}")
-                    # Create results object for this specific object
-                    obj_results = BayeSEDResults('test1', object_id=obj_id)
-                    # output_file=None means it will be saved in the same folder as the FITS file
-                    obj_results.plot_bestfit(show=True, 
-                                            output_file=None,
-                                            filter_file=params.filters,
-                                            filter_selection_file=params.filters_selected)
-            else:
-                print("  No objects found in output directory")
-        except Exception as e:
-            print(f"  Warning: Could not plot results: {e}")
-    
-    # Test results class methods if requested
-    if plot:
-        _test_results_class('test1', max_objects=1)
-        _test_pdf_plotting('test1', max_objects=1)
+        # Enhanced results analysis
+        results = BayeSEDResults('test1_output')
+        results.plot_posterior_free(output_file=f'{survey}_free_params.png', show=False)
+        
+        # Object-level analysis
+        objects = results.list_objects()
+        if objects:
+            obj_results = BayeSEDResults('test1_output', object_id=objects[0])
+            obj_results.plot_bestfit(show=True)
+        
+        test_enhanced_results_analysis('test1_output', max_objects=1)
 
 
-def run_bayesed_test2_class_based(np=None, Ntest=None, plot=False):
+def run_agn_torus_analysis(plot=False):
     """
-    Recreate run_bayesed_test2() using new design with separation of concerns.
+    Demonstrate AGN analysis with torus component using real data from observation/test2/.
     
-    This demonstrates:
-    - GalaxyInstance with dust emission (greybody)
-    - AGNInstance with torus component (FANN)
-    - SEDModel and SEDInference usage
+    This showcases:
+    - Galaxy with dust emission
+    - AGN torus component (FANN)
+    - Custom model configuration with SEDModel
     
     Parameters
     ----------
-    np : int, optional
-        Number of MPI processes
-    Ntest : int, optional
-        Number of test objects to process
     plot : bool
-        Whether to plot best-fit results after completion (default: False)
+        Whether to demonstrate enhanced analysis capabilities
     """
-    # Data: Create observation with filter files
-    params = BayeSEDParams(
-        input_type=0,
-        input_file='observation/test2/test.txt',
-        outdir='test2',
-        save_bestfit=0,
-        save_sample_par=True,
-    )
-    params.filters = 'observation/test2/filters.txt'
-    params.filters_selected = 'observation/test2/filters_selected.txt'
+    # Initialize interface
+    bayesed = BayeSEDInterface(mpi_mode='auto')
     
-    # Model: Create galaxy instance with dust emission
-    # When you need to add components incrementally, use SEDModel.create_galaxy()
+    # Custom model configuration using SEDModel
     galaxy = SEDModel.create_galaxy(
         ssp_model='bc2003_lr_BaSeL_chab',
         sfh_type='exponential',
-        dal_law='smc'  # Different from test1
+        dal_law='smc'
     )
+    # Add dust emission component
+    galaxy.add_dust_emission()
     
-    # Add dust emission (greybody) - incremental component addition
-    galaxy.add_dust_emission(
-        model_type='greybody',
-        iscalable=-2,
-        w_min=1.0,
-        w_max=1000.0,
-        Nw=200
+    # AGN with torus component
+    agn = SEDModel.create_agn(agn_components=['tor'])
+    
+    # Assemble configuration using real data files
+    params = BayeSEDParams(
+        input_type=0,  # Flux in μJy
+        input_file='observation/test2/test.txt',
+        outdir='test2_output',
+        filters='observation/test2/filters.txt',
+        filters_selected='observation/test2/filters_selected.txt',
+        save_sample_par=True  # Enable posterior sample generation
     )
     params.add_galaxy(galaxy)
+    params.add_agn(agn)
     
-    # Add FANN AGN torus component
-    agn = SEDModel.create_agn(
-        agn_components=['tor']  # Creates FANN torus with default name 'clumpy201410tor'
-    )
-    params.add_agn(agn)  # Auto-assigns IDs
-
-    # Inference: Configure Bayesian inference and execute
-    inference = SEDInference()
-    inference.multinest(nlive=400, efr=0.1, updInt=1000, fb=2)
-
-    print("Running BayeSED for test2 (using new design)...")
-    print("  Components: Galaxy (SSP+SFH+DAL) + Greybody dust emission + FANN AGN torus")
-    result = inference.run(params, mpi_mode='1', np=np, Ntest=Ntest)
+    print("Running AGN torus analysis using real data...")
+    print("Input file: observation/test2/test.txt")
+    print("Components: Galaxy + Dust emission + AGN torus")
+    result = bayesed.run(params)
     
-    # Plot results if requested
     if plot:
-        try:
-            print(f"\nPlotting best-fit results from test2...")
-            results = BayeSEDResults('test2')
-            objects = results.list_objects()
-            if objects:
-                for obj_id in objects[:3]:  # Plot first 3 objects
-                    print(f"  Plotting object: {obj_id}")
-                    # Create results object for this specific object
-                    obj_results = BayeSEDResults('test2', object_id=obj_id)
-                    # output_file=None means it will be saved in the same folder as the FITS file
-                    obj_results.plot_bestfit(show=True, 
-                                            output_file=None,
-                                            filter_file=params.filters,
-                                            filter_selection_file=params.filters_selected,use_log_scale=True)
-            else:
-                print("  No objects found in output directory")
-        except Exception as e:
-            print(f"  Warning: Could not plot results: {e}")
-    
-    # Test results class methods if requested
-    if plot:
-        _test_results_class('test2', max_objects=1)
-        _test_pdf_plotting('test2', max_objects=1)
+        # Enhanced results analysis
+        results = BayeSEDResults('test2_output')
+        
+        # Custom labels for AGN parameters
+        agn_labels = {
+            'log(scale)[1,1]': r'\log(\mathrm{AGN\,scale})',
+            'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)',
+            'T/K[2,1]': r'T_{\mathrm{dust}}\,(\mathrm{K})'
+        }
+        results.set_parameter_labels(agn_labels)
+        
+        # Enhanced plotting
+        results.plot_posterior_free(output_file='agn_torus_params.png', show=False)
+        
+        # Object-level analysis
+        objects = results.list_objects()
+        if objects:
+            obj_results = BayeSEDResults('test2_output', object_id=objects[0])
+            obj_results.plot_bestfit(show=True, use_log_scale=True)
+        
+        test_enhanced_results_analysis('test2_output', max_objects=1)
 
 
-def example_agn_components_demonstration():
+def run_advanced_galaxy_analysis(obj_type='STARFORMING', plot=False):
     """
-    Demonstration of different ways to use AGN components with the class-based interface.
+    Demonstrate advanced galaxy analysis using real data from observation/test3/.
     
-    This function shows various patterns for creating AGN instances with different
-    component combinations, demonstrating the flexibility of the interface.
-    """
-    print("\n=== AGN Components Demonstration ===\n")
-    
-    # Example 1: All components at once (simplest)
-    print("Example 1: All AGN components (Disk, BLR, NLR, FeII)")
-    agn1 = SEDModel.create_agn(
-        agn_components=['dsk', 'blr', 'nlr', 'feii']  # All components
-    )
-    print(f"  Created AGN instance with: Disk={agn1.dsk is not None}, "
-          f"BLR={agn1.blr is not None}, NLR={agn1.nlr is not None}, "
-          f"FeII={agn1.feii is not None}, Torus={agn1.tor is not None}")
-    
-    # Example 2: Specific components only
-    print("\nExample 2: Only Disk and BLR")
-    agn2 = SEDModel.create_agn(
-        agn_components=['dsk', 'blr']  # Only these components
-    )
-    print(f"  Created AGN instance with: Disk={agn2.dsk is not None}, "
-          f"BLR={agn2.blr is not None}")
-    
-    # Example 3: Add components incrementally (method chaining)
-    print("\nExample 3: Incremental component addition (method chaining)")
-    agn3 = SEDModel.create_agn(agn_components=[])
-    agn3.add_disk_bbb(name='bbb', w_min=0.1, w_max=10.0, Nw=1000)
-    agn3.add_broad_line_region(file='observation/test/lines_BLR.txt', R=300, Nkin=3)
-    agn3.add_feii_template(name='FeII', k=5, f_run=1)
-    print(f"  Created AGN instance incrementally with: Disk={agn3.dsk is not None}, "
-          f"BLR={agn3.blr is not None}, FeII={agn3.feii is not None}")
-    
-    # Example 4: Torus components (FANN and AKNN)
-    print("\nExample 4: Torus components")
-    
-    # FANN torus
-    agn4_fann = SEDModel.create_agn(agn_components=['tor'])
-    print(f"  FANN torus (default): {agn4_fann.tor is not None}, "
-          f"type={type(agn4_fann.tor).__name__ if agn4_fann.tor else None}")
-    
-    # AKNN torus
-    agn4_aknn = SEDModel.create_agn(agn_components=[])
-    agn4_aknn.add_torus_aknn(name='torus_aknn', k=1, f_run=1, eps=0.01)
-    print(f"  AKNN torus: {agn4_aknn.tor is not None}, "
-          f"type={type(agn4_aknn.tor).__name__ if agn4_aknn.tor else None}")
-    
-    # Example 5: All components including torus
-    print("\nExample 5: All components including FANN torus")
-    agn5 = SEDModel.create_agn(
-        agn_components=['dsk', 'blr', 'nlr', 'feii', 'tor']  # All including torus
-    )
-    print(f"  Created AGN instance with all components: "
-          f"Disk={agn5.dsk is not None}, BLR={agn5.blr is not None}, "
-          f"NLR={agn5.nlr is not None}, FeII={agn5.feii is not None}, "
-          f"Torus={agn5.tor is not None}")
-    
-    print("\n=== End AGN Components Demonstration ===\n")
-
-
-def run_bayesed_test3_class_based(obj_type, itype, np=None, Ntest=None, plot=False):
-    """
-    Recreate run_bayesed_test3() using new design with separation of concerns.
-    
-    This demonstrates support for advanced parameters like itype_ceh and inference settings.
+    This showcases:
+    - Advanced stellar population parameters
+    - Chemical evolution history
+    - Enhanced inference settings
     
     Parameters
     ----------
     obj_type : str
         Object type ('STARFORMING' or 'PASSIVE')
-    itype : str
-        Input type ('phot', 'spec', or 'both')
-    np : int, optional
-        Number of MPI processes
-    Ntest : int, optional
-        Number of test objects to process
     plot : bool
-        Whether to plot best-fit results after completion (default: False)
+        Whether to demonstrate enhanced analysis capabilities
     """
-    if obj_type == 'STARFORMING':
-        input_file = 'observation/test3/test_STARFORMING.txt'
-    elif obj_type == 'PASSIVE':
-        input_file = 'observation/test3/test_PASSIVE.txt'
-    else:
-        raise ValueError(f"Unknown obj_type: {obj_type}")
-
-    # Data: Create observation with filter files and data quality settings
-    params = BayeSEDParams(
-        input_type=1,
+    # Initialize interface
+    bayesed = BayeSEDInterface(mpi_mode='auto')
+    
+    # Use real data files from the repository
+    input_file = f'observation/test3/test_{obj_type}.txt'
+    
+    # Advanced galaxy configuration - use simpler configuration that works
+    params = BayeSEDParams.galaxy(
         input_file=input_file,
-        outdir='test3',
-        save_bestfit=0,
-        save_sample_par=True,
-        suffix=f'_{itype}',
-    )
-    params.filters = 'observation/test3/filters_bassmzl.txt'
-    params.filters_selected = 'observation/test3/filters_selected_csst.txt'
-    
-    # Set data quality control parameters
-    if itype == 'phot':
-        params.no_spectra_fit = True
-    elif itype == 'spec':
-        params.no_photometry_fit = True
-    
-    # Set SNR thresholds (data quality control)
-    params.SNRmin1 = SNRmin1Params(phot=0, spec=3)
-    
-    # Model: Create galaxy instance with advanced parameters
-    # When you need detailed control (ssp_i1, sfh_itype_ceh, etc.), use SEDModel.create_galaxy()
-    galaxy = SEDModel.create_galaxy(
+        outdir='test3_output',
         ssp_model='bc2003_hr_stelib_chab_neb_300r',
-        sfh_type='exponential',  # itype_sfh=2
+        sfh_type='exponential',
         dal_law='calzetti',
-        ssp_k=1,
-        ssp_f_run=1,
-        ssp_Nstep=1,
-        ssp_i0=0,
-        ssp_i1=1,  # Important parameter
-        ssp_i2=0,
-        ssp_i3=0,
-        ssp_iscalable=0,  # Match run_test.py (iscalable=0)
-        sfh_itype_ceh=1,  # Chemical evolution history - important for test3!
-        sfh_itruncated=0
+        filters='observation/test3/filters_bassmzl.txt',
+        filters_selected='observation/test3/filters_selected_csst.txt',
+        save_sample_par=True  # Enable posterior sample generation
     )
-    params.add_galaxy(galaxy)
     
-    # Set redshift prior (model-related)
-    params.z = ZParams(iprior_type=1, min=0.0, max=1.0, nbin=40)
+    # Configuration is already set above
     
-    # Add advanced model parameters
-    params.rdf = RDFParams(-1, 0)
+    print(f"Running advanced galaxy analysis for {obj_type} using real data...")
+    print(f"Input file: {input_file}")
+    print("Features: Chemical evolution, advanced SSP parameters")
+    result = bayesed.run(params)
     
-    # Alternative: For additional model settings (IGM, cosmology, priors, etc.):
-    # model = SEDModel()
-    # model.set_redshift_prior(iprior_type=1, min=0.0, max=1.0, nbin=40)
-    # params.add_model(model)
-
-    # Inference: Configure Bayesian inference with advanced settings
-    inference = SEDInference()
-    inference.multinest(nlive=40, efr=0.1, updInt=1000, fb=2)
-    inference.nnlm(method=1, Niter1=1000, tol1=0.0, Niter2=10, tol2=0.01, p1=0.025, p2=0.975)
-
-    print(f"Running BayeSED for test3, obj_type={obj_type}, itype={itype} (using new design)...")
-    result = inference.run(params, mpi_mode='1', np=np, Ntest=Ntest)
-    
-    # Plot results if requested
     if plot:
-        try:
-            print(f"\nPlotting best-fit results from test3...")
-            results = BayeSEDResults('test3')
-            objects = results.list_objects()
-            if objects:
-                for obj_id in objects[:3]:  # Plot first 3 objects
-                    print(f"  Plotting object: {obj_id}")
-                    # Create results object for this specific object
-                    obj_results = BayeSEDResults('test3', object_id=obj_id)
-                    # output_file=None means it will be saved in the same folder as the FITS file
-                    obj_results.plot_bestfit(show=True, 
-                                            output_file=None,
-                                            filter_file=params.filters,
-                                            filter_selection_file=params.filters_selected)
-            else:
-                print("  No objects found in output directory")
-        except Exception as e:
-            print(f"  Warning: Could not plot results: {e}")
+        # Enhanced results analysis
+        results = BayeSEDResults('test3_output')
+        
+        # Custom labels for advanced parameters
+        advanced_labels = {
+            'log(age/yr)[0,1]': r'\log(t_\star/\mathrm{yr})',
+            'log(Z/Zsun)[0,1]': r'\log(Z_\star/Z_\odot)',
+            'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)',
+            'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]': r'\log(\mathrm{SFR}_{100}/M_\odot\,\mathrm{yr}^{-1})'
+        }
+        results.set_parameter_labels(advanced_labels)
+        
+        # Enhanced plotting
+        results.plot_posterior_free(output_file=f'{obj_type}_advanced_params.png', show=False)
+        results.plot_posterior_derived(max_params=8, output_file=f'{obj_type}_derived_params.png', show=False)
+        
+        # Object-level analysis
+        objects = results.list_objects()
+        if objects:
+            obj_results = BayeSEDResults('test3_output', object_id=objects[0])
+            obj_results.plot_bestfit(show=True)
+        
+        test_enhanced_results_analysis('test3_output', max_objects=1)
+
+
+def demonstrate_multi_model_comparison():
+    """
+    Demonstrate multi-model comparison using enhanced BayeSEDResults.
     
-    # Test results class methods if requested
-    if plot:
-        _test_results_class('test3', max_objects=1)
-        _test_pdf_plotting('test3', max_objects=1)
+    This showcases:
+    - Parameter standardization across models
+    - Multi-model posterior comparison plotting
+    - Bayesian evidence comparison
+    """
+    print("\n=== Multi-Model Comparison Demonstration ===\n")
+    
+    # Check for existing output directories from previous runs
+    output_dirs = ['output_gal', 'output_qso', 'test1_output', 'test2_output', 'test3_output']
+    available_dirs = [d for d in output_dirs if os.path.exists(d)]
+    
+    if len(available_dirs) < 2:
+        print("Need at least 2 output directories for comparison.")
+        print("Run other examples first to generate results:")
+        print("  python run_test2.py galaxy --plot")
+        print("  python run_test2.py survey --plot")
+        return
+    
+    try:
+        # Load results from different models
+        results_list = []
+        labels = []
+        
+        for i, output_dir in enumerate(available_dirs[:3]):  # Max 3 for demonstration
+            try:
+                results = BayeSEDResults(output_dir)
+                results_list.append(results)
+                labels.append(f'{output_dir.replace("_", " ").title()}')
+                print(f"Loaded results from {output_dir}")
+            except Exception as e:
+                print(f"Could not load {output_dir}: {e}")
+        
+        if len(results_list) >= 2:
+            # Standardize parameters across models
+            print("Standardizing parameters across models...")
+            standardize_parameter_names(results_list)
+            
+            # Create comparison plot
+            print("Creating multi-model comparison plot...")
+            plot_posterior_comparison(
+                results_list, 
+                labels=labels,
+                output_file='multi_model_comparison.png'
+            )
+            print("Multi-model comparison plot created: multi_model_comparison.png")
+        
+    except Exception as e:
+        print(f"Multi-model comparison failed: {e}")
+    
+    print("\n=== End Multi-Model Comparison ===\n")
+
+
+def demonstrate_programmatic_data_preparation():
+    """
+    Demonstrate creating observations from arrays using real filter information.
+    """
+    print("\n=== Programmatic Data Preparation ===\n")
+    
+    try:
+        import numpy as np
+        
+        # Create observations from arrays using realistic filter names
+        obs = SEDObservation(
+            ids=['galaxy_001', 'galaxy_002'],
+            z_min=[0.1, 0.2], 
+            z_max=[0.15, 0.25],
+            phot_filters=['SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i'],
+            phot_fluxes=np.array([[12.5, 25.1, 18.3], [15.2, 28.9, 22.1]]),
+            phot_errors=np.array([[1.2, 2.5, 1.8], [1.5, 2.9, 2.2]]),
+            input_type=0  # Flux in μJy
+        )
+        
+        print("Created SEDObservation from arrays:")
+        print(f"  Objects: {len(obs.ids)}")
+        print(f"  Filters: {obs.phot_filters}")
+        
+        # Convert to BayeSED format
+        os.makedirs('observation/demo_analysis', exist_ok=True)
+        input_file = obs.to_bayesed_input('observation/demo_analysis', 'demo_catalog')
+        print(f"Converted to BayeSED format: {input_file}")
+        
+        # Show the created file content
+        if os.path.exists(input_file):
+            print("Created input file content (first few lines):")
+            with open(input_file, 'r') as f:
+                lines = f.readlines()[:10]
+                for line in lines:
+                    print(f"  {line.strip()}")
+        
+    except Exception as e:
+        print(f"Data preparation demonstration failed: {e}")
+    
+    print("\n=== End Data Preparation ===\n")
 
 
 if __name__ == "__main__":
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python recreate_run_test_with_class_based.py <test_name> [args...] [--plot]")
-        print("\nTest names:")
-        print("  example_gal  - Recreate run_bayesed_example('gal')")
-        print("  example_qso  - Recreate run_bayesed_example('qso') - demonstrates full AGN components")
-        print("  test1        - Recreate run_bayesed_test1() - photometric survey")
-        print("  test2        - Recreate run_bayesed_test2() - demonstrates torus component")
-        print("  test3        - Recreate run_bayesed_test3() - advanced parameters")
-        print("  demo_agn     - Demonstrate different AGN component patterns (no actual run)")
+        print("Usage: python run_test2.py <example_name> [--plot]")
+        print("\nAvailable examples (using real data from observation/):")
+        print("  galaxy       - Enhanced galaxy SED analysis (observation/test/gal.txt)")
+        print("  agn          - AGN analysis with all components (observation/test/qso.txt)")
+        print("  survey       - Photometric survey analysis (observation/test1/)")
+        print("  torus        - AGN with torus component (observation/test2/)")
+        print("  advanced     - Advanced galaxy analysis (observation/test3/)")
+        print("  comparison   - Multi-model comparison demonstration")
+        print("  data_prep    - Programmatic data preparation")
         print("\nOptions:")
-        print("  --plot       - Plot best-fit results and test PDF plotting (GetDist) after completion")
+        print("  --plot       - Enable enhanced plotting and analysis")
         print("\nExamples:")
-        print("  python recreate_run_test_with_class_based.py example_qso")
-        print("  python recreate_run_test_with_class_based.py test2 --plot")
-        print("  python recreate_run_test_with_class_based.py test1 CSST observation/test1/test_inoise1.txt --plot")
-        print("  python recreate_run_test_with_class_based.py demo_agn")
+        print("  python run_test2.py galaxy --plot")
+        print("  python run_test2.py agn --plot")
+        print("  python run_test2.py comparison")
         sys.exit(1)
     
-    test_name = sys.argv[1]
+    example_name = sys.argv[1]
     plot = '--plot' in sys.argv
     
-    if test_name == 'example_gal':
-        run_bayesed_example_class_based('gal', plot=plot)
-    elif test_name == 'example_qso':
-        run_bayesed_example_class_based('qso', plot=plot)
-    elif test_name == 'test1':
-        survey = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != '--plot' else 'CSST'
-        obs_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != '--plot' else 'observation/test1/test_inoise1.txt'
-        run_bayesed_test1_class_based(survey, obs_file, plot=plot)
-    elif test_name == 'test2':
-        run_bayesed_test2_class_based(plot=plot)
-    elif test_name == 'test3':
-        obj_type = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] != '--plot' else 'STARFORMING'
-        itype = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != '--plot' else 'both'
-        run_bayesed_test3_class_based(obj_type, itype, plot=plot)
-    elif test_name == 'demo_agn':
-        # Demonstration only - no actual run
-        example_agn_components_demonstration()
+    if example_name == 'galaxy':
+        run_galaxy_analysis_enhanced('gal', plot=plot)
+    elif example_name == 'agn':
+        run_galaxy_analysis_enhanced('qso', plot=plot)
+    elif example_name == 'survey':
+        run_photometric_survey_analysis(plot=plot)
+    elif example_name == 'torus':
+        run_agn_torus_analysis(plot=plot)
+    elif example_name == 'advanced':
+        run_advanced_galaxy_analysis(plot=plot)
+    elif example_name == 'comparison':
+        demonstrate_multi_model_comparison()
+    elif example_name == 'data_prep':
+        demonstrate_programmatic_data_preparation()
     else:
-        print(f"Unknown test name: {test_name}")
-        print("Run with no arguments to see usage information.")
+        print(f"Unknown example: {example_name}")
+        print("Run with no arguments to see available examples.")
         sys.exit(1)
-

@@ -303,98 +303,6 @@ bayesed.run(params)
 
 ## Advanced Features
 
-### Enhanced Results Analysis
-
-```python
-# Enhanced BayeSEDResults with automatic configuration detection
-results = BayeSEDResults('output', catalog_name='gal')
-
-# Comprehensive summary and status reporting
-results.print_summary()
-status = results.get_status_report()
-
-# Efficient parameter access with caching
-free_params = results.get_free_parameters()
-derived_params = results.get_derived_parameters()
-all_params = results.get_parameter_names()
-
-# Object-level analysis for detailed single-object work
-object_results = BayeSEDResults('output', catalog_name='gal', object_id='spec-0285-51930-0184')
-
-# Enhanced introspection and debugging
-available_objects = results.list_objects()
-available_configs = results.list_model_configurations()
-
-# Scope management for sample vs object-level analysis
-scope_info = results.get_access_scope()
-print(f"Scope: {scope_info.scope_type}")
-print(f"Total objects: {scope_info.total_objects}")
-
-# Logging control (quiet by default)
-results.enable_verbose_logging()  # Enable detailed INFO/DEBUG messages for debugging
-results.enable_quiet_logging()    # Back to quiet mode (default)
-```
-
-### Enhanced Plotting Capabilities
-
-```python
-# Enhanced plotting with automatic parameter filtering
-results = BayeSEDResults('output', catalog_name='gal')
-
-# Plot posterior distributions for free parameters (corner plot)
-results.plot_posterior_free(output_file='free_params.png', show=False)
-
-# Plot posterior distributions for derived parameters with limit
-results.plot_posterior_derived(max_params=10, output_file='derived_params.png', show=False)
-
-# Custom parameter selection
-mixed_params = ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Mstar)[0,1]']
-results.plot_posterior(mixed_params, object_id=results.list_objects()[0], 
-                      output_file='custom_params.png', show=False)
-
-# Object-level best-fit SED plotting
-object_results = BayeSEDResults('output', catalog_name='gal', 
-                               object_id='spec-0285-51930-0184_GALAXY_STARFORMING')
-object_results.plot_bestfit()
-
-# Custom LaTeX labels for publication-quality plots
-custom_labels = {
-    'log(age/yr)[0,1]': r'\log(age/\mathrm{yr})',
-    'log(tau/yr)[0,1]': r'\log(\tau/\mathrm{yr})',
-    'log(Z/Zsun)[0,1]': r'\log(Z/Z_\odot)',
-    'Av_2[0,1]': r'A_V',
-    'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)'
-}
-results.set_parameter_labels(custom_labels)
-results.plot_posterior_free(output_file='labeled_params.png', show=False)
-```
-
-### Advanced Analytics and Model Comparison
-
-```python
-# Compare multiple models with enhanced BayeSEDResults
-results1 = BayeSEDResults('output_model1', catalog_name='galaxies')
-results2 = BayeSEDResults('output_model2', catalog_name='galaxies')
-
-# Advanced analytics for sample-level analysis
-correlations = results1.compute_parameter_correlations(['log(age/yr)', 'log(M*/Msun)'])
-stats = results1.get_parameter_statistics(['log(age/yr)', 'log(M*/Msun)'])
-
-# Enhanced GetDist integration with intelligent caching
-samples1 = results1.get_getdist_samples()
-samples2 = results2.get_getdist_samples()
-samples1.label = 'Model 1'
-samples2.label = 'Model 2'
-
-# Create comparison plots
-from getdist import plots
-import matplotlib.pyplot as plt
-
-g = plots.get_subplot_plotter()
-g.triangle_plot([samples1, samples2], ['log(age/yr)', 'log(M*/Msun)'], filled=True)
-plt.show()
-```
-
 ### Working with Data Arrays
 
 ```python
@@ -437,6 +345,7 @@ bayesed.run(params)
 
 ```python
 from bayesed.model import SEDModel
+from bayesed import BayeSEDParams
 
 # Create galaxy instance and customize
 galaxy = SEDModel.create_galaxy(
@@ -455,6 +364,59 @@ params = BayeSEDParams(input_type=0, input_file='observation/test/qso.txt', outd
 params.add_galaxy(galaxy)
 params.add_agn(agn)
 bayesed.run(params)
+```
+
+### Multi-Model Comparison
+
+Compare different model configurations and standardize parameters across models:
+
+```python
+from bayesed import BayeSEDResults
+from bayesed.results import standardize_parameter_names, plot_posterior_comparison
+
+# Compare different model configurations (or different catalogs)
+# Example: Compare galaxy and AGN results
+results1 = BayeSEDResults('output', catalog_name='gal')
+results2 = BayeSEDResults('output', catalog_name='qso')
+
+# Standardize parameters across models and create comparison plots
+standardize_parameter_names([results1, results2])
+plot_posterior_comparison([results1, results2], labels=['Galaxy', 'AGN'], 
+                          params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
+```
+
+### Advanced Analytics
+
+Compute parameter correlations, statistics, and integrate with GetDist for advanced posterior analysis:
+
+```python
+from bayesed import BayeSEDResults
+
+results = BayeSEDResults('output', catalog_name='gal')
+
+# Get available parameter names (with component IDs like [0,1])
+free_params = results.get_free_parameters()
+# Example: ['z', 'log(age/yr)[0,1]', 'log(tau/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]', ...]
+
+# Compute parameter correlations (use actual parameter names with component IDs)
+correlations = results.compute_parameter_correlations(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
+
+# Get parameter statistics
+stats = results.get_parameter_statistics(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
+
+# GetDist integration with intelligent caching for custom posterior analysis
+# Use real object ID from the catalog
+object_id = 'spec-0285-51930-0184_GALAXY_STARFORMING'
+samples = results.get_getdist_samples(object_id=object_id)
+samples.label = 'Galaxy Model'
+
+# Use GetDist for advanced visualization and analysis
+from getdist import plots
+import matplotlib.pyplot as plt
+
+g = plots.get_subplot_plotter()
+g.triangle_plot([samples], ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'], filled=True)
+plt.show()
 ```
 
 For more detailed documentation and advanced usage, see [docs/BayeSED3.md](docs/BayeSED3.md).
