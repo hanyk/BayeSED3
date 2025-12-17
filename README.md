@@ -416,8 +416,10 @@ plot_posterior_comparison(
 )
 
 # Compare Bayesian evidence to determine which model is preferred
-print(f"Model 1 log-evidence: {results1.get_log_evidence()}")
-print(f"Model 2 log-evidence: {results2.get_log_evidence()}")
+evidence1 = results1.get_evidence()
+evidence2 = results2.get_evidence()
+print(f"Model 1 log-evidence: {evidence1['INSlogZ']} +/- {evidence1['INSlogZerr']}")
+print(f"Model 2 log-evidence: {evidence2['INSlogZ']} +/- {evidence2['INSlogZerr']}")
 ```
 
 ### Advanced Analytics
