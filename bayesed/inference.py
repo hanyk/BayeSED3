@@ -18,7 +18,8 @@ if TYPE_CHECKING:
         MultiNestParams, GSLIntegrationQAGParams, GSLMultifitRobustParams,
         NNLMParams, NdumperParams
     )
-    from .core import BayeSEDParams, BayeSEDInterface, BayeSEDResults
+    from .core import BayeSEDParams, BayeSEDInterface
+    from .results import BayeSEDResults
 
 
 class SEDInference:
@@ -344,6 +345,6 @@ class SEDInference:
             Result object with posterior, best_fit, and evidence attributes
         """
         # Import here to avoid circular dependency
-        from .core import BayeSEDResults
+        from .results import BayeSEDResults
         return BayeSEDResults(output_dir)
 

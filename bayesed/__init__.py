@@ -10,12 +10,12 @@ __version__ = "3.0.0"
 from .core import (
     BayeSEDParams,
     BayeSEDInterface,
-    BayeSEDResults,
     BayeSEDValidationError,
     BayeSEDExecutionError,
-    plot_posterior_comparison,
-    standardize_parameter_names,
 )
+
+# Import enhanced BayeSEDResults from results module
+from .results import BayeSEDResults
 
 # Import data classes
 from .data import (
@@ -101,12 +101,10 @@ __all__ = [
     # Core classes
     'BayeSEDParams',
     'BayeSEDInterface',
-    'BayeSEDResults',
+    'BayeSEDResults',  # Enhanced version from results module
     'BayeSEDValidationError',
     'BayeSEDExecutionError',
-    # Comparison functions
-    'plot_posterior_comparison',
-    'standardize_parameter_names',
+
     # Data classes
     'SEDObservation',
     'PhotometryObservation',
