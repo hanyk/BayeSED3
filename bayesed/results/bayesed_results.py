@@ -730,26 +730,36 @@ class BayeSEDResults(BaseComponent):
             access_scope=self._access_scope
         )
     
-    def list_model_configurations(self, detailed: bool = False) -> Union[List[str], Dict[str, Dict[str, Any]]]:
+    def list_model_configurations(self) -> List[str]:
         """
-        List model configurations with enhanced metadata and validation.
+        List model configurations with enhanced validation.
         
-        This enhanced method provides superior functionality with better metadata
-        and validation compared to the original implementation.
+        This enhanced method provides superior functionality with better validation
+        and error messages compared to the original implementation.
         
-        Parameters
-        ----------
-        detailed : bool, default False
-            Whether to return detailed metadata
-            
         Returns
         -------
-        List[str] or Dict[str, Dict[str, Any]]
-            Configuration names or detailed metadata
+        List[str]
+            Sorted list of available configuration names
         """
         self._ensure_initialized()
         
-        return self._config_manager.list_configurations(detailed=detailed)
+        return self._config_manager.list_configurations()
+    
+    def get_configuration_summary(self) -> Dict[str, Any]:
+        """
+        Get detailed summary of all model configurations.
+        
+        Returns comprehensive metadata including file sizes, counts, and accessibility.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Summary information with configuration details
+        """
+        self._ensure_initialized()
+        
+        return self._config_manager.get_configuration_summary()
     
     def validate_model_config(self, model_config: Union[str, int]) -> str:
         """
