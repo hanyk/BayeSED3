@@ -1390,11 +1390,145 @@ def create_filters_from_svo(
 
     
 
-    # Load filters from SVO using astroquery
+    # Load filters from SVO using astroquery with optimized metadata loading
 
     print(f"Loading {len(svo_filterIDs)} filter(s) from SVO Filter Profile Service...")
 
     
+
+    # Group filters by facility/instrument for efficient batch queries
+
+    facility_instrument_groups = {}
+
+    for filter_id in svo_filterIDs:
+
+        parts = filter_id.split('/')
+
+        if len(parts) >= 2:
+
+            facility = parts[0]
+
+            instrument = parts[1] if len(parts) >= 3 else None
+
+            key = (facility, instrument)
+
+            if key not in facility_instrument_groups:
+
+                facility_instrument_groups[key] = []
+
+            facility_instrument_groups[key].append(filter_id)
+
+        else:
+
+            # Handle filters without clear facility/instrument structure
+
+            key = ('Unknown', None)
+
+            if key not in facility_instrument_groups:
+
+                facility_instrument_groups[key] = []
+
+            facility_instrument_groups[key].append(filter_id)
+
+    
+
+    # Cache for filter metadata by facility/instrument
+
+    metadata_cache = {}
+
+    
+
+    # Load metadata efficiently using get_filter_list()
+
+    for (facility, instrument), filter_ids in facility_instrument_groups.items():
+
+        if facility != 'Unknown':
+
+            try:
+
+                print(f"  Loading metadata for {facility}/{instrument or 'all instruments'}...")
+
+                if instrument:
+
+                    filter_list = SvoFps.get_filter_list(facility=facility, instrument=instrument)
+
+                else:
+
+                    filter_list = SvoFps.get_filter_list(facility=facility)
+
+                
+
+                # Cache metadata for each filter
+
+                for row in filter_list:
+
+                    filter_id = row['filterID']
+
+                    metadata_cache[filter_id] = {
+
+                        'filterID': filter_id,
+
+                        'Facility': row.get('Facility'),
+
+                        'Instrument': row.get('Instrument'),
+
+                        'Band': row.get('Band'),
+
+                        'WavelengthEff': row.get('WavelengthEff'),
+
+                        'WavelengthMean': row.get('WavelengthMean'),
+
+                        'WavelengthMin': row.get('WavelengthMin'),
+
+                        'WavelengthMax': row.get('WavelengthMax'),
+
+                        'WavelengthCen': row.get('WavelengthCen'),
+
+                        'WavelengthPivot': row.get('WavelengthPivot'),
+
+                        'WavelengthPeak': row.get('WavelengthPeak'),
+
+                        'FWHM': row.get('FWHM'),
+
+                        'WidthEff': row.get('WidthEff'),
+
+                        'DetectorType': row.get('DetectorType'),
+
+                        'PhotSystem': row.get('PhotSystem'),
+
+                        'MagSys': row.get('MagSys'),
+
+                        'ZeroPoint': row.get('ZeroPoint'),
+
+                        'ZeroPointUnit': row.get('ZeroPointUnit'),
+
+                        'ZeroPointType': row.get('ZeroPointType'),
+
+                        'ProfileReference': row.get('ProfileReference'),
+
+                        'CalibrationReference': row.get('CalibrationReference'),
+
+                        'Description': row.get('Description'),
+
+                        'Comments': row.get('Comments')
+
+                    }
+
+                cached_count = len([f for f in filter_list['filterID'] if f in svo_filterIDs])
+
+                print(f"    → Cached metadata for {cached_count} filters")
+
+                
+
+            except Exception as e:
+
+                print(f"  Warning: Could not load metadata for {facility}/{instrument}: {e}")
+
+                print(f"  Will use fallback metadata extraction for these filters")
+
+    
+
+    # Now process each filter with cached metadata
 
     filter_transmission_data = []  # Store transmission data tables
 
@@ -1418,143 +1552,91 @@ def create_filters_from_svo(
 
             
 
-            # Get transmission data
+            # Get transmission data (this is always fast)
 
             transmission_table = SvoFps.get_transmission_data(filter_id)
 
             
 
-            # Get metadata from filter index
+            # Get metadata from cache or use fallback
 
-            filter_metadata = {
+            if filter_id in metadata_cache:
 
-                'filterID': filter_id,
+                filter_metadata = metadata_cache[filter_id]
 
-                'Facility': None,
+                print(f"    → Using cached metadata")
 
-                'Instrument': None,
+            else:
 
-                'Band': None,
+                # Fallback: create basic metadata from filter_id
 
-                'WavelengthEff': None,
+                print(f"    → Using fallback metadata (no cache available)")
 
-                'WavelengthMean': None,
+                filter_metadata = {
 
-                'WavelengthMin': None,
+                    'filterID': filter_id,
 
-                'WavelengthMax': None,
+                    'Facility': None,
 
-                'WavelengthCen': None,
+                    'Instrument': None,
 
-                'WavelengthPivot': None,
+                    'Band': None,
 
-                'WavelengthPeak': None,
+                    'WavelengthEff': None,
 
-                'FWHM': None,
+                    'WavelengthMean': None,
 
-                'WidthEff': None,
+                    'WavelengthMin': None,
 
-                'DetectorType': None,
+                    'WavelengthMax': None,
 
-                'PhotSystem': None,
+                    'WavelengthCen': None,
 
-                'MagSys': None,
+                    'WavelengthPivot': None,
 
-                'ZeroPoint': None,
+                    'WavelengthPeak': None,
 
-                'ZeroPointUnit': None,
+                    'FWHM': None,
 
-                'ZeroPointType': None,
+                    'WidthEff': None,
 
-                'ProfileReference': None,
+                    'DetectorType': None,
 
-                'CalibrationReference': None,
+                    'PhotSystem': None,
 
-                'Description': None,
+                    'MagSys': None,
 
-                'Comments': None
+                    'ZeroPoint': None,
 
-            }
+                    'ZeroPointUnit': None,
 
-            
+                    'ZeroPointType': None,
 
-            # Try to get metadata from filter index
+                    'ProfileReference': None,
 
-            # Query index with a reasonable wavelength range based on transmission data
+                    'CalibrationReference': None,
 
-            try:
+                    'Description': None,
 
-                # First get a rough wavelength range from transmission data
+                    'Comments': None
 
-                wave_values = transmission_table['Wavelength'].value  # In Angstroms
+                }
 
-                if len(wave_values) > 0:
+                
 
-                    wave_min_aa = float(np.min(wave_values))
+                # Extract basic info from filter_id
 
-                    wave_max_aa = float(np.max(wave_values))
+                if '/' in filter_id:
 
-                    # Query index with a slightly wider range to ensure we get the filter
+                    parts = filter_id.split('/')
 
-                    wave_range_min = max(0, wave_min_aa - 1000) * u.AA
+                    if len(parts) >= 2:
 
-                    wave_range_max = (wave_max_aa + 1000) * u.AA
+                        filter_metadata['Facility'] = parts[0]
 
-                    
+                        if len(parts) >= 3:
 
-                    # Query filter index for this wavelength range
-
-                    filter_index_subset = SvoFps.get_filter_index(wave_range_min, wave_range_max)
-
-                    
-
-                    # Find matching filter in index
-
-                    matching_filters = filter_index_subset[filter_index_subset['filterID'] == filter_id]
-
-                    if len(matching_filters) > 0:
-
-                        row = matching_filters[0]
-
-                        # Extract all available metadata
-
-                        for key in filter_metadata.keys():
-
-                            if key in row.colnames:
-
-                                value = row[key]
-
-                                # Handle masked values
-
-                                if hasattr(value, 'mask') and value.mask:
-
-                                    filter_metadata[key] = None
-
-                                else:
-
-                                    filter_metadata[key] = value
-
-            except Exception as e:
-
-                # If index query fails, continue without metadata (will use fallback)
-
-                pass
-
-            
-
-            # Fallback: Try to extract metadata from filter_id if not found in index
-
-            if filter_metadata['Facility'] is None and '/' in filter_id:
-
-                parts = filter_id.split('/')
-
-                if len(parts) >= 2:
-
-                    filter_metadata['Facility'] = parts[0]
-
-                    if len(parts) >= 3:
-
-                        filter_metadata['Instrument'] = parts[1]
+                            filter_metadata['Instrument'] = parts[1]
 
             
 
