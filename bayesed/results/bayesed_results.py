@@ -1,134 +1,54 @@
 """
-Enhanced BayeSEDResults main class with integrated components.
+Simplified BayeSEDResults implementation.
 
-This module contains the redesigned BayeSEDResults class that integrates
-FileDiscovery, ConfigurationManager, ValidationEngine, DataLoader, and
-ParameterManager components to provide a more reliable, efficient, and
-user-friendly interface for accessing BayeSED analysis results.
+This module contains the simplified BayeSEDResults class that eliminates
+complex component architecture while maintaining full backward compatibility
+with the existing API.
 """
 
 import os
+import h5py
+import numpy as np
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 import logging
-import numpy as np
-from datetime import datetime
 
-from .base import BaseComponent
-from .models import AccessScope, LoadedDataInfo, FileStructure, ConfigurationInfo
-from .exceptions import (
-    BayeSEDResultsError, FileDiscoveryError, ConfigurationError,
-    DataLoadingError, ValidationError
-)
-from .logger import get_logger
-from .file_discovery import FileDiscovery
-from .configuration_manager import ConfigurationManager
-from .validation_engine import ValidationEngine
-from .data_loader import DataLoader
-from .parameter_manager import ParameterManager
+# Set up simple logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class BayeSEDResults(BaseComponent):
+class BayeSEDResults:
     """
-    Enhanced BayeSEDResults class with integrated component architecture.
+    Simplified BayeSEDResults class with integrated functionality.
     
-    This class provides a comprehensive interface for accessing BayeSED analysis
-    results with improved reliability, efficiency, and user-friendliness. It
-    integrates all redesigned components while maintaining compatibility with
-    existing usage patterns.
-    
-    Key Features
-    ------------
-    - **Explicit Configuration Selection**: Clear handling of multiple model configurations
-    - **Scope-Aware Access**: Distinction between sample-level and object-level operations
-    - **Robust Validation**: Comprehensive file and data consistency checking
-    - **Efficient Caching**: Intelligent caching strategies for different access patterns
-    - **Enhanced Error Handling**: Detailed error messages with actionable suggestions
-    - **Comprehensive Logging**: Full visibility into data loading and processing
-    - **Backward Compatibility**: Maintains existing method signatures where possible
-    
-    Access Patterns
-    ---------------
-    **Sample-Level Access**: Work with entire catalogs containing multiple objects
-    - Optimized for bulk operations and statistical analysis
-    - Loads HDF5 data for all objects in the catalog
-    - Methods return arrays/tables with data for all objects
-    
-    **Object-Level Access**: Work with specific individual objects
-    - Optimized for detailed single-object analysis
-    - Filters data to specific object(s) during loading
-    - Methods return single values or object-specific data
+    This class provides the same API as the original BayeSEDResults but with
+    a much simpler internal implementation:
+    - Loads HDF5 data once during initialization using astropy Table + h5py
+    - No complex component architecture or caching systems
+    - All data access through filtering the loaded HDF5 table
+    - On-demand loading for GetDist samples and FITS spectra
     
     Parameters
     ----------
     output_dir : str or Path
         Directory containing BayeSED output files
     catalog_name : str, optional
-        Catalog name to load results for. If None, will be auto-detected
-        if only one catalog exists, otherwise requires explicit specification
+        Catalog name to load results for
     model_config : str or int, optional
-        Model configuration to load. Required when multiple configurations exist.
-        Can be full name, partial match, or integer index
+        Model configuration to load (not implemented in simplified version)
     object_id : str, optional
-        Object ID for object-level access. If None, uses sample-level access
+        Object ID for object-level access
     verbose : bool, default False
-        Enable verbose logging for debugging and introspection
+        Enable verbose logging (not implemented in simplified version)
     validate_on_init : bool, default True
-        Perform comprehensive validation during initialization
-        
-    Examples
-    --------
-    >>> # Sample-level access (entire catalog)
-    >>> results = BayeSEDResults('output', catalog_name='galaxy_sample')
-    >>> all_ages = results.get_parameter_values('log(age/yr)')
-    >>> all_objects = results.list_objects()
-    
-    >>> # Object-level access (specific object)
-    >>> results = BayeSEDResults('output', catalog_name='galaxy_sample', 
-    ...                         object_id='obj_42')
-    >>> obj_age = results.get_parameter_values('log(age/yr)')
-    >>> posterior_samples = results.get_posterior_samples()
-    
-    >>> # Explicit configuration selection
-    >>> results = BayeSEDResults('output', catalog_name='galaxy_sample',
-    ...                         model_config='stellar_nebular_dust')
-    
-    >>> # Scope transition
-    >>> sample_results = BayeSEDResults('output', catalog_name='galaxy_sample')
-    >>> object_view = sample_results.get_object_view('obj_42')
-    
-    >>> # Introspection and debugging
-    >>> results = BayeSEDResults('output', catalog_name='galaxy_sample', verbose=True)
-    >>> scope_info = results.get_access_scope()
-    >>> status = results.get_status_report()
+        Perform validation during initialization (not implemented in simplified version)
     """
     
     def __init__(self, output_dir: Union[str, Path], catalog_name: Optional[str] = None,
                  model_config: Optional[Union[str, int]] = None, object_id: Optional[str] = None,
                  verbose: bool = False, validate_on_init: bool = True):
-        """
-        Initialize BayeSEDResults with integrated component architecture.
-        
-        Parameters
-        ----------
-        output_dir : str or Path
-            Directory containing BayeSED output files
-        catalog_name : str, optional
-            Catalog name to load results for
-        model_config : str or int, optional
-            Model configuration to load
-        object_id : str, optional
-            Object ID for object-level access
-        verbose : bool, default False
-            Enable verbose logging
-        validate_on_init : bool, default True
-            Perform validation during initialization
-        """
-        # Set up logging first
-        verbosity = 2 if verbose else 0  # Default to quiet (0), verbose (2) if requested
-        bayesed_logger = get_logger(self.__class__.__name__, verbosity=verbosity)
-        self.logger = bayesed_logger.get_logger()
-        super().__init__(self.logger)
+        """Initialize simplified BayeSEDResults."""
         
         # Store initialization parameters
         self.output_dir = Path(output_dir).resolve()
@@ -136,246 +56,210 @@ class BayeSEDResults(BaseComponent):
         self.model_config = model_config
         self.object_id = object_id
         self.verbose = verbose
-        self.validate_on_init = validate_on_init
         
-        # Initialize components
-        self._file_discovery = FileDiscovery(self.logger)
-        self._config_manager = ConfigurationManager(self.logger)
-        self._validation_engine = ValidationEngine(self.logger)
-        self._data_loader = DataLoader(self.logger)
-        self._parameter_manager = ParameterManager(self.logger)
+        # Main data storage - loaded once
+        self._hdf5_table = None
+        self._hdf5_file = None
         
-        # State variables
-        self._file_structure: Optional[FileStructure] = None
-        self._configuration_info: Optional[ConfigurationInfo] = None
-        self._access_scope: Optional[AccessScope] = None
-        self._loaded_data_info: Optional[LoadedDataInfo] = None
+        # Parameter labeling
+        self._custom_labels = {}
         
-        # Initialize the system
-        self.initialize()
+        # Initialize
+        self._find_hdf5_file()
+        self._load_hdf5_table()
+        
+        logger.info(f"Simplified BayeSEDResults initialized for catalog '{self.catalog_name}'")
+        if self.object_id:
+            logger.info(f"Object-level access for object: {self.object_id}")
     
-    def initialize(self, **kwargs) -> None:
-        """
-        Initialize the BayeSEDResults system with all components.
+    def _find_hdf5_file(self) -> None:
+        """Find the HDF5 file to load based on catalog_name and model_config."""
+        if not self.output_dir.exists():
+            raise FileNotFoundError(f"Output directory does not exist: {self.output_dir}")
         
-        This method orchestrates the initialization of all components in the
-        correct order, handling file discovery, configuration selection,
-        validation, and data loading.
-        """
+        # Look for HDF5 files in the output directory
+        hdf5_files = list(self.output_dir.glob("*.hdf5"))
+        
+        if not hdf5_files:
+            raise FileNotFoundError(f"No HDF5 files found in output directory: {self.output_dir}")
+        
+        # Auto-detect catalog_name if not provided
+        if not self.catalog_name:
+            # Extract catalog name from first HDF5 file (before first underscore)
+            filename = Path(hdf5_files[0]).stem
+            self.catalog_name = filename.split('_')[0]
+            logger.info(f"Auto-detected catalog name: '{self.catalog_name}'")
+        
+        # Find files matching the catalog
+        catalog_pattern = f"{self.catalog_name}_*.hdf5"
+        catalog_files = list(self.output_dir.glob(catalog_pattern))
+        
+        if not catalog_files:
+            raise FileNotFoundError(f"No HDF5 files found for catalog '{self.catalog_name}' in {self.output_dir}")
+        
+        # Handle model_config selection
+        if self.model_config is not None:
+            # User specified a model_config - find exact match
+            target_file = None
+            
+            if isinstance(self.model_config, int):
+                # Integer index - get available configs and select by index
+                available_configs = []
+                for f in catalog_files:
+                    filename = f.stem
+                    if filename.startswith(self.catalog_name + '_'):
+                        config_name = filename[len(self.catalog_name) + 1:]
+                        available_configs.append((config_name, f))
+                
+                available_configs.sort()  # Sort for consistent ordering
+                
+                if 0 <= self.model_config < len(available_configs):
+                    config_name, target_file = available_configs[self.model_config]
+                    self.model_config = config_name  # Update to string name
+                else:
+                    raise ValueError(f"Model config index {self.model_config} out of range. "
+                                   f"Available configs (0-{len(available_configs)-1}): "
+                                   f"{[c[0] for c in available_configs]}")
+            
+            else:
+                # String name - find matching config
+                model_config_str = str(self.model_config)
+                
+                for f in catalog_files:
+                    filename = f.stem
+                    if filename.startswith(self.catalog_name + '_'):
+                        config_name = filename[len(self.catalog_name) + 1:]
+                        
+                        # Exact match or partial match
+                        if config_name == model_config_str or model_config_str in config_name:
+                            target_file = f
+                            self.model_config = config_name  # Update to full name
+                            break
+                
+                if target_file is None:
+                    available_configs = []
+                    for f in catalog_files:
+                        filename = f.stem
+                        if filename.startswith(self.catalog_name + '_'):
+                            config_name = filename[len(self.catalog_name) + 1:]
+                            available_configs.append(config_name)
+                    
+                    raise ValueError(f"Model config '{model_config_str}' not found for catalog '{self.catalog_name}'. "
+                                   f"Available configs: {available_configs}")
+            
+            self._hdf5_file = str(target_file)
+            logger.info(f"Selected HDF5 file for catalog '{self.catalog_name}', config '{self.model_config}': {target_file.name}")
+        
+        else:
+            # No model_config specified - use first available or require selection if multiple
+            if len(catalog_files) == 1:
+                # Only one config available - use it
+                self._hdf5_file = str(catalog_files[0])
+                filename = Path(self._hdf5_file).stem
+                self.model_config = filename[len(self.catalog_name) + 1:]
+                logger.info(f"Auto-selected single config '{self.model_config}' for catalog '{self.catalog_name}'")
+            
+            else:
+                # Multiple configs available - require explicit selection
+                available_configs = []
+                for f in catalog_files:
+                    filename = f.stem
+                    if filename.startswith(self.catalog_name + '_'):
+                        config_name = filename[len(self.catalog_name) + 1:]
+                        available_configs.append(config_name)
+                
+                raise ValueError(f"Multiple model configurations found for catalog '{self.catalog_name}'. "
+                               f"Please specify model_config parameter. Available configs: {available_configs}")
+    
+    def _load_hdf5_table(self) -> None:
+        """Load HDF5 data using astropy Table + h5py approach."""
         try:
-            self.logger.debug(f"Initializing BayeSEDResults for directory: {self.output_dir}")
-            
-            # Step 1: File Discovery
-            self._discover_files()
-            
-            # Step 2: Configuration Management
-            self._select_configuration()
-            
-            # Step 3: Determine Access Scope
-            self._determine_access_scope()
-            
-            # Step 4: Validation (if enabled)
-            if self.validate_on_init:
-                self._validate_system()
-            
-            # Step 5: Initialize Data Loading
-            self._initialize_data_loading()
-            
-            # Step 6: Initialize Parameter Management
-            self._initialize_parameter_management()
-            
-            # Mark as initialized
-            self._initialized = True
-            
-            self.logger.info("BayeSEDResults initialization completed successfully")
-            
-            # Log status summary
-            if self.verbose:
-                self._log_initialization_summary()
+            from astropy.table import Table, hstack
+        except ImportError:
+            raise ImportError("astropy is required for HDF5 table loading. Install with: pip install astropy")
+        
+        try:
+            with h5py.File(self._hdf5_file, 'r') as h:
+                logger.debug(f"Available datasets in HDF5 file: {list(h.keys())}")
+                
+                # Get parameter names and decode from bytes to strings
+                colnames = []
+                if 'parameters_name' in h:
+                    colnames = [x.decode('utf-8') if isinstance(x, bytes) else str(x) 
+                               for x in h['parameters_name'][:]]
+                    logger.debug(f"Found parameters_name with {len(colnames)} names")
+                elif 'parameter_names' in h:
+                    colnames = [x.decode('utf-8') if isinstance(x, bytes) else str(x) 
+                               for x in h['parameter_names'][:]]
+                    logger.debug(f"Found parameter_names with {len(colnames)} names")
+                else:
+                    raise ValueError(f"No parameter names dataset found in HDF5 file. Available datasets: {list(h.keys())}")
+                
+                # Create ID table
+                if 'ID' in h:
+                    id_table = Table([h['ID'][:]], names=['ID'])
+                else:
+                    raise ValueError("No 'ID' dataset found in HDF5 file")
+                
+                # Create parameters table
+                if 'parameters' in h:
+                    parameters_table = Table(h['parameters'][:], names=colnames, copy=False)
+                else:
+                    raise ValueError("No 'parameters' dataset found in HDF5 file")
+                
+                # Combine ID and parameters using hstack
+                self._hdf5_table = hstack([id_table, parameters_table])
+                
+                logger.info(f"Loaded HDF5 table: {len(self._hdf5_table)} objects, {len(colnames)} parameters")
                 
         except Exception as e:
-            self.logger.error(f"Failed to initialize BayeSEDResults: {e}")
-            raise BayeSEDResultsError(
-                f"Initialization failed: {e}",
-                suggestions=[
-                    "Check that the output directory exists and contains BayeSED results",
-                    "Verify catalog_name and model_config parameters",
-                    "Use verbose=True for detailed error information"
-                ]
-            )
+            raise RuntimeError(f"Failed to load HDF5 file {self._hdf5_file}: {e}")
     
-    def _discover_files(self) -> None:
-        """Discover and organize all output files."""
-        self.logger.debug("Starting file discovery...")
+    def _find_config_files(self, object_id: str, file_pattern: str) -> List[Path]:
+        """
+        Find files for the current model configuration in an object directory.
         
-        if not self.output_dir.exists():
-            raise FileDiscoveryError(
-                f"Output directory does not exist: {self.output_dir}",
-                suggestions=["Check the path and ensure the directory exists"]
-            )
-        
-        # Initialize and run file discovery
-        self._file_discovery.initialize(base_path=self.output_dir)
-        self._file_structure = self._file_discovery.discover_files(self.output_dir)
-        
-        # If catalog_name was specified, ensure we use the correct catalog's file structure
-        if self.catalog_name is not None:
-            catalog_structure = self._file_discovery.get_catalog_structure(self.catalog_name)
-            if catalog_structure is None:
-                available_catalogs = self._file_discovery.list_catalogs()
-                raise FileDiscoveryError(
-                    f"Catalog '{self.catalog_name}' not found in output directory",
-                    suggestions=[
-                        f"Available catalogs: {available_catalogs}",
-                        "Check that the catalog name matches the directory structure"
-                    ]
-                )
-            self._file_structure = catalog_structure
-            self.logger.debug(f"Using file structure for catalog '{self.catalog_name}'")
-        
-        self.logger.debug(f"Discovered {len(self._file_structure.hdf5_files)} HDF5 files")
-        self.logger.debug(f"Output mode: {self._file_structure.output_mode}")
-    
-    def _select_configuration(self) -> None:
-        """Select and validate model configuration."""
-        self.logger.debug("Starting configuration selection...")
-        
-        # Auto-detect catalog if not specified
-        if self.catalog_name is None:
-            available_catalogs = self._file_discovery.list_catalogs()
-            if len(available_catalogs) == 1:
-                self.catalog_name = available_catalogs[0]
-                self.logger.debug(f"Auto-selected catalog: {self.catalog_name}")
-                # Update file structure to use the correct catalog
-                catalog_structure = self._file_discovery.get_catalog_structure(self.catalog_name)
-                if catalog_structure is not None:
-                    self._file_structure = catalog_structure
-                    self.logger.debug(f"Updated file structure for catalog '{self.catalog_name}'")
-            else:
-                raise ConfigurationError(
-                    "Multiple catalogs found, explicit catalog_name required",
-                    suggestions=[f"Available catalogs: {available_catalogs}"]
-                )
-        
-        # Initialize configuration manager with the correct file structure
-        self._config_manager.initialize(
-            file_structure=self._file_structure,
-            catalog_name=self.catalog_name
-        )
-        
-        # Select configuration
-        selected_config_name = self._config_manager.select_configuration(self.model_config)
-        self._configuration_info = self._config_manager.get_configuration_info(selected_config_name)
-        
-        self.logger.debug(f"Selected configuration: {self._configuration_info.name}")
-    
-    def _determine_access_scope(self) -> None:
-        """Determine the access scope (sample vs object level)."""
-        self.logger.debug("Determining access scope...")
-        
-        # Count total objects from HDF5 file
-        total_objects = self._data_loader.get_object_count(self._configuration_info.file_path)
-        
-        # Determine scope type
-        if self.object_id is not None:
-            scope_type = 'object'
-            filtered_objects = 1
-        else:
-            scope_type = 'sample'
-            filtered_objects = total_objects
-        
-        self._access_scope = AccessScope(
-            scope_type=scope_type,
-            catalog_name=self.catalog_name,
-            object_filter=self.object_id,
-            total_objects=total_objects,
-            filtered_objects=filtered_objects
-        )
-        
-        self.logger.debug(f"Access scope: {self._access_scope.get_scope_description()}")
-    
-    def _validate_system(self) -> None:
-        """Perform comprehensive system validation."""
-        self.logger.debug("Starting system validation...")
-        
-        # Initialize validation engine
-        self._validation_engine.initialize(
-            file_structure=self._file_structure,
-            configuration_info=self._configuration_info,
-            access_scope=self._access_scope
-        )
-        
-        # Run validation
-        validation_errors = self._validation_engine.validate(None)
-        
-        if validation_errors:
-            error_summary = f"Validation failed with {len(validation_errors)} errors"
-            self.logger.error(error_summary)
-            for error in validation_errors:
-                self.logger.error(f"  - {error}")
+        Parameters
+        ----------
+        object_id : str
+            Object ID to look for files in
+        file_pattern : str
+            File pattern to match (e.g., "*_sample_par.txt", "*_bestfit.fits")
             
-            raise ValidationError(
-                error_summary,
-                validation_errors=validation_errors
-            )
+        Returns
+        -------
+        List[Path]
+            List of matching files for the current configuration
+        """
+        object_dir = self.output_dir / self.catalog_name / object_id
+        if not object_dir.exists():
+            return []
         
-        self.logger.debug("System validation completed successfully")
-    
-    def _initialize_data_loading(self) -> None:
-        """Initialize the data loading component."""
-        self.logger.debug("Initializing data loading...")
+        # Find all files matching the pattern
+        all_files = list(object_dir.glob(file_pattern))
         
-        self._data_loader.initialize(
-            file_structure=self._file_structure,
-            configuration_info=self._configuration_info,
-            access_scope=self._access_scope
-        )
+        if not self.model_config:
+            # No specific config - return all files
+            return all_files
         
-        # Create loaded data info
-        self._loaded_data_info = LoadedDataInfo(
-            configuration=self._configuration_info,
-            hdf5_file=self._configuration_info.file_path,
-            scope=self._access_scope,
-            load_time=datetime.now()
-        )
+        # Filter files that match the current model configuration
+        config_files = []
+        for file_path in all_files:
+            filename = file_path.stem
+            # Check if the filename contains the model config
+            # Files are typically named like: {config_name}_sample_par.txt or {config_name}_bestfit.fits
+            if self.model_config in filename:
+                config_files.append(file_path)
         
-        self.logger.debug("Data loading initialization completed")
-    
-    def _initialize_parameter_management(self) -> None:
-        """Initialize the parameter management component."""
-        self.logger.debug("Initializing parameter management...")
-        
-        # Get paramnames files for parameter management
-        paramnames_files = self._data_loader.get_paramnames_files()
-        
-        if paramnames_files:
-            self._parameter_manager.initialize(paramnames_files, self._access_scope)
-            self.logger.debug(f"Parameter management initialized with {len(paramnames_files)} paramnames files")
-        else:
-            self.logger.warning("No paramnames files found - parameter management limited to HDF5 data")
-    
-    def _log_initialization_summary(self) -> None:
-        """Log a summary of the initialization results."""
-        self.logger.debug("=== BayeSEDResults Initialization Summary ===")
-        self.logger.debug(f"Output Directory: {self.output_dir}")
-        self.logger.debug(f"Catalog: {self.catalog_name}")
-        self.logger.debug(f"Configuration: {self._configuration_info.name}")
-        self.logger.debug(f"Access Scope: {self._access_scope.get_scope_description()}")
-        self.logger.debug(f"Output Mode: {self._file_structure.output_mode}")
-        self.logger.debug(f"HDF5 File: {Path(self._configuration_info.file_path).name}")
-        self.logger.debug(f"File Size: {self._configuration_info.get_size_mb():.1f} MB")
-        self.logger.debug("=" * 50)
+        return config_files
     
     # ========================================================================
-    # Public API Methods - Enhanced versions of existing methods
+    # Public API Methods - Maintaining backward compatibility
     # ========================================================================
     
     def get_parameter_names(self, include_derived: bool = True) -> List[str]:
         """
-        Get list of parameter names (enhanced version of existing method).
-        
-        This method provides efficient parameter name access with scope-aware
-        caching and improved error handling.
+        Get list of parameter names.
         
         Parameters
         ----------
@@ -387,328 +271,211 @@ class BayeSEDResults(BaseComponent):
         List[str]
             List of parameter names
         """
-        self._ensure_initialized()
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
         
-        if self._parameter_manager.is_initialized():
-            return self._parameter_manager.get_parameter_names(include_derived)
-        else:
-            # Fallback to HDF5 parameter names
-            return self._data_loader.get_parameter_names_from_hdf5(include_derived)
+        # Get all parameter names (excluding 'ID')
+        param_names = [col for col in self._hdf5_table.colnames if col != 'ID']
+        
+        if not include_derived:
+            # Filter out derived parameters (those ending with '*' in original paramnames)
+            # For now, we'll assume all parameters are free parameters
+            # This could be enhanced by reading paramnames files
+            pass
+        
+        return param_names
     
     def get_free_parameters(self) -> List[str]:
         """
-        Get list of free (fitted) parameters (enhanced version of existing method).
+        Get list of free (fitted) parameters by reading paramnames files.
         
         Returns
         -------
         List[str]
             List of free parameter names
         """
-        self._ensure_initialized()
-        
-        if self._parameter_manager.is_initialized():
-            return self._parameter_manager.get_free_parameters()
-        else:
-            return self._data_loader.get_free_parameters_from_hdf5()
+        # Read paramnames file to distinguish free vs derived parameters
+        try:
+            # Find a paramnames file to read parameter structure
+            if self.object_id:
+                # Object-level access - use specific object
+                paramnames_files = self._find_config_files(self.object_id, "*_sample_par.paramnames")
+            else:
+                # Sample-level access - use first available object
+                objects = self.list_objects()
+                if not objects:
+                    return []
+                paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+            
+            if not paramnames_files:
+                logger.warning("No paramnames files found, assuming all parameters are free")
+                return self.get_parameter_names(include_derived=False)
+            
+            # Read the first paramnames file
+            paramnames_file = paramnames_files[0]
+            free_params = []
+            
+            with open(paramnames_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        # Split by whitespace - first column is parameter name
+                        parts = line.split()
+                        if parts:
+                            param_name = parts[0]
+                            # Free parameters don't have * suffix
+                            if not param_name.endswith('*'):
+                                free_params.append(param_name)
+            
+            logger.debug(f"Found {len(free_params)} free parameters from paramnames file")
+            return free_params
+            
+        except Exception as e:
+            logger.warning(f"Failed to read paramnames file: {e}. Falling back to all parameters.")
+            return self.get_parameter_names(include_derived=False)
     
     def get_derived_parameters(self) -> List[str]:
         """
-        Get list of derived parameters (enhanced version of existing method).
+        Get list of derived parameters by reading paramnames files.
         
         Returns
         -------
         List[str]
             List of derived parameter names
         """
-        self._ensure_initialized()
-        
-        if self._parameter_manager.is_initialized():
-            return self._parameter_manager.get_derived_parameters()
-        else:
-            return self._data_loader.get_derived_parameters_from_hdf5()
+        # Read paramnames file to distinguish free vs derived parameters
+        try:
+            # Find a paramnames file to read parameter structure
+            if self.object_id:
+                # Object-level access - use specific object
+                paramnames_files = self._find_config_files(self.object_id, "*_sample_par.paramnames")
+            else:
+                # Sample-level access - use first available object
+                objects = self.list_objects()
+                if not objects:
+                    return []
+                paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+            
+            if not paramnames_files:
+                logger.warning("No paramnames files found, returning empty derived parameters list")
+                return []
+            
+            # Read the first paramnames file
+            paramnames_file = paramnames_files[0]
+            derived_params = []
+            
+            with open(paramnames_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        # Split by whitespace - first column is parameter name
+                        parts = line.split()
+                        if parts:
+                            param_name = parts[0]
+                            # Derived parameters have * suffix
+                            if param_name.endswith('*'):
+                                # Remove the * suffix for the returned name
+                                derived_params.append(param_name.rstrip('*'))
+            
+            logger.debug(f"Found {len(derived_params)} derived parameters from paramnames file")
+            return derived_params
+            
+        except Exception as e:
+            logger.warning(f"Failed to read paramnames file: {e}. Returning empty derived parameters list.")
+            return []
     
     def get_parameter_values(self, parameter_name: str, 
-                           object_ids: Optional[List[str]] = None) -> Union[np.ndarray, float]:
+                           object_ids: Optional[Union[str, List[str]]] = None) -> 'astropy.table.Table':
         """
-        Get parameter values with scope-aware filtering (enhanced method).
+        Get parameter values by filtering the loaded HDF5 table.
         
         Parameters
         ----------
         parameter_name : str
             Name of the parameter to retrieve
-        object_ids : List[str], optional
-            Specific object IDs to filter (for sample-level access)
-            
-        Returns
-        -------
-        np.ndarray or float
-            Parameter values (array for sample-level, scalar for object-level)
-        """
-        self._ensure_initialized()
-        
-        return self._data_loader.get_parameter_values(
-            parameter_name=parameter_name,
-            object_ids=object_ids,
-            access_scope=self._access_scope
-        )
-    
-    def list_objects(self) -> List[str]:
-        """
-        List available objects with scope awareness (enhanced method).
-        
-        Returns
-        -------
-        List[str]
-            List of object IDs in current scope
-        """
-        self._ensure_initialized()
-        
-        return self._data_loader.list_objects(self._access_scope)
-    
-    def rename_parameters(self, parameter_mapping: Dict[str, str]) -> None:
-        """
-        Rename parameters with enhanced validation (enhanced method).
-        
-        Parameters
-        ----------
-        parameter_mapping : Dict[str, str]
-            Dictionary mapping old parameter names to new names
-        """
-        self._ensure_initialized()
-        
-        if self._parameter_manager.is_initialized():
-            self._parameter_manager.rename_parameters(parameter_mapping)
-            # Clear GetDist samples cache so renamed samples are reloaded
-            self._data_loader._samples_cache.clear()
-        else:
-            raise DataLoadingError(
-                "Parameter renaming requires paramnames files",
-                suggestions=["Ensure save_sample_par was enabled during BayeSED run"]
-            )
-    
-    def set_parameter_labels(self, custom_labels: Dict[str, str]) -> None:
-        """
-        Set custom parameter labels (enhanced method).
-        
-        Parameters
-        ----------
-        custom_labels : Dict[str, str]
-            Dictionary mapping parameter names to LaTeX labels
-        """
-        self._ensure_initialized()
-        
-        if self._parameter_manager.is_initialized():
-            self._parameter_manager.set_parameter_labels(custom_labels)
-        else:
-            self.logger.warning("Parameter labeling requires paramnames files")
-    
-    # ========================================================================
-    # New Methods - Scope Management and Introspection
-    # ========================================================================
-    
-    def get_object_view(self, object_id: str) -> 'BayeSEDResults':
-        """
-        Create an object-level view from sample-level access.
-        
-        Parameters
-        ----------
-        object_id : str
-            Object ID to create view for
-            
-        Returns
-        -------
-        BayeSEDResults
-            New BayeSEDResults instance with object-level scope
-        """
-        self._ensure_initialized()
-        
-        if self._access_scope.is_object_level():
-            raise BayeSEDResultsError(
-                "Cannot create object view from object-level access",
-                suggestions=["Use sample-level access to create object views"]
-            )
-        
-        # Validate object exists
-        available_objects = self.list_objects()
-        if object_id not in available_objects:
-            raise DataLoadingError(
-                f"Object '{object_id}' not found in catalog",
-                suggestions=[f"Available objects: {available_objects[:10]}..."]
-            )
-        
-        # Create new instance with object-level scope
-        return BayeSEDResults(
-            output_dir=self.output_dir,
-            catalog_name=self.catalog_name,
-            model_config=self._configuration_info.name,
-            object_id=object_id,
-            verbose=self.verbose,
-            validate_on_init=False  # Skip validation for derived instance
-        )
-    
-    def get_access_scope(self) -> AccessScope:
-        """
-        Get current access scope information.
-        
-        Returns
-        -------
-        AccessScope
-            Current access scope details
-        """
-        self._ensure_initialized()
-        return self._access_scope
-    
-    def get_status_report(self) -> Dict[str, Any]:
-        """
-        Get comprehensive status report for debugging.
-        
-        Returns
-        -------
-        Dict[str, Any]
-            Detailed status information
-        """
-        self._ensure_initialized()
-        
-        return {
-            'initialization': {
-                'output_dir': str(self.output_dir),
-                'catalog_name': self.catalog_name,
-                'model_config': self.model_config,
-                'object_id': self.object_id,
-                'initialized': self._initialized
-            },
-            'file_structure': {
-                'output_mode': self._file_structure.output_mode,
-                'hdf5_files': len(self._file_structure.hdf5_files),
-                'has_object_files': self._file_structure.has_object_files()
-            },
-            'configuration': {
-                'name': self._configuration_info.name,
-                'file_path': self._configuration_info.file_path,
-                'file_size_mb': self._configuration_info.get_size_mb(),
-                'object_count': self._configuration_info.object_count,
-                'parameter_count': self._configuration_info.parameter_count
-            },
-            'access_scope': {
-                'scope_type': self._access_scope.scope_type,
-                'catalog_name': self._access_scope.catalog_name,
-                'object_filter': self._access_scope.object_filter,
-                'total_objects': self._access_scope.total_objects,
-                'filtered_objects': self._access_scope.filtered_objects
-            },
-            'components': {
-                'file_discovery': self._file_discovery.is_initialized(),
-                'config_manager': self._config_manager.is_initialized(),
-                'validation_engine': self._validation_engine.is_initialized(),
-                'data_loader': self._data_loader.is_initialized(),
-                'parameter_manager': self._parameter_manager.is_initialized()
-            },
-            'cache_status': self._data_loader.get_cache_status() if self._data_loader.is_initialized() else {}
-        }
-    
-    def clear_cache(self, cache_type: Optional[str] = None) -> None:
-        """
-        Clear caches with scope awareness.
-        
-        Parameters
-        ----------
-        cache_type : str, optional
-            Specific cache type to clear ('data', 'parameters', 'all')
-        """
-        self._ensure_initialized()
-        
-        if cache_type in [None, 'all', 'data']:
-            self._data_loader.clear_cache()
-            
-        if cache_type in [None, 'all', 'parameters']:
-            if self._parameter_manager.is_initialized():
-                self._parameter_manager.clear_cache()
-        
-        self.logger.info(f"Cleared caches: {cache_type or 'all'}")
-    
-    # ========================================================================
-    # Enhanced API Methods - Superior functionality with better performance
-    # ========================================================================
-    
-    def get_evidence(self, object_ids: Optional[List[str]] = None) -> Union[Dict[str, float], float]:
-        """
-        Get Bayesian evidence values with enhanced scope awareness.
-        
-        This enhanced method provides superior functionality compared to the original
-        by supporting both sample-level and object-level access patterns with
-        better error handling and performance.
-        
-        Parameters
-        ----------
-        object_ids : List[str], optional
-            Specific object IDs to get evidence for. If None, uses current scope.
-            
-        Returns
-        -------
-        Dict[str, float] or float
-            Evidence values. Returns dict for sample-level, float for object-level.
-        """
-        self._ensure_initialized()
-        
-        return self._data_loader.get_evidence(
-            object_ids=object_ids,
-            access_scope=self._access_scope
-        )
-    
-    def get_posterior_samples(self, object_id: Optional[str] = None) -> 'astropy.table.Table':
-        """
-        Get posterior samples with enhanced scope awareness and caching.
-        
-        This enhanced method provides superior functionality with better performance
-        through intelligent caching and scope-aware loading.
-        
-        Parameters
-        ----------
-        object_id : str, optional
-            Object ID to get samples for. If None, uses current scope.
+        object_ids : str or List[str], optional
+            Specific object ID(s) to filter. Can be a single string or list of strings.
             
         Returns
         -------
         astropy.table.Table
-            Posterior samples table
+            Sub-table containing ID column and all parameter columns that 
+            start with the given parameter name
         """
-        self._ensure_initialized()
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
         
-        return self._data_loader.get_posterior_samples(
-            object_id=object_id,
-            access_scope=self._access_scope
-        )
-    
-    def get_bestfit_spectrum(self, object_id: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get best-fit spectrum with enhanced validation and error handling.
+        # Find all columns that start with the parameter name
+        available_columns = self._hdf5_table.colnames
+        matching_columns = [col for col in available_columns if col.startswith(parameter_name)]
         
-        This enhanced method provides superior functionality with better error
-        handling and validation compared to the original implementation.
+        if not matching_columns:
+            raise ValueError(
+                f"No columns found starting with '{parameter_name}' in HDF5 table. "
+                f"Available parameter prefixes: {list(set([col.split('_')[0] for col in available_columns if '_' in col and col != 'ID']))[:10]}..."
+            )
         
-        Parameters
-        ----------
-        object_id : str, optional
-            Object ID to get spectrum for. If None, uses current scope.
+        # Create sub-table with ID and all matching parameter columns
+        columns_to_include = ['ID'] + sorted(matching_columns)
+        sub_table = self._hdf5_table[columns_to_include]
+        
+        # Apply object filtering if specified
+        if object_ids is not None:
+            # Convert single string to list for consistent handling
+            if isinstance(object_ids, str):
+                object_ids = [object_ids]
             
+            # Filter table by object IDs
+            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in sub_table['ID']]
+            if any(object_mask):
+                filtered_table = sub_table[object_mask]
+                return filtered_table
+            else:
+                available_objects = [str(obj_id) for obj_id in sub_table['ID']]
+                raise ValueError(f"None of the specified objects {object_ids} found in data. "
+                               f"Available objects: {available_objects}")
+        
+        # Apply scope filtering for object-level access
+        if self.object_id is not None:
+            # Find the specific object
+            object_mask = [str(obj_id) == str(self.object_id) for obj_id in sub_table['ID']]
+            if any(object_mask):
+                return sub_table[object_mask]
+            else:
+                raise ValueError(f"Object '{self.object_id}' not found in data")
+        
+        logger.debug(f"Found {len(matching_columns)} columns for parameter '{parameter_name}': {matching_columns}")
+        
+        # Return sub-table for sample-level access
+        return sub_table
+    
+    def list_objects(self) -> List[str]:
+        """
+        List available objects.
+        
         Returns
         -------
-        Dict[str, Any]
-            Best-fit spectrum data
+        List[str]
+            List of object IDs
         """
-        self._ensure_initialized()
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
         
-        return self._data_loader.get_bestfit_spectrum(
-            object_id=object_id,
-            access_scope=self._access_scope
-        )
+        # Extract object IDs from the table
+        object_ids = [str(obj_id) for obj_id in self._hdf5_table['ID']]
+        
+        # Apply scope filtering for object-level access
+        if self.object_id is not None:
+            if self.object_id in object_ids:
+                return [self.object_id]
+            else:
+                return []
+        
+        return object_ids
     
     def load_hdf5_results(self, filter_snr: bool = True, min_snr: float = 0.0) -> 'astropy.table.Table':
         """
-        Load HDF5 results with enhanced scope filtering and validation.
-        
-        This enhanced method provides superior functionality with scope-aware
-        filtering and better performance compared to the original implementation.
+        Load HDF5 results table with optional SNR filtering.
         
         Parameters
         ----------
@@ -720,92 +487,396 @@ class BayeSEDResults(BaseComponent):
         Returns
         -------
         astropy.table.Table
-            HDF5 results table with scope filtering applied
+            HDF5 results table
         """
-        self._ensure_initialized()
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
         
-        return self._data_loader.load_hdf5_results(
-            filter_snr=filter_snr,
-            min_snr=min_snr,
-            access_scope=self._access_scope
-        )
+        # Apply SNR filtering if requested
+        if filter_snr and 'SNR' in self._hdf5_table.colnames:
+            mask = self._hdf5_table['SNR'] > min_snr
+            filtered_table = self._hdf5_table[mask]
+            logger.info(f"Filtered {len(self._hdf5_table)} objects to {len(filtered_table)} with SNR > {min_snr}")
+        else:
+            filtered_table = self._hdf5_table
+            logger.info(f"Loaded {len(filtered_table)} objects (no SNR filtering)")
+        
+        # Apply object-level filtering if needed
+        if self.object_id is not None:
+            object_mask = [str(obj_id) == str(self.object_id) for obj_id in filtered_table['ID']]
+            if any(object_mask):
+                return filtered_table[object_mask]
+            else:
+                raise ValueError(f"Object '{self.object_id}' not found in data")
+        
+        return filtered_table
     
-    def list_model_configurations(self) -> List[str]:
+    def get_evidence(self, object_ids: Optional[List[str]] = None, 
+                    return_format: str = 'auto') -> Union[Dict[str, float], 'astropy.table.Table', float]:
         """
-        List model configurations with enhanced validation.
-        
-        This enhanced method provides superior functionality with better validation
-        and error messages compared to the original implementation.
-        
-        Returns
-        -------
-        List[str]
-            Sorted list of available configuration names
-        """
-        self._ensure_initialized()
-        
-        return self._config_manager.list_configurations()
-    
-    def get_configuration_summary(self) -> Dict[str, Any]:
-        """
-        Get detailed summary of all model configurations.
-        
-        Returns comprehensive metadata including file sizes, counts, and accessibility.
-        
-        Returns
-        -------
-        Dict[str, Any]
-            Summary information with configuration details
-        """
-        self._ensure_initialized()
-        
-        return self._config_manager.get_configuration_summary()
-    
-    def validate_model_config(self, model_config: Union[str, int]) -> str:
-        """
-        Validate model configuration with enhanced error messages.
-        
-        This enhanced method provides superior functionality with better error
-        messages and suggestions compared to the original implementation.
+        Get Bayesian evidence values in a user-friendly format.
         
         Parameters
         ----------
-        model_config : str or int
-            Model configuration to validate
+        object_ids : str or List[str], optional
+            Specific object ID(s) to get evidence for. Can be a single string or list of strings. 
+            If None, uses current scope.
+        return_format : str, default 'auto'
+            Format for returned data:
+            - 'auto': Smart format based on scope and number of objects
+            - 'table': Always return astropy Table with object IDs
+            - 'dict': Return dictionary format
+            - 'value': Return single evidence value (for single object)
             
         Returns
         -------
-        str
-            Validated configuration name
-        """
-        self._ensure_initialized()
+        Union[Dict[str, float], astropy.table.Table, float]
+            Evidence values in requested format:
+            - Single object: Dict with evidence statistics or single value
+            - Multiple objects: astropy Table with object IDs and evidence
+            
+        Examples
+        --------
+        >>> # Single object (object-level access)
+        >>> evidence = results.get_evidence()  # Returns dict with logZ, logZerr, etc.
+        >>> print(f"Evidence: {evidence['INSlogZ']:.2f} ± {evidence['INSlogZerr']:.2f}")
         
-        return self._config_manager.validate_model_config(model_config)
+        >>> # Multiple objects as table
+        >>> evidence_table = results.get_evidence(return_format='table')
+        >>> print(evidence_table['ID', 'INSlogZ', 'INSlogZerr'])
+        
+        >>> # Just the evidence value for single object
+        >>> logZ = results.get_evidence(return_format='value')  # Returns float
+        """
+        # Load the HDF5 results table
+        hdf5_table = self.load_hdf5_results(filter_snr=False, min_snr=0.0)
+        
+        # Define evidence columns in order of preference
+        evidence_columns = ['INSlogZ', 'logZ', 'INSlogZerr', 'logZerr']
+        available_evidence_cols = [col for col in evidence_columns if col in hdf5_table.colnames]
+        
+        if not available_evidence_cols:
+            raise ValueError(f"No evidence columns found in HDF5 table. "
+                           f"Expected columns: {evidence_columns}")
+        
+        # Apply object filtering if specified
+        if object_ids is not None:
+            # Convert single string to list for consistent handling
+            if isinstance(object_ids, str):
+                object_ids = [object_ids]
+            
+            # Filter table by object IDs
+            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in hdf5_table['ID']]
+            if any(object_mask):
+                filtered_table = hdf5_table[object_mask]
+            else:
+                available_objects = [str(obj_id) for obj_id in hdf5_table['ID']]
+                raise ValueError(f"None of the specified objects {object_ids} found in data. "
+                               f"Available objects: {available_objects}")
+        else:
+            filtered_table = hdf5_table
+        
+        # Determine return format
+        is_single_object = (self.object_id is not None or len(filtered_table) == 1)
+        
+        if return_format == 'auto':
+            if is_single_object:
+                return_format = 'dict'
+            else:
+                return_format = 'table'
+        
+        # Extract relevant columns (ID + evidence columns)
+        columns_to_extract = ['ID'] + available_evidence_cols
+        evidence_table = filtered_table[columns_to_extract]
+        
+        # Return in requested format
+        if return_format == 'table':
+            logger.info(f"Returning evidence table for {len(evidence_table)} objects")
+            return evidence_table
+            
+        elif return_format == 'dict':
+            if is_single_object:
+                # Single object - return clean dictionary
+                row = evidence_table[0]
+                result = {
+                    'object_id': str(row['ID']),
+                    'log_evidence': float(row.get('INSlogZ', row.get('logZ', float('nan')))),
+                    'log_evidence_error': float(row.get('INSlogZerr', row.get('logZerr', float('nan'))))
+                }
+                
+                # Add all available evidence columns
+                for col in available_evidence_cols:
+                    result[col] = float(row[col])
+                
+                logger.info(f"Returning evidence dict for object {result['object_id']}: "
+                          f"logZ = {result['log_evidence']:.2f} ± {result['log_evidence_error']:.2f}")
+                return result
+            else:
+                # Multiple objects - return dict of arrays
+                result = {}
+                for col in available_evidence_cols:
+                    result[col] = evidence_table[col]
+                result['object_ids'] = [str(obj_id) for obj_id in evidence_table['ID']]
+                
+                logger.info(f"Returning evidence dict for {len(evidence_table)} objects")
+                return result
+                
+        elif return_format == 'value':
+            if not is_single_object:
+                raise ValueError("return_format='value' only supported for single object access")
+            
+            row = evidence_table[0]
+            # Return the best available evidence value
+            evidence_value = float(row.get('INSlogZ', row.get('logZ', float('nan'))))
+            
+            logger.info(f"Returning evidence value for object {row['ID']}: {evidence_value:.2f}")
+            return evidence_value
+            
+        else:
+            raise ValueError(f"Invalid return_format '{return_format}'. "
+                           f"Must be one of: 'auto', 'table', 'dict', 'value'")
     
-    def get_getdist_samples(self, object_id: Optional[str] = None) -> 'getdist.MCSamples':
+
+    
+    def get_posterior_samples(self, object_id: Optional[str] = None) -> Any:
         """
-        Get GetDist samples with enhanced caching and parameter management.
-        
-        This enhanced method provides superior functionality with better caching
-        and parameter management compared to the original implementation.
+        Get posterior samples by loading GetDist samples on-demand.
         
         Parameters
         ----------
         object_id : str, optional
-            Object ID to get samples for. If None, uses current scope.
+            Object ID to get samples for
+            
+        Returns
+        -------
+        Any
+            GetDist samples object or astropy Table if GetDist not available
+        """
+        # Determine object to load
+        if object_id is None:
+            if self.object_id is not None:
+                object_id = self.object_id
+            else:
+                # For sample-level access, use first available object with warning
+                objects = self.list_objects()
+                if objects:
+                    object_id = objects[0]
+                    logger.warning(f"No object_id provided for get_posterior_samples. Using first available object: {object_id}")
+                else:
+                    raise ValueError("No objects available for posterior samples")
+        
+        # Find sample files for this object matching the current configuration
+        sample_files = self._find_config_files(object_id, "*_sample_par.txt")
+        paramnames_files = self._find_config_files(object_id, "*_sample_par.paramnames")
+        
+        if not sample_files or not paramnames_files:
+            object_dir = self.output_dir / self.catalog_name / object_id
+            raise FileNotFoundError(f"No sample files found for object {object_id} and config '{self.model_config}' in {object_dir}")
+        
+        # Use the first matching file (should be unique for a given config)
+        sample_file = sample_files[0]
+        paramnames_file = paramnames_files[0]
+        
+        # Extract base name for GetDist (remove .txt suffix, keep _sample_par)
+        base_name = str(sample_file).replace(".txt", "")
+        
+        try:
+            # Try to use GetDist - pass the full base name including _sample_par
+            import getdist
+            samples = getdist.loadMCSamples(base_name)
+            logger.info(f"Loaded GetDist samples for {object_id}: {samples.numrows} samples, {samples.n} parameters")
+            return samples
+            
+        except ImportError:
+            logger.warning("GetDist not available, loading raw sample data")
+            
+            # Fallback: load as astropy Table
+            from astropy.table import Table
+            
+            # Load parameter names
+            param_names = []
+            with open(paramnames_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        param_names.append(line.split()[0])
+            
+            # Load samples
+            samples_data = np.loadtxt(sample_file)
+            
+            # Create astropy Table
+            if len(param_names) == samples_data.shape[1]:
+                samples_table = Table(samples_data, names=param_names)
+            else:
+                # Generic column names if mismatch
+                col_names = [f'param_{i}' for i in range(samples_data.shape[1])]
+                samples_table = Table(samples_data, names=col_names)
+            
+            logger.info(f"Loaded raw samples for {object_id}: {len(samples_table)} samples, {len(samples_table.colnames)} parameters")
+            return samples_table
+    
+    def get_bestfit_spectrum(self, object_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get best-fit spectrum by loading FITS files on-demand.
+        
+        Parameters
+        ----------
+        object_id : str, optional
+            Object ID to get spectrum for
+            
+        Returns
+        -------
+        Dict[str, Any]
+            Best-fit spectrum data loaded from FITS files
+        """
+        # Determine object to load
+        if object_id is None:
+            if self.object_id is not None:
+                object_id = self.object_id
+            else:
+                # For sample-level access, use first available object with warning
+                objects = self.list_objects()
+                if objects:
+                    object_id = objects[0]
+                    logger.warning(f"No object_id provided for get_bestfit_spectrum. Using first available object: {object_id}")
+                else:
+                    raise ValueError("No objects available for best-fit spectrum")
+        
+        # Find FITS files for this object matching the current configuration
+        fits_files = self._find_config_files(object_id, "*_bestfit.fits")
+        
+        if not fits_files:
+            object_dir = self.output_dir / self.catalog_name / object_id
+            raise FileNotFoundError(f"No bestfit FITS files found for object {object_id} and config '{self.model_config}' in {object_dir}")
+        
+        try:
+            from astropy.io import fits
+            
+            spectrum_data = {}
+            
+            # Load all FITS files for this object
+            for i, fits_file in enumerate(fits_files):
+                config_name = fits_file.stem.replace("_bestfit", "")
+                
+                with fits.open(fits_file) as hdul:
+                    file_data = {}
+                    for j, hdu in enumerate(hdul):
+                        if hdu.data is not None:
+                            file_data[f'hdu_{j}'] = {
+                                'data': hdu.data,
+                                'header': dict(hdu.header) if hdu.header else {}
+                            }
+                    
+                    spectrum_data[config_name] = file_data
+                
+                logger.debug(f"Loaded FITS file: {fits_file.name}")
+            
+            logger.info(f"Loaded bestfit spectrum for {object_id}: {len(fits_files)} FITS files")
+            return spectrum_data
+            
+        except ImportError:
+            raise ImportError("astropy is required for FITS file loading. Install with: pip install astropy")
+    
+    def get_getdist_samples(self, object_id: Optional[str] = None) -> Any:
+        """
+        Get GetDist samples with parameter management.
+        
+        Parameters
+        ----------
+        object_id : str, optional
+            Object ID to get samples for
             
         Returns
         -------
         getdist.MCSamples
             GetDist samples object
         """
-        self._ensure_initialized()
+        # Determine object to load
+        if object_id is None:
+            if self.object_id is not None:
+                object_id = self.object_id
+            else:
+                # For sample-level access, use first available object with warning
+                objects = self.list_objects()
+                if objects:
+                    object_id = objects[0]
+                    logger.warning(f"No object_id provided for get_getdist_samples. Using first available object: {object_id}")
+                else:
+                    raise ValueError("No objects available for GetDist samples")
         
-        return self._data_loader.get_getdist_samples(
-            object_id=object_id,
-            access_scope=self._access_scope,
-            parameter_manager=self._parameter_manager
-        )
+        # Find sample files for this object matching the current configuration
+        sample_files = self._find_config_files(object_id, "*_sample_par.txt")
+        paramnames_files = self._find_config_files(object_id, "*_sample_par.paramnames")
+        
+        if not sample_files or not paramnames_files:
+            object_dir = self.output_dir / self.catalog_name / object_id
+            raise FileNotFoundError(f"No sample files found for object {object_id} and config '{self.model_config}' in {object_dir}")
+        
+        # Use the first matching file (should be unique for a given config)
+        sample_file = sample_files[0]
+        paramnames_file = paramnames_files[0]
+        
+        # Extract base name for GetDist (remove .txt suffix, keep _sample_par)
+        base_name = str(sample_file).replace(".txt", "")
+        
+        try:
+            # Try to use GetDist - pass the full base name including _sample_par
+            import getdist
+            from getdist import MCSamples
+            
+            samples = getdist.loadMCSamples(base_name)
+            
+            # Apply parameter labeling if custom labels are set
+            if hasattr(self, '_custom_labels') and self._custom_labels:
+                # Get the parameter names and labels
+                param_names = [param.name for param in samples.paramNames.names]
+                param_labels = [param.label for param in samples.paramNames.names]
+                
+                # Apply custom labels
+                updated_labels = []
+                for i, name in enumerate(param_names):
+                    if name in self._custom_labels:
+                        updated_labels.append(self._custom_labels[name])
+                    else:
+                        updated_labels.append(param_labels[i])
+                
+                # Create new MCSamples with custom labels
+                new_samples = MCSamples(
+                    samples=samples.samples,
+                    names=param_names,
+                    labels=updated_labels,
+                    weights=getattr(samples, 'weights', None),
+                    loglikes=getattr(samples, 'loglikes', None),
+                    name_tag=getattr(samples, 'name_tag', None),
+                    label=getattr(samples, 'label', None)
+                )
+                
+                # Copy other important attributes if they exist
+                if hasattr(samples, 'ranges'):
+                    new_samples.ranges = samples.ranges
+                if hasattr(samples, 'sampler'):
+                    new_samples.sampler = samples.sampler
+                
+                samples = new_samples
+            
+            logger.info(f"Loaded GetDist samples for {object_id}: {samples.numrows} samples, {samples.n} parameters")
+            return samples
+            
+        except ImportError:
+            raise ImportError("GetDist is required for GetDist samples. Install with: pip install getdist")
+    
+    def set_parameter_labels(self, custom_labels: Dict[str, str]) -> None:
+        """
+        Set custom parameter labels for plotting.
+        
+        Parameters
+        ----------
+        custom_labels : Dict[str, str]
+            Dictionary mapping parameter names to LaTeX labels
+        """
+        # Store custom labels for use in GetDist plotting
+        self._custom_labels = custom_labels.copy()
+        logger.info(f"Set custom labels for {len(custom_labels)} parameters")
     
     def plot_posterior(self, params: Optional[List[str]] = None, 
                       object_id: Optional[str] = None,
@@ -813,10 +884,7 @@ class BayeSEDResults(BaseComponent):
                       show: bool = True, output_file: Optional[str] = None,
                       **kwargs) -> Any:
         """
-        Plot posterior distributions with enhanced functionality.
-        
-        This enhanced method provides superior functionality with better parameter
-        handling, scope awareness, and plotting options compared to the original.
+        Plot posterior distributions using GetDist.
         
         Parameters
         ----------
@@ -840,22 +908,20 @@ class BayeSEDResults(BaseComponent):
         Any
             Plot object (depends on method)
         """
-        self._ensure_initialized()
-        
         # Handle object_id selection
         if object_id is None:
-            if self._access_scope.is_object_level() and self._access_scope.object_filter:
-                object_id = self._access_scope.object_filter
+            if self.object_id is not None:
+                object_id = self.object_id
             else:
-                # For sample-level access or when no object in scope, use first available object with warning
+                # For sample-level access, use first available object with warning
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    self.logger.warning(f"No object_id provided for plot_posterior. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for plot_posterior. Using first available object: {object_id}")
                 else:
-                    raise DataLoadingError("No objects available for plotting")
+                    raise ValueError("No objects available for plotting")
         
-        # Get samples using enhanced method
+        # Get samples using GetDist
         samples = self.get_getdist_samples(object_id=object_id)
         
         # Use default parameters if none specified
@@ -887,7 +953,7 @@ class BayeSEDResults(BaseComponent):
                 import matplotlib.pyplot as plt
                 plt.show()
             except Exception as e:
-                self.logger.warning(f"Could not display plot: {e}")
+                logger.warning(f"Could not display plot: {e}")
         
         return g
     
@@ -895,10 +961,7 @@ class BayeSEDResults(BaseComponent):
                     output_file: Optional[str] = None, show: bool = True,
                     **kwargs) -> Any:
         """
-        Plot best-fit SED with enhanced functionality.
-        
-        This enhanced method provides superior functionality with better error
-        handling and plotting options compared to the original implementation.
+        Plot best-fit SED using the bayesed.plotting module.
         
         Parameters
         ----------
@@ -916,29 +979,32 @@ class BayeSEDResults(BaseComponent):
         Any
             Plot object
         """
-        self._ensure_initialized()
-        
         # Determine object to plot
         if object_id is None:
-            if self._access_scope.is_object_level() and self._access_scope.object_filter:
-                object_id = self._access_scope.object_filter
+            if self.object_id is not None:
+                object_id = self.object_id
             else:
                 # For sample-level access, use first available object with warning
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    self.logger.warning(f"No object_id provided for plot_bestfit. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for plot_bestfit. Using first available object: {object_id}")
                 else:
-                    raise DataLoadingError("No objects available for plotting best-fit spectrum")
+                    raise ValueError("No objects available for plotting best-fit spectrum")
         
-        # Get bestfit file path instead of loaded data
-        bestfit_files = self._data_loader._find_bestfit_files(object_id)
+        # Find bestfit FITS files for this object
+        object_dir = self.output_dir / self.catalog_name / object_id
+        if not object_dir.exists():
+            raise FileNotFoundError(f"Object directory not found: {object_dir}")
         
-        if not bestfit_files:
-            raise DataLoadingError(f"No best-fit files found for object '{object_id}'")
+        # Look for bestfit FITS files
+        fits_files = list(object_dir.glob("*_bestfit.fits"))
+        
+        if not fits_files:
+            raise FileNotFoundError(f"No bestfit FITS files found for object {object_id} in {object_dir}")
         
         # Use the first bestfit file (there should typically be only one)
-        fits_file = bestfit_files[0]
+        fits_file = fits_files[0]
         
         # Import plotting function
         from ..plotting import plot_bestfit
@@ -948,76 +1014,11 @@ class BayeSEDResults(BaseComponent):
         
         return fig
     
-    def compute_parameter_correlations(self, params: Optional[List[str]] = None,
-                                     object_ids: Optional[List[str]] = None) -> 'numpy.ndarray':
-        """
-        Compute parameter correlations with enhanced scope awareness.
-        
-        This is a new enhanced method that provides superior functionality for
-        computing parameter correlations across different scopes.
-        
-        Parameters
-        ----------
-        params : List[str], optional
-            Parameters to compute correlations for. If None, uses free parameters.
-        object_ids : List[str], optional
-            Object IDs to include. If None, uses current scope.
-            
-        Returns
-        -------
-        numpy.ndarray
-            Correlation matrix
-        """
-        self._ensure_initialized()
-        
-        if not self._access_scope.is_sample_level():
-            raise BayeSEDResultsError(
-                "Parameter correlations require sample-level access",
-                suggestions=["Use sample-level initialization without object_id parameter"]
-            )
-        
-        return self._data_loader.compute_parameter_correlations(
-            params=params or self.get_free_parameters(),
-            object_ids=object_ids,
-            access_scope=self._access_scope
-        )
-    
-    def get_parameter_statistics(self, params: Optional[List[str]] = None,
-                               object_ids: Optional[List[str]] = None) -> Dict[str, Dict[str, float]]:
-        """
-        Get parameter statistics with enhanced scope awareness.
-        
-        This is a new enhanced method that provides superior functionality for
-        computing parameter statistics across different scopes.
-        
-        Parameters
-        ----------
-        params : List[str], optional
-            Parameters to compute statistics for. If None, uses free parameters.
-        object_ids : List[str], optional
-            Object IDs to include. If None, uses current scope.
-            
-        Returns
-        -------
-        Dict[str, Dict[str, float]]
-            Parameter statistics (mean, std, median, etc.)
-        """
-        self._ensure_initialized()
-        
-        return self._data_loader.get_parameter_statistics(
-            params=params or self.get_free_parameters(),
-            object_ids=object_ids,
-            access_scope=self._access_scope
-        )
-    
     def plot_posterior_free(self, output_file: Optional[str] = None, 
                            show: bool = True, object_id: Optional[str] = None,
                            **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for free parameters.
-        
-        Enhanced plotting method for free parameter posteriors with scope awareness.
-        Note: This method requires GetDist sample files to be available.
         
         Parameters
         ----------
@@ -1035,41 +1036,33 @@ class BayeSEDResults(BaseComponent):
         Any
             Plot object
         """
-        self._ensure_initialized()
-        
         try:
             # Handle object_id selection
             if object_id is None:
-                if self._access_scope.is_object_level() and self._access_scope.object_filter:
-                    object_id = self._access_scope.object_filter
+                if self.object_id is not None:
+                    object_id = self.object_id
                 else:
-                    # For sample-level access or when no object in scope, use first available object with warning
+                    # For sample-level access, use first available object with warning
                     objects = self.list_objects()
                     if objects:
                         object_id = objects[0]
-                        self.logger.warning(f"No object_id provided for plot_posterior_free. Using first available object: {object_id}")
+                        logger.warning(f"No object_id provided for plot_posterior_free. Using first available object: {object_id}")
                     else:
-                        raise DataLoadingError("No objects available for plotting")
+                        raise ValueError("No objects available for plotting")
             
             free_params = self.get_free_parameters()
             
             # Filter parameters to only include those available and varying in GetDist samples
-            # Use the object_id we have (either passed in or determined above)
-            current_object_id = object_id
-            if current_object_id is None and self._access_scope.is_object_level():
-                # For object-level access, use the object from the scope
-                current_object_id = self._access_scope.object_filter
-            
-            if current_object_id:
+            if object_id:
                 try:
-                    samples = self.get_getdist_samples(object_id=current_object_id)
+                    samples = self.get_getdist_samples(object_id=object_id)
                     getdist_names = [p.name for p in samples.paramNames.names]
                     
                     # Filter out missing and fixed parameters
                     varying_params = []
                     for param_name in free_params:
                         if param_name not in getdist_names:
-                            self.logger.debug(f"Excluding missing parameter: {param_name}")
+                            logger.debug(f"Excluding missing parameter: {param_name}")
                             continue
                             
                         # Check if parameter actually varies
@@ -1081,19 +1074,19 @@ class BayeSEDResults(BaseComponent):
                         if np.var(param_samples) > 1e-10:  # Small threshold for numerical precision
                             varying_params.append(param_name)
                         else:
-                            self.logger.debug(f"Excluding fixed parameter: {param_name} (variance: {np.var(param_samples)})")
+                            logger.debug(f"Excluding fixed parameter: {param_name} (variance: {np.var(param_samples)})")
                     
                     free_params = varying_params
-                    self.logger.debug(f"Filtered to {len(free_params)} varying free parameters available in GetDist samples")
+                    logger.debug(f"Filtered to {len(free_params)} varying free parameters available in GetDist samples")
                 except Exception as e:
-                    self.logger.warning(f"Could not filter parameters: {e}")
+                    logger.warning(f"Could not filter parameters: {e}")
             
             return self.plot_posterior(params=free_params, object_id=object_id,
                                      output_file=output_file, show=show, **kwargs)
-        except DataLoadingError as e:
-            if "GetDist samples" in str(e) or "No chains found" in str(e):
-                self.logger.warning(f"GetDist plotting not available: {e}")
-                self.logger.info("Consider using individual parameter plotting or ensure GetDist-compatible sample files exist")
+        except Exception as e:
+            if "GetDist" in str(e) or "No chains found" in str(e):
+                logger.warning(f"GetDist plotting not available: {e}")
+                logger.info("Consider using individual parameter plotting or ensure GetDist-compatible sample files exist")
                 # Return a placeholder or simple message
                 print(f"Free parameters ({len(self.get_free_parameters())}): {self.get_free_parameters()}")
                 return None
@@ -1106,9 +1099,6 @@ class BayeSEDResults(BaseComponent):
                               **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for derived parameters.
-        
-        Enhanced plotting method for derived parameter posteriors with scope awareness.
-        Note: This method requires GetDist sample files to be available.
         
         Parameters
         ----------
@@ -1128,21 +1118,19 @@ class BayeSEDResults(BaseComponent):
         Any
             Plot object
         """
-        self._ensure_initialized()
-        
         try:
             # Handle object_id selection
             if object_id is None:
-                if self._access_scope.is_object_level() and self._access_scope.object_filter:
-                    object_id = self._access_scope.object_filter
+                if self.object_id is not None:
+                    object_id = self.object_id
                 else:
-                    # For sample-level access or when no object in scope, use first available object with warning
+                    # For sample-level access, use first available object with warning
                     objects = self.list_objects()
                     if objects:
                         object_id = objects[0]
-                        self.logger.warning(f"No object_id provided for plot_posterior_derived. Using first available object: {object_id}")
+                        logger.warning(f"No object_id provided for plot_posterior_derived. Using first available object: {object_id}")
                     else:
-                        raise DataLoadingError("No objects available for plotting")
+                        raise ValueError("No objects available for plotting")
             
             derived_params = self.get_derived_parameters()
             
@@ -1152,9 +1140,9 @@ class BayeSEDResults(BaseComponent):
                     samples = self.get_getdist_samples(object_id=object_id)
                     getdist_names = [p.name for p in samples.paramNames.names]
                     derived_params = [p for p in derived_params if p in getdist_names]
-                    self.logger.debug(f"Filtered to {len(derived_params)} derived parameters available in GetDist samples")
+                    logger.debug(f"Filtered to {len(derived_params)} derived parameters available in GetDist samples")
                 except Exception as e:
-                    self.logger.warning(f"Could not filter parameters: {e}")
+                    logger.warning(f"Could not filter parameters: {e}")
             
             # Limit to max_params if specified
             if max_params and len(derived_params) > max_params:
@@ -1162,33 +1150,27 @@ class BayeSEDResults(BaseComponent):
                 
             return self.plot_posterior(params=derived_params, object_id=object_id,
                                      output_file=output_file, show=show, **kwargs)
-        except DataLoadingError as e:
-            if "GetDist samples" in str(e) or "No chains found" in str(e):
-                self.logger.warning(f"GetDist plotting not available: {e}")
-                self.logger.info("Consider using individual parameter plotting or ensure GetDist-compatible sample files exist")
+        except Exception as e:
+            if "GetDist" in str(e) or "No chains found" in str(e):
+                logger.warning(f"GetDist plotting not available: {e}")
+                logger.info("Consider using individual parameter plotting or ensure GetDist-compatible sample files exist")
                 # Return a placeholder or simple message
                 limited_params = self.get_derived_parameters()[:max_params] if max_params else self.get_derived_parameters()
                 print(f"Derived parameters ({len(limited_params)}): {limited_params}")
                 return None
             else:
                 raise
-
-    # ========================================================================
-    # Utility Methods
-    # ========================================================================
     
     def print_summary(self) -> None:
-        """Print a comprehensive summary of the loaded results."""
-        self._ensure_initialized()
-        
+        """Print a summary of the loaded results."""
         print("=" * 60)
-        print("BayeSEDResults Summary")
+        print("BayeSEDResults Summary (Simplified)")
         print("=" * 60)
         print(f"Output Directory: {self.output_dir}")
         print(f"Catalog: {self.catalog_name}")
-        print(f"Configuration: {self._configuration_info.name}")
-        print(f"Access Scope: {self._access_scope.get_scope_description()}")
-        print(f"Output Mode: {self._file_structure.output_mode}")
+        print(f"HDF5 File: {Path(self._hdf5_file).name}")
+        if self.object_id:
+            print(f"Object ID: {self.object_id}")
         print()
         
         # Parameter summary
@@ -1221,40 +1203,295 @@ class BayeSEDResults(BaseComponent):
     
     def __repr__(self) -> str:
         """String representation of BayeSEDResults."""
-        if not self._initialized:
-            return f"BayeSEDResults(uninitialized, output_dir='{self.output_dir}')"
-        
-        scope_desc = self._access_scope.get_scope_description()
-        return f"BayeSEDResults(catalog='{self.catalog_name}', {scope_desc})"
+        if self.object_id:
+            return f"BayeSEDResults(catalog='{self.catalog_name}', object_id='{self.object_id}')"
+        else:
+            return f"BayeSEDResults(catalog='{self.catalog_name}', sample-level)"
     
     def __str__(self) -> str:
         """Human-readable string representation."""
         return self.__repr__()
     
-    def _ensure_initialized(self) -> None:
-        """Ensure the system is properly initialized."""
-        if not hasattr(self, '_initialized') or not self._initialized:
-            raise BayeSEDResultsError(
-                "BayeSEDResults not properly initialized",
-                suggestions=["Check initialization parameters and try again"]
-            )
+    # ========================================================================
+    # Additional Methods - Missing from original implementation
+    # ========================================================================
     
-    def set_verbosity(self, level: int) -> None:
+    def compute_parameter_correlations(self, params: Optional[List[str]] = None,
+                                     object_ids: Optional[Union[str, List[str]]] = None) -> 'numpy.ndarray':
         """
-        Set logging verbosity level.
+        Compute parameter correlation matrix.
         
         Parameters
         ----------
-        level : int
-            Verbosity level: 0 (quiet), 1 (normal), 2 (verbose)
+        params : List[str], optional
+            Parameters to compute correlations for. If None, uses free parameters.
+        object_ids : List[str], optional
+            Object IDs to include. If None, uses current scope.
+            
+        Returns
+        -------
+        numpy.ndarray
+            Correlation matrix
         """
-        from .logger import set_global_verbosity
-        set_global_verbosity(level)
+        import numpy as np
+        
+        # Use free parameters if none specified
+        if params is None:
+            params = self.get_free_parameters()
+        
+        if not params:
+            raise ValueError("No parameters available for correlation computation")
+        
+        # Get HDF5 table with appropriate filtering
+        hdf5_table = self.load_hdf5_results(filter_snr=False, min_snr=0.0)
+        
+        # Apply object filtering if specified
+        if object_ids is not None:
+            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in hdf5_table['ID']]
+            if any(object_mask):
+                hdf5_table = hdf5_table[object_mask]
+            else:
+                raise ValueError("None of the specified objects found in data")
+        
+        # Extract parameter data
+        param_data = []
+        available_params = []
+        
+        for param in params:
+            # Find columns that match this parameter (handle statistical estimates)
+            matching_cols = [col for col in hdf5_table.colnames if col.startswith(param)]
+            
+            if matching_cols:
+                # Use the first matching column (could be enhanced to use specific estimates)
+                col_name = matching_cols[0]
+                param_data.append(hdf5_table[col_name])
+                available_params.append(param)
+            else:
+                logger.warning(f"Parameter '{param}' not found in HDF5 data, skipping")
+        
+        if len(available_params) < 2:
+            raise ValueError(f"Need at least 2 parameters for correlation computation, found {len(available_params)}")
+        
+        # Convert to numpy array and compute correlation matrix
+        data_matrix = np.column_stack(param_data)
+        correlation_matrix = np.corrcoef(data_matrix.T)
+        
+        logger.info(f"Computed correlation matrix for {len(available_params)} parameters across {len(hdf5_table)} objects")
+        
+        return correlation_matrix
     
-    def enable_verbose_logging(self) -> None:
-        """Enable verbose logging for debugging."""
-        self.set_verbosity(2)
+    def get_parameter_statistics(self, params: Optional[List[str]] = None,
+                               object_ids: Optional[List[str]] = None) -> Dict[str, Dict[str, float]]:
+        """
+        Get parameter statistics (mean, std, percentiles, etc.).
+        
+        Parameters
+        ----------
+        params : List[str], optional
+            Parameters to compute statistics for. If None, uses free parameters.
+        object_ids : List[str], optional
+            Object IDs to include. If None, uses current scope.
+            
+        Returns
+        -------
+        Dict[str, Dict[str, float]]
+            Dictionary with parameter names as keys and statistics as values
+        """
+        import numpy as np
+        
+        # Use free parameters if none specified
+        if params is None:
+            params = self.get_free_parameters()
+        
+        if not params:
+            raise ValueError("No parameters available for statistics computation")
+        
+        # Get HDF5 table with appropriate filtering
+        hdf5_table = self.load_hdf5_results(filter_snr=False, min_snr=0.0)
+        
+        # Apply object filtering if specified
+        if object_ids is not None:
+            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in hdf5_table['ID']]
+            if any(object_mask):
+                hdf5_table = hdf5_table[object_mask]
+            else:
+                raise ValueError("None of the specified objects found in data")
+        
+        # Compute statistics for each parameter
+        statistics = {}
+        
+        for param in params:
+            # Find columns that match this parameter (handle statistical estimates)
+            matching_cols = [col for col in hdf5_table.colnames if col.startswith(param)]
+            
+            if matching_cols:
+                # Use the first matching column (could be enhanced to use specific estimates)
+                col_name = matching_cols[0]
+                param_values = np.array(hdf5_table[col_name])
+                
+                # Remove any NaN or infinite values
+                valid_mask = np.isfinite(param_values)
+                if np.any(valid_mask):
+                    valid_values = param_values[valid_mask]
+                    
+                    param_stats = {
+                        'count': len(valid_values),
+                        'mean': float(np.mean(valid_values)),
+                        'std': float(np.std(valid_values)),
+                        'min': float(np.min(valid_values)),
+                        'max': float(np.max(valid_values)),
+                        'median': float(np.median(valid_values)),
+                        'p16': float(np.percentile(valid_values, 16)),
+                        'p84': float(np.percentile(valid_values, 84)),
+                        'p25': float(np.percentile(valid_values, 25)),
+                        'p75': float(np.percentile(valid_values, 75))
+                    }
+                    
+                    statistics[param] = param_stats
+                else:
+                    logger.warning(f"No valid values found for parameter '{param}'")
+            else:
+                logger.warning(f"Parameter '{param}' not found in HDF5 data, skipping")
+        
+        logger.info(f"Computed statistics for {len(statistics)} parameters across {len(hdf5_table)} objects")
+        
+        return statistics
     
-    def enable_quiet_logging(self) -> None:
-        """Enable quiet logging (default) - only warnings and errors."""
-        self.set_verbosity(0)
+    def rename_parameters(self, parameter_mapping: Dict[str, str]) -> None:
+        """
+        Rename parameters for consistency (simplified implementation).
+        
+        Note: In the simplified implementation, this updates the custom labels
+        used for plotting rather than modifying the underlying data.
+        
+        Parameters
+        ----------
+        parameter_mapping : Dict[str, str]
+            Dictionary mapping old parameter names to new names
+        """
+        # In simplified implementation, we update the custom labels
+        if not hasattr(self, '_custom_labels'):
+            self._custom_labels = {}
+        
+        # Apply the parameter mapping to custom labels
+        for old_name, new_name in parameter_mapping.items():
+            self._custom_labels[old_name] = new_name
+        
+        logger.info(f"Applied parameter renaming for {len(parameter_mapping)} parameters")
+        logger.debug(f"Parameter mapping: {parameter_mapping}")
+    
+    def list_model_configurations(self) -> List[str]:
+        """
+        List available model configurations for the current catalog.
+        
+        Returns
+        -------
+        List[str]
+            List of configuration names that belong to the current catalog
+        """
+        if not self.catalog_name:
+            raise ValueError("Cannot list configurations without a catalog name")
+        
+        # Look for HDF5 files that match the catalog pattern: {catalog_name}_{config}.hdf5
+        pattern = f"{self.catalog_name}_*.hdf5"
+        hdf5_files = list(self.output_dir.glob(pattern))
+        
+        configurations = []
+        for hdf5_file in hdf5_files:
+            # Extract configuration name from filename
+            filename = hdf5_file.stem
+            # Remove catalog name prefix: "gal_config" -> "config"
+            if filename.startswith(self.catalog_name + '_'):
+                config_name = filename[len(self.catalog_name) + 1:]
+                configurations.append(config_name)
+        
+        # Sort configurations for consistent ordering
+        configurations.sort()
+        
+        logger.info(f"Found {len(configurations)} model configurations for catalog '{self.catalog_name}'")
+        return configurations
+    
+    def get_configuration_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of model configurations for the current catalog.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Summary of available configurations for the current catalog
+        """
+        configurations = self.list_model_configurations()
+        
+        # Extract current configuration name from the loaded HDF5 file
+        current_config = None
+        if self._hdf5_file:
+            filename = Path(self._hdf5_file).stem
+            if filename.startswith(self.catalog_name + '_'):
+                current_config = filename[len(self.catalog_name) + 1:]
+        
+        summary = {
+            'catalog_name': self.catalog_name,
+            'total_configurations': len(configurations),
+            'configurations': configurations,
+            'current_configuration': current_config,
+            'output_directory': str(self.output_dir),
+            'hdf5_file': Path(self._hdf5_file).name if self._hdf5_file else None
+        }
+        
+        return summary
+    
+    def validate_model_config(self, model_config: Union[str, int]) -> str:
+        """
+        Validate model configuration and return the full configuration name.
+        
+        Parameters
+        ----------
+        model_config : str or int
+            Model configuration to validate (name or index)
+            
+        Returns
+        -------
+        str
+            Full configuration name if valid
+            
+        Raises
+        ------
+        ValueError
+            If the model configuration is not found
+        """
+        if not self.catalog_name:
+            raise ValueError("Cannot validate model config without a catalog name")
+        
+        # Get available configurations
+        available_configs = self.list_model_configurations()
+        
+        if not available_configs:
+            raise ValueError(f"No model configurations found for catalog '{self.catalog_name}'")
+        
+        if isinstance(model_config, int):
+            # Integer index
+            if 0 <= model_config < len(available_configs):
+                return available_configs[model_config]
+            else:
+                raise ValueError(f"Model config index {model_config} out of range. "
+                               f"Available configs (0-{len(available_configs)-1}): {available_configs}")
+        
+        else:
+            # String name
+            model_config_str = str(model_config)
+            
+            # Check for exact match
+            if model_config_str in available_configs:
+                return model_config_str
+            
+            # Check for partial match
+            matches = [config for config in available_configs if model_config_str in config]
+            
+            if len(matches) == 1:
+                return matches[0]
+            elif len(matches) > 1:
+                raise ValueError(f"Ambiguous model config '{model_config_str}'. "
+                               f"Multiple matches found: {matches}")
+            else:
+                raise ValueError(f"Model config '{model_config_str}' not found for catalog '{self.catalog_name}'. "
+                               f"Available configs: {available_configs}")

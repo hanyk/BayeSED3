@@ -1,25 +1,25 @@
 """
 Utility functions for BayeSEDResults operations.
 
-This module provides utility functions that work with the enhanced BayeSEDResults
-implementation, including functions for file discovery and posterior comparison plotting.
+This module provides utility functions that work with the simplified BayeSEDResults
+implementation, including functions for posterior comparison plotting and parameter standardization.
 """
 
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 import logging
 
-from .file_discovery import FileDiscovery
-from .configuration_manager import ConfigurationManager
-from .logger import get_logger
+# Set up simple logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def list_catalog_names(output_dir: str) -> List[str]:
     """
     List available catalog names in an output directory.
     
-    This function uses the enhanced FileDiscovery component to discover
-    available catalogs in a BayeSED output directory.
+    This function discovers available catalogs by looking for HDF5 files
+    in the output directory and extracting catalog names from filenames.
     
     Parameters
     ----------
@@ -36,13 +36,25 @@ def list_catalog_names(output_dir: str) -> List[str]:
     >>> catalogs = list_catalog_names('output')
     >>> print(f"Available catalogs: {catalogs}")
     """
-    logger = get_logger('list_catalog_names').get_logger()
-    file_discovery = FileDiscovery(logger)
-    
     try:
-        file_discovery.initialize(base_path=output_dir)
-        file_structure = file_discovery.discover_files(output_dir)
-        return file_discovery.list_catalogs()
+        output_path = Path(output_dir)
+        if not output_path.exists():
+            logger.error(f"Output directory does not exist: {output_dir}")
+            return []
+        
+        # Find HDF5 files and extract catalog names
+        hdf5_files = list(output_path.glob("*.hdf5"))
+        catalog_names = set()
+        
+        for hdf5_file in hdf5_files:
+            # Extract catalog name (part before first underscore)
+            filename = hdf5_file.stem
+            if '_' in filename:
+                catalog_name = filename.split('_')[0]
+                catalog_names.add(catalog_name)
+        
+        return sorted(list(catalog_names))
+        
     except Exception as e:
         logger.error(f"Failed to discover catalogs in {output_dir}: {e}")
         return []
@@ -52,8 +64,8 @@ def list_model_configs(output_dir: str, catalog_name: str) -> List[str]:
     """
     List available model configurations for a catalog.
     
-    This function uses the enhanced ConfigurationManager component to discover
-    available model configurations for a specific catalog.
+    This function discovers available model configurations by looking for
+    HDF5 files matching the catalog name pattern.
     
     Parameters
     ----------
@@ -69,23 +81,29 @@ def list_model_configs(output_dir: str, catalog_name: str) -> List[str]:
         
     Examples
     --------
-    >>> configs = list_model_configs('output', 'galaxies')
+    >>> configs = list_model_configs('output', 'gal')
     >>> print(f"Available configurations: {configs}")
     """
-    logger = get_logger('list_model_configs').get_logger()
-    file_discovery = FileDiscovery(logger)
-    config_manager = ConfigurationManager(logger)
-    
     try:
-        file_discovery.initialize(base_path=output_dir)
-        file_structure = file_discovery.discover_files(output_dir)
+        output_path = Path(output_dir)
+        if not output_path.exists():
+            logger.error(f"Output directory does not exist: {output_dir}")
+            return []
         
-        config_manager.initialize(
-            file_structure=file_structure,
-            catalog_name=catalog_name
-        )
+        # Find HDF5 files matching the catalog pattern
+        catalog_pattern = f"{catalog_name}_*.hdf5"
+        catalog_files = list(output_path.glob(catalog_pattern))
         
-        return config_manager.list_configurations()
+        config_names = []
+        for hdf5_file in catalog_files:
+            # Extract config name (part after catalog name and underscore)
+            filename = hdf5_file.stem
+            if filename.startswith(catalog_name + '_'):
+                config_name = filename[len(catalog_name) + 1:]
+                config_names.append(config_name)
+        
+        return sorted(config_names)
+        
     except Exception as e:
         logger.error(f"Failed to discover configurations for {catalog_name} in {output_dir}: {e}")
         return []
@@ -318,11 +336,15 @@ def standardize_parameter_names(
     # Collect original parameter names from GetDist samples for each result
     samples_param_names: List[List[str]] = []
     for result in results_list:
-        samples = result.get_getdist_samples()
         try:
+            samples = result.get_getdist_samples()
             names = [p.name for p in samples.paramNames.names]
         except Exception:
-            names = []
+            # Fallback to free parameters if GetDist samples not available
+            try:
+                names = result.get_free_parameters()
+            except Exception:
+                names = []
         samples_param_names.append(names)
 
     # If no standard names provided, create them based on remove_component_ids setting
@@ -341,109 +363,17 @@ def standardize_parameter_names(
             reference_names = samples_param_names[0] if samples_param_names else []
             standard_names = {normalize_param_name(p): p for p in reference_names}
 
-    # Rename parameters in all results based on their GetDist names
+    # Rename parameters in all results based on their parameter names
     for result, names in zip(results_list, samples_param_names):
         mapping: Dict[str, str] = {}
         
-        # Get paramnames file names for this result to handle * suffix for derived parameters
-        paramnames_names = []
-        try:
-            # Access the paramnames file through the result's data loader
-            if hasattr(result, '_data_loader') and hasattr(result._data_loader, '_file_structure'):
-                file_structure = result._data_loader._file_structure
-                # Get the object_id from the result's access scope
-                object_id = None
-                if hasattr(result, '_access_scope') and result._access_scope.is_object_level():
-                    object_id = result._access_scope.object_filter
-                
-                # Get the configuration name
-                config_name = None
-                if hasattr(result, '_configuration_info') and result._configuration_info:
-                    config_name = result._configuration_info.name
-                
-                if file_structure.posterior_files:
-                    # Structure: posterior_files[object_id][base_name][file_type] = path
-                    # Find the paramnames file for the current object and configuration
-                    target_obj_id = object_id
-                    if target_obj_id and target_obj_id in file_structure.posterior_files:
-                        # Use the specific object_id
-                        base_names_dict = file_structure.posterior_files[target_obj_id]
-                        # base_names_dict is: base_name -> file_type -> path
-                        for base_name, file_types in base_names_dict.items():
-                            # Check if this matches the selected configuration
-                            if config_name and config_name not in base_name:
-                                continue
-                            if 'paramnames' in file_types:
-                                paramnames_file = file_types['paramnames']
-                                import os
-                                if os.path.exists(paramnames_file):
-                                    with open(paramnames_file, 'r') as f:
-                                        for line in f:
-                                            if line.strip():
-                                                paramnames_names.append(line.strip().split()[0])
-                                    break
-                        if not paramnames_names and base_names_dict:
-                            # Fallback: use first available config for this object
-                            first_base_name = list(base_names_dict.keys())[0]
-                            first_file_types = base_names_dict[first_base_name]
-                            if 'paramnames' in first_file_types:
-                                paramnames_file = first_file_types['paramnames']
-                                import os
-                                if os.path.exists(paramnames_file):
-                                    with open(paramnames_file, 'r') as f:
-                                        for line in f:
-                                            if line.strip():
-                                                paramnames_names.append(line.strip().split()[0])
-                    else:
-                        # Fallback: use first object if object_id not specified or not found
-                        for obj_id, base_names_dict in file_structure.posterior_files.items():
-                            # base_names_dict is: base_name -> file_type -> path
-                            for base_name, file_types in base_names_dict.items():
-                                # Check if this matches the selected configuration
-                                if config_name and config_name not in base_name:
-                                    continue
-                                if 'paramnames' in file_types:
-                                    paramnames_file = file_types['paramnames']
-                                    import os
-                                    if os.path.exists(paramnames_file):
-                                        with open(paramnames_file, 'r') as f:
-                                            for line in f:
-                                                if line.strip():
-                                                    paramnames_names.append(line.strip().split()[0])
-                                        break
-                            if paramnames_names:
-                                break
-        except Exception as e:
-            # If we can't read paramnames file, continue with just GetDist names
-            import warnings
-            warnings.warn(f"Could not read paramnames file for standardization: {e}")
-            pass
-
-        # Create mapping from GetDist names to normalized names
+        # Create mapping from current names to normalized names
         for param in names:
             normalized = normalize_param_name(param)
             if normalized in standard_names:
                 standard_param = standard_names[normalized]
                 if param != standard_param:
                     mapping[param] = standard_param
-                    
-                    # Also add mapping for paramnames file version (with * if derived)
-                    # Match paramnames names to GetDist names
-                    for pname in paramnames_names:
-                        pname_normalized = normalize_param_name(pname.rstrip('*'))
-                        if pname_normalized == normalized:
-                            # Add mapping for paramnames version
-                            # Note: standard_param is already normalized (no indices, no *)
-                            # For derived parameters, we map to standard name (without *)
-                            # The * suffix is handled by rename_parameters() logic
-                            mapping[pname] = standard_param
-                            # Also add mapping without * for rename_parameters() lookup logic
-                            # (rename_parameters checks param_name.rstrip('*') in mapping)
-                            if pname.endswith('*'):
-                                pname_base = pname.rstrip('*')
-                                if pname_base not in mapping:
-                                    mapping[pname_base] = standard_param
-                            break  # Found match, move to next GetDist param
 
         if mapping:
             result.rename_parameters(mapping)

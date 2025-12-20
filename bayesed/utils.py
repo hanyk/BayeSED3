@@ -1064,6 +1064,8 @@ def create_filters_from_svo(
 
     filter_names: Optional[List[str]] = None,
 
+    overwrite: bool = False,
+
     **filters_selected_kwargs
 
 ):
@@ -1897,84 +1899,87 @@ def create_filters_from_svo(
     
 
     # Create filters file
+    # Check if file exists and handle overwrite
+    if os.path.exists(filters_file) and not overwrite:
+        print(f"\nFilters file already exists: {filters_file}")
+        print("Skipping filter file creation (use overwrite=True to replace)")
+    else:
+        print(f"\nWriting filter transmission curves to: {filters_file}")
+        with open(filters_file, 'w') as f:
 
-    print(f"\nWriting filter transmission curves to: {filters_file}")
+            # Write header line: "# itype icalib description"
 
-    with open(filters_file, 'w') as f:
+            f.write("# itype icalib description\n")
 
-        # Write header line: "# itype icalib description"
+            
 
-        f.write("# itype icalib description\n")
+            # Write each filter
+
+            for i, (trans_table, desc, filt_itype, filt_icalib) in enumerate(
+
+                zip(filter_transmission_data, filter_descriptions, filter_itypes, filter_icalibs)
+
+            ):
+
+                # Write filter definition line: "# itype icalib description"
+
+                f.write(f"# {filt_itype} {filt_icalib} {desc}\n")
+
+                
+
+                # Get wavelength and transmission data from table
+
+                wave_values = trans_table['Wavelength'].value  # In Angstroms
+
+                trans_values = trans_table['Transmission'].value
+
+                
+
+                # Convert to numpy arrays
+
+                wave_values = np.asarray(wave_values)
+
+                trans_values = np.asarray(trans_values)
+
+                
+
+                # Ensure wave_values is 1D (handle multi-bin filters)
+
+                if wave_values.ndim > 1:
+
+                    wave_values = wave_values.flatten()
+
+                if trans_values.ndim > 1:
+
+                    trans_values = trans_values.flatten()
+
+                
+
+                # Convert wavelength to microns if needed
+
+                if wave_units == "micron":
+
+                    # SVO transmission data is in Angstroms, convert to microns
+
+                    wave_values = wave_values * 1e-4  # Angstrom to micron
+
+                
+
+                # Write wavelength and transmission pairs
+
+                for w, t in zip(wave_values, trans_values):
+
+                    f.write(f"{w:.6e} {t:.6e}\n")
+
+                
+
+                # Add blank line between filters (optional, for readability)
+
+                f.write("\n")
 
         
 
-        # Write each filter
-
-        for i, (trans_table, desc, filt_itype, filt_icalib) in enumerate(
-
-            zip(filter_transmission_data, filter_descriptions, filter_itypes, filter_icalibs)
-
-        ):
-
-            # Write filter definition line: "# itype icalib description"
-
-            f.write(f"# {filt_itype} {filt_icalib} {desc}\n")
-
-            
-
-            # Get wavelength and transmission data from table
-
-            wave_values = trans_table['Wavelength'].value  # In Angstroms
-
-            trans_values = trans_table['Transmission'].value
-
-            
-
-            # Convert to numpy arrays
-
-            wave_values = np.asarray(wave_values)
-
-            trans_values = np.asarray(trans_values)
-
-            
-
-            # Ensure wave_values is 1D (handle multi-bin filters)
-
-            if wave_values.ndim > 1:
-
-                wave_values = wave_values.flatten()
-
-            if trans_values.ndim > 1:
-
-                trans_values = trans_values.flatten()
-
-            
-
-            # Convert wavelength to microns if needed
-
-            if wave_units == "micron":
-
-                # SVO transmission data is in Angstroms, convert to microns
-
-                wave_values = wave_values * 1e-4  # Angstrom to micron
-
-            
-
-            # Write wavelength and transmission pairs
-
-            for w, t in zip(wave_values, trans_values):
-
-                f.write(f"{w:.6e} {t:.6e}\n")
-
-            
-
-            # Add blank line between filters (optional, for readability)
-
-            f.write("\n")
-
-    
-
-    print(f"Successfully created filters file: {filters_file}")
+        print(f"Successfully created filters file: {filters_file}")
 
     
 
@@ -2027,6 +2032,9 @@ def create_filters_from_svo(
     
 
     # Call create_filters_selected with the generated filters file
+    # Filter out parameters that create_filters_selected doesn't accept
+    filtered_kwargs = {k: v for k, v in filters_selected_kwargs.items() 
+                      if k not in ['verbose', 'overwrite']}
 
     create_filters_selected(
 
@@ -2040,7 +2048,7 @@ def create_filters_from_svo(
 
         validate_itype_icalib=False,  # We already validated
 
-        **filters_selected_kwargs
+        **filtered_kwargs
 
     )
 
