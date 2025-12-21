@@ -398,8 +398,8 @@ plot_posterior_comparison(
 # Compare Bayesian evidence to determine which model is preferred
 evidence1 = results1.get_evidence()
 evidence2 = results2.get_evidence()
-print(f"Model 1 log-evidence: {evidence1['INSlogZ']} +/- {evidence1['INSlogZerr']}")
-print(f"Model 2 log-evidence: {evidence2['INSlogZ']} +/- {evidence2['INSlogZerr']}")
+delta_logZ = evidence1['INSlogZ'] - evidence2['INSlogZ']
+delta_logZ_err = (evidence1['INSlogZerr']**2 + evidence2['INSlogZerr']**2)**0.5
 ```
 
 ### Advanced Analytics
@@ -410,12 +410,9 @@ Compute parameter correlations, statistics, and integrate with GetDist for advan
 from bayesed import BayeSEDResults
 
 # Load results with intelligent configuration detection
+# Note: If multiple catalogs exist, specify catalog_name explicitly:
+# results = BayeSEDResults('output', catalog_name='gal')
 results = BayeSEDResults('output')
-
-# Enhanced introspection
-scope_info = results.get_access_scope()
-print(f"Analysis scope: {scope_info.scope_type}")
-print(f"Objects available: {scope_info.total_objects}")
 
 # Get available parameter names (with component IDs like [0,1])
 free_params = results.get_free_parameters()

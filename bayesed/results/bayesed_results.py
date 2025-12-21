@@ -81,10 +81,25 @@ class BayeSEDResults:
 
         # Auto-detect catalog_name if not provided
         if not self.catalog_name:
-            # Extract catalog name from first HDF5 file (before first underscore)
-            filename = Path(hdf5_files[0]).stem
-            self.catalog_name = filename.split('_')[0]
-            logger.info(f"Auto-detected catalog name: '{self.catalog_name}'")
+            # Extract unique catalog names from all HDF5 files
+            catalog_names = set()
+            for hdf5_file in hdf5_files:
+                filename = Path(hdf5_file).stem
+                catalog_name = filename.split('_')[0]
+                catalog_names.add(catalog_name)
+            
+            if len(catalog_names) == 1:
+                # Only one catalog - auto-select it
+                self.catalog_name = catalog_names.pop()
+                logger.info(f"Auto-detected catalog name: '{self.catalog_name}'")
+            else:
+                # Multiple catalogs - require explicit selection
+                sorted_catalogs = sorted(catalog_names)
+                raise ValueError(
+                    f"Multiple catalogs found in output directory: {sorted_catalogs}. "
+                    f"Please specify catalog_name parameter. Example: "
+                    f"BayeSEDResults('{self.output_dir}', catalog_name='{sorted_catalogs[0]}')"
+                )
 
         # Find files matching the catalog
         catalog_pattern = f"{self.catalog_name}_*.hdf5"

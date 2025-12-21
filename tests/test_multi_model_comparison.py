@@ -59,27 +59,10 @@ def test_multi_model_comparison():
     )
     
     # Compare Bayesian evidence to determine which model is preferred
-    evidence1 = results1.get_evidence(return_format='table')
-    evidence2 = results2.get_evidence(return_format='table')
-    
-    # Get mean evidence values across all objects
-    mean_logZ1 = np.mean(evidence1['INSlogZ'])
-    mean_logZ2 = np.mean(evidence2['INSlogZ'])
-    mean_logZerr1 = np.mean(evidence1['INSlogZerr'])
-    mean_logZerr2 = np.mean(evidence2['INSlogZerr'])
-    
-    print(f"Model 1 log-evidence: {mean_logZ1:.2f} +/- {mean_logZerr1:.3f}")
-    print(f"Model 2 log-evidence: {mean_logZ2:.2f} +/- {mean_logZerr2:.3f}")
-    
-    # Calculate Bayes factor manually (since we removed compare_evidence method)
-    delta_logZ = mean_logZ1 - mean_logZ2
-    bayes_factor = np.exp(delta_logZ)
-    
-    print(f"Bayes factor (Model 1 vs Model 2): {bayes_factor:.2e}")
-    if delta_logZ > 0:
-        print("Model 1 (Exp+Calzetti) is preferred")
-    else:
-        print("Model 2 (Delayed+SMC) is preferred")
+    evidence1 = results1.get_evidence()
+    evidence2 = results2.get_evidence()
+    delta_logZ = evidence1['INSlogZ'] - evidence2['INSlogZ']
+    delta_logZ_err = (evidence1['INSlogZerr']**2 + evidence2['INSlogZerr']**2)**0.5
     
     return results_list
 

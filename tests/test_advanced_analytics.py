@@ -12,54 +12,38 @@ def test_advanced_analytics():
     """Test advanced analytics and GetDist integration."""
     
     # Load results with intelligent configuration detection
-    results = BayeSEDResults('output',catalog_name='gal')
-    
-    # Enhanced introspection
-    print("=== BayeSED Results Analysis ===")
+    # Note: If multiple catalogs exist, specify catalog_name explicitly
+    results = BayeSEDResults('output')
     
     # Get available parameter names (with component IDs like [0,1])
     free_params = results.get_free_parameters()
     derived_params = results.get_derived_parameters()
-    print(f"Free parameters: {free_params}")
-    print(f"Derived parameters: {derived_params}")
+    # Example: ['z', 'log(age/yr)[0,1]', 'log(tau/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]', ...]
     
     # Load HDF5 data with SNR filtering
     hdf5_table = results.load_hdf5_results(filter_snr=True, min_snr=3.0)
-    print(f"Loaded {len(hdf5_table)} objects after SNR filtering")
     
     # Compute parameter correlations (use actual parameter names with component IDs)
-    correlation_params = ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]']
-    correlations = results.compute_parameter_correlations(correlation_params)
-    print(f"Parameter correlation matrix shape: {correlations.shape}")
+    correlations = results.compute_parameter_correlations(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
     
     # Get parameter statistics
-    stats = results.get_parameter_statistics(correlation_params)
-    print("Parameter statistics:")
-    for param, param_stats in stats.items():
-        print(f"  {param}: mean={param_stats['mean']:.3f}, std={param_stats['std']:.3f}")
+    stats = results.get_parameter_statistics(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'])
     
     # Object-level analysis
     objects = results.list_objects()
     object_id = objects[0]  # e.g., 'spec-0285-51930-0184_GALAXY_STARFORMING'
-    print(f"Analyzing object: {object_id}")
     
     # GetDist integration with intelligent caching for custom posterior analysis
     samples = results.get_getdist_samples(object_id=object_id)
     samples.label = 'Galaxy Model'
-    print(f"GetDist samples loaded: {samples.numrows} samples, {len(samples.paramNames.names)} parameters")
     
     # Use GetDist for advanced visualization and analysis
-    try:
-        from getdist import plots
-        import matplotlib.pyplot as plt
-        
-        g = plots.get_subplot_plotter()
-        g.triangle_plot([samples], correlation_params, filled=True)
-        plt.savefig('advanced_analytics_triangle.png')
-        print("Triangle plot saved as 'advanced_analytics_triangle.png'")
-        
-    except ImportError:
-        print("GetDist not available for plotting, but samples were loaded successfully")
+    from getdist import plots
+    import matplotlib.pyplot as plt
+    
+    g = plots.get_subplot_plotter()
+    g.triangle_plot([samples], ['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'Av_2[0,1]'], filled=True)
+    plt.show()
     
     return results
 
