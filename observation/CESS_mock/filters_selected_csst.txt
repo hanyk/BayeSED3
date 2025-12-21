@@ -1,0 +1,11 @@
+#iused  iselected  id  name  mid  mag_lim  mag_lim_err  Nsigma  mag_err_min  SNR_min  inoise  Bsky   D    t    Bdet  Nread  Rn  Npx  Npx_sig  #  itype  icalib  description
+1       1          5   NUV   -1   25       0.2          5       0.02         -100     0       0.003  200  600  0.02  2      5   16   0        #  1      0       NUV_throughput.txt
+1       1          6   u     -1   25       0.2          5       0.02         -100     0       0.018  200  300  0.02  2      5   16   0        #  1      0       u_throughput.txt
+1       1          7   g     -1   25.9     0.2          5       0.02         -100     0       0.156  200  300  0.02  2      5   16   0        #  1      0       g_throughput.txt
+1       1          8   r     -1   25.6     0.2          5       0.02         -100     0       0.200  200  300  0.02  2      5   16   0        #  1      0       r_throughput.txt
+1       1          9   i     -1   25.5     0.2          5       0.02         -100     0       0.207  200  300  0.02  2      5   16   0        #  1      0       i_throughput.txt
+1       1          10  z     -1   24.8     0.2          5       0.02         -100     0       0.123  200  300  0.02  2      5   16   0        #  1      0       z_throughput.txt
+1       1          11  y     -1   24       0.2          5       0.02         -100     0       0.036  200  600  0.02  2      5   16   0        #  1      0       y_throughput.txt
+2       1          12  GU    -1   20.1     0.2          5       0.02         -100     0       0.018  200  600  0.02  4      5   32   0        #  1      0       GU_throughput.txt
+2       0          13  GV    -1   20.6     0.2          5       0.02         -100     0       0.212  200  600  0.02  4      5   32   0        #  1      0       GV_throughput.txt
+2       1          14  GI    -1   20.6     0.2          5       0.02         -100     0       0.288  200  600  0.02  4      5   32   0        #  1      0       GI_throughput.txt

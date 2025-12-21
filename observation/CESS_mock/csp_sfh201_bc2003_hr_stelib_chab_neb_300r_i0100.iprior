@@ -1,0 +1,8 @@
+#name iprior_type is_age min max nbin
+log(age/yr) 1 1 8 10.1284 40
+log(tau/yr) 1 0 6 10 40
+p 1 0 1 1 40
+log(Z/Zsun) 1 0 -2.30082 0.698735 40
+vd_{eml}[km/s] 1 0 300 300 40
+f 1 0 0 1 40
+log(norm) 1 0 1 15 40
