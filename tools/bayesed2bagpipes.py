@@ -202,7 +202,7 @@ def main():
         # load up the relevant columns from the catalogue.
 
         # Find the correct row for the object we want.
-        row=cat['ID']==int(ID)
+        row=cat['ID']==ID
 
         # Extract the object we want from the catalogue.
         if Nphot>0:
@@ -301,7 +301,7 @@ def main():
         # Fit individual galaxy with timing
         fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
         t0 = time.time()
-        fit.fit(verbose=True, pool=10, n_live=400)
+        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=10)
         runtime_s = time.time() - t0
         # fig = fit.plot_spectrum_posterior(save=True, show=True)
         # fig = fit.plot_sfh_posterior(save=True, show=True)
