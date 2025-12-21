@@ -1,11 +1,3 @@
-"""
-Simplified BayeSEDResults implementation.
-
-This module contains the simplified BayeSEDResults class that eliminates
-complex component architecture while maintaining full backward compatibility
-with the existing API.
-"""
-
 import os
 import h5py
 import numpy as np
@@ -20,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class BayeSEDResults:
     """
-    Simplified BayeSEDResults class with integrated functionality.
+    BayeSEDResults class with integrated functionality.
 
     This class provides the same API as the original BayeSEDResults but with
     a much simpler internal implementation:
@@ -45,7 +37,7 @@ class BayeSEDResults:
 
     def __init__(self, output_dir: Union[str, Path], catalog_name: Optional[str] = None,
                  model_config: Optional[Union[str, int]] = None, object_id: Optional[str] = None):
-        """Initialize simplified BayeSEDResults."""
+        """Initialize BayeSEDResults."""
 
         # Store initialization parameters
         self.output_dir = Path(output_dir).resolve()
@@ -64,7 +56,7 @@ class BayeSEDResults:
         self._find_hdf5_file()
         self._load_hdf5_table()
 
-        logger.info(f"Simplified BayeSEDResults initialized for catalog '{self.catalog_name}'")
+        logger.info(f"BayeSEDResults initialized for catalog '{self.catalog_name}'")
         if self.object_id:
             logger.info(f"Object-level access for object: {self.object_id}")
 
@@ -87,7 +79,7 @@ class BayeSEDResults:
                 filename = Path(hdf5_file).stem
                 catalog_name = filename.split('_')[0]
                 catalog_names.add(catalog_name)
-            
+
             if len(catalog_names) == 1:
                 # Only one catalog - auto-select it
                 self.catalog_name = catalog_names.pop()
@@ -1164,7 +1156,7 @@ class BayeSEDResults:
     def print_summary(self) -> None:
         """Print a summary of the loaded results."""
         print("=" * 60)
-        print("BayeSEDResults Summary (Simplified)")
+        print("BayeSEDResults Summary")
         print("=" * 60)
         print(f"Output Directory: {self.output_dir}")
         print(f"Catalog: {self.catalog_name}")

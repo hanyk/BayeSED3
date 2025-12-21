@@ -1,7 +1,7 @@
 """
 Utility functions for BayeSEDResults operations.
 
-This module provides utility functions that work with the simplified BayeSEDResults
+This module provides utility functions that work with the BayeSEDResults
 implementation, including functions for posterior comparison plotting and parameter standardization.
 """
 
@@ -17,20 +17,20 @@ logger = logging.getLogger(__name__)
 def list_catalog_names(output_dir: str) -> List[str]:
     """
     List available catalog names in an output directory.
-    
+
     This function discovers available catalogs by looking for HDF5 files
     in the output directory and extracting catalog names from filenames.
-    
+
     Parameters
     ----------
     output_dir : str
         Directory containing BayeSED output files
-        
+
     Returns
     -------
     List[str]
         List of available catalog names
-        
+
     Examples
     --------
     >>> catalogs = list_catalog_names('output')
@@ -41,20 +41,20 @@ def list_catalog_names(output_dir: str) -> List[str]:
         if not output_path.exists():
             logger.error(f"Output directory does not exist: {output_dir}")
             return []
-        
+
         # Find HDF5 files and extract catalog names
         hdf5_files = list(output_path.glob("*.hdf5"))
         catalog_names = set()
-        
+
         for hdf5_file in hdf5_files:
             # Extract catalog name (part before first underscore)
             filename = hdf5_file.stem
             if '_' in filename:
                 catalog_name = filename.split('_')[0]
                 catalog_names.add(catalog_name)
-        
+
         return sorted(list(catalog_names))
-        
+
     except Exception as e:
         logger.error(f"Failed to discover catalogs in {output_dir}: {e}")
         return []
@@ -63,22 +63,22 @@ def list_catalog_names(output_dir: str) -> List[str]:
 def list_model_configs(output_dir: str, catalog_name: str) -> List[str]:
     """
     List available model configurations for a catalog.
-    
+
     This function discovers available model configurations by looking for
     HDF5 files matching the catalog name pattern.
-    
+
     Parameters
     ----------
     output_dir : str
         Directory containing BayeSED output files
     catalog_name : str
         Catalog name to list configurations for
-        
+
     Returns
     -------
     List[str]
         List of available model configuration names
-        
+
     Examples
     --------
     >>> configs = list_model_configs('output', 'gal')
@@ -89,11 +89,11 @@ def list_model_configs(output_dir: str, catalog_name: str) -> List[str]:
         if not output_path.exists():
             logger.error(f"Output directory does not exist: {output_dir}")
             return []
-        
+
         # Find HDF5 files matching the catalog pattern
         catalog_pattern = f"{catalog_name}_*.hdf5"
         catalog_files = list(output_path.glob(catalog_pattern))
-        
+
         config_names = []
         for hdf5_file in catalog_files:
             # Extract config name (part after catalog name and underscore)
@@ -101,9 +101,9 @@ def list_model_configs(output_dir: str, catalog_name: str) -> List[str]:
             if filename.startswith(catalog_name + '_'):
                 config_name = filename[len(catalog_name) + 1:]
                 config_names.append(config_name)
-        
+
         return sorted(config_names)
-        
+
     except Exception as e:
         logger.error(f"Failed to discover configurations for {catalog_name} in {output_dir}: {e}")
         return []
@@ -193,21 +193,21 @@ def plot_posterior_comparison(
             except Exception:
                 # Fallback: use all parameters from GetDist samples if get_free_parameters fails
                 free_params_list.append([p.name for p in result.get_getdist_samples().paramNames.names])
-        
+
         # Find intersection of free parameters across all results
         if free_params_list:
             common_free_params_set = set(free_params_list[0])
             for free_params in free_params_list[1:]:
                 common_free_params_set = common_free_params_set.intersection(set(free_params))
-            
+
             # Also ensure these parameters are actually present in GetDist samples
             common_params_set = sample_param_sets[0]
             for param_set in sample_param_sets[1:]:
                 common_params_set = common_params_set.intersection(param_set)
-            
+
             # Intersection of free params and GetDist sample params
             final_params_set = common_free_params_set.intersection(common_params_set)
-            
+
             # Additional check: filter out any parameters that might be derived
             # by checking if they're in the derived parameters list
             for result in results_list:
@@ -218,7 +218,7 @@ def plot_posterior_comparison(
                 except Exception:
                     # If we can't get derived parameters, continue
                     pass
-            
+
             # Preserve order from first result's free parameters
             params = [p for p in free_params_list[0] if p in final_params_set]
         else:
@@ -227,7 +227,7 @@ def plot_posterior_comparison(
             common_params_set = sample_param_sets[0]
             for param_set in sample_param_sets[1:]:
                 common_params_set = common_params_set.intersection(param_set)
-            
+
             # Preserve order from first sample, only include common params
             params = [p for p in first_sample_params if p in common_params_set]
 
@@ -366,7 +366,7 @@ def standardize_parameter_names(
     # Rename parameters in all results based on their parameter names
     for result, names in zip(results_list, samples_param_names):
         mapping: Dict[str, str] = {}
-        
+
         # Create mapping from current names to normalized names
         for param in names:
             normalized = normalize_param_name(param)

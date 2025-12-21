@@ -1,7 +1,7 @@
 """
-BayeSED Results Analysis Package - Simplified Implementation
+BayeSED Results Analysis Package
 
-This package provides simplified, efficient access to BayeSED analysis results
+This package provides efficient access to BayeSED analysis results
 with dramatically reduced complexity while maintaining full backward compatibility.
 """
 

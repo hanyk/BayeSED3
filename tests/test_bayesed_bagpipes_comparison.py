@@ -603,10 +603,11 @@ def main():
         filters='observation/CESS_mock/filters_bassmzl.txt',
         filters_selected='observation/CESS_mock/filters_selected_csst.txt',
         outdir='observation/CESS_mock/output',
-        ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+        ssp_model='bc2003_hr_stelib_chab_neb_300r',
         sfh_type='exponential',
         dal_law='calzetti',
         ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
+        ssp_i1=1,                 #enable nebular emission
         sfh_itype_ceh=1,          #Chemical evolution enabled (metallicity evolves with time)
         no_photometry_fit=True,   # Skip photometry fitting
         no_spectra_fit=False      # Fit spectra (default)
@@ -640,6 +641,8 @@ def main():
     # Load and analyze results
     results = BayeSEDResults('observation/CESS_mock/output', catalog_name='seedcat2')
     results.print_summary()
+    results.plot_bestfit('5494348_STARFORMING')
+    results.plot_bestfit('11184100_QUIESCENT')
 
 
     # goodss_filt_list = np.loadtxt("filters/goodss_filt_list.txt", dtype="str")
