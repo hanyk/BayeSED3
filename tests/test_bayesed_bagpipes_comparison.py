@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams
+from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams
 from astropy.table import Table, join, hstack, vstack
 import bagpipes as pipes
 import numpy as np
@@ -607,6 +607,7 @@ def main():
         sfh_type='exponential',
         dal_law='calzetti',
         ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
+        sfh_itype_ceh=1,          #Chemical evolution enabled (metallicity evolves with time)
         no_photometry_fit=True,   # Skip photometry fitting
         no_spectra_fit=False      # Fit spectra (default)
     )
@@ -618,11 +619,26 @@ def main():
         max=2.0,
     )
 
+    # Set RDF parameters for modeling sigma_diff between observed spectra and model
+    # RDF models the difference/scatter between observations and theoretical models
+    params.rdf = RDFParams(
+        id=-1,                   # Model ID (-1: apply to all models, 0,1,2...: specific model)
+        num_polynomials=0       # Number of polynomials (-1: default/disable, 0,1,2...: polynomial order)
+    )
+
+    # Set systematic error for model
+    params.sys_err_mod = SysErrParams(
+        iprior_type=3,    # Prior type (1=uniform, 3=log-uniform)
+        min=0.01,         # Minimum fractional systematic error
+        max=0.1,          # Maximum fractional systematic error
+    )
+
+
     # Run analysis
     result = bayesed.run(params)
 
     # Load and analyze results
-    results = BayeSEDResults('observation/CESS_mock/output', catalog_name='seedcat2',model_config='0csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0000_2dal8_10_z')
+    results = BayeSEDResults('observation/CESS_mock/output', catalog_name='seedcat2')
     results.print_summary()
 
 
