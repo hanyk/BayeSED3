@@ -12,8 +12,7 @@ def test_advanced_analytics():
     """Test advanced analytics and GetDist integration."""
     
     # Load results with intelligent configuration detection
-    results = BayeSEDResults('output', catalog_name='gal', 
-                           model_config='0csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0000_2dal8_10')
+    results = BayeSEDResults('output',catalog_name='gal')
     
     # Enhanced introspection
     print("=== BayeSED Results Analysis ===")
@@ -67,8 +66,7 @@ def test_advanced_analytics():
 def test_evidence_analysis():
     """Test evidence analysis with different return formats."""
     
-    results = BayeSEDResults('output', catalog_name='gal',
-                           model_config='0csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0000_2dal8_10')
+    results = BayeSEDResults('output',catalog_name='gal')
     
     print("=== Evidence Analysis ===")
     

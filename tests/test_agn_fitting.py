@@ -11,8 +11,8 @@ from bayesed import BayeSEDInterface, BayeSEDParams
 def test_agn_fitting():
     """Test AGN fitting with all components."""
     
-    # Initialize interface
-    bayesed = BayeSEDInterface(mpi_mode='auto')
+    # Initialize interface with Ntest for quick testing (optional)
+    bayesed = BayeSEDInterface(mpi_mode='auto', Ntest=2)  # Process only first 2 objects
     
     # AGN with all components (includes galaxy host)
     params = BayeSEDParams.agn(

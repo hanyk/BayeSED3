@@ -27,8 +27,7 @@ def test_quick_start():
     result = bayesed.run(params)
     
     # Load and analyze results
-    results = BayeSEDResults('output', catalog_name='gal', 
-                           model_config='0csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0000_2dal8_10')
+    results = BayeSEDResults('output')
     results.print_summary()
     
     # Access parameters and objects
@@ -74,9 +73,7 @@ def test_quick_start():
     # Object-level analysis
     if available_objects:
         object_id = available_objects[0]
-        object_results = BayeSEDResults('output', catalog_name='gal',
-                                       model_config='0csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0000_2dal8_10',
-                                       object_id=object_id)
+        object_results = BayeSEDResults('output', object_id=object_id)
         object_results.plot_bestfit()
         
         object_results.set_parameter_labels(custom_labels)

@@ -255,6 +255,9 @@ object_results.plot_posterior(['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Msta
 
 ```python
 # AGN with all components (includes galaxy host)
+# Initialize interface with Ntest for quick testing (optional)
+bayesed = BayeSEDInterface(mpi_mode='auto', Ntest=2)  # Process only first 2 objects
+
 params = BayeSEDParams.agn(
     input_file='observation/test/qso.txt',
     outdir='output',
@@ -430,7 +433,7 @@ Compute parameter correlations, statistics, and integrate with GetDist for advan
 from bayesed import BayeSEDResults
 
 # Load results with intelligent configuration detection
-results = BayeSEDResults('output_gal', validate_on_init=True)
+results = BayeSEDResults('output')
 
 # Enhanced introspection
 scope_info = results.get_access_scope()
