@@ -36,7 +36,7 @@ class BayeSEDResults:
     catalog_name : str, optional
         Catalog name to load results for
     model_config : str or int, optional
-        Model configuration to load (not implemented in simplified version)
+        Model configuration to load
     object_id : str, optional
         Object ID for object-level access
 
