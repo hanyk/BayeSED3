@@ -8,6 +8,11 @@ import time
 from scipy import stats
 import corner
 
+# IMPORTANT: SFR units and scaling consistency
+# - BayeSED3: Provides log(SFR) in log10(M☉/yr) - already logarithmic
+# - BAGPIPES: Provides SFR in M☉/yr - linear scale, needs log10() for comparison
+# Both codes use the same physical units (M☉/yr) but different scaling
+
 resolution1=None
 input_file='observation/CESS_mock/two.txt'
 # c = 2.9979246e+14  # um/s
@@ -225,9 +230,11 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
     common_params = ['stellar_mass', 'sfr', 'age', 'metallicity', 'Av']
 
     # Parameter mapping between BayeSED3 and BAGPIPES
+    # Note: SFR units are solar masses per year (M☉/yr) for both codes
+    # Source: BAGPIPES documentation explicitly states SFR is in "Solar masses per year"
     param_mapping = {
         'stellar_mass': ('stellar_mass', 'stellar_mass'),
-        'sfr': ('sfr', 'sfr'),
+        'sfr': ('sfr', 'sfr'),  # Both in M☉/yr
         'age': ('age_mass_weighted', 'age'),
         'metallicity': ('metallicity_mass_weighted', 'metallicity'),
         'Av': ('Av', 'Av')
@@ -273,11 +280,16 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
         bayesed_data = bayesed_samples[param]
         bagpipes_data = bagpipes_samples[param]
 
-        # Handle log scale for stellar mass
+        # Handle log scale for stellar mass and SFR
         if param == 'stellar_mass':
             bayesed_data = np.log10(bayesed_data)
             bagpipes_data = np.log10(bagpipes_data)
             xlabel = f'log({param})'
+        elif param == 'sfr':
+            # BayeSED3 SFR is already in log, BAGPIPES SFR needs log conversion
+            # bayesed_data is already log(SFR), bagpipes_data needs log10()
+            bagpipes_data = np.log10(bagpipes_data)
+            xlabel = 'log(SFR)'
         else:
             xlabel = param
 
@@ -356,7 +368,7 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
     # Then specify parameters to compare
     bayesed_params = ['log(Mstar)', 'log(SFR_{10Myr}/[M_{sun}/yr])', 'Av_2']
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
-    labels = ['log(M*)', 'SFR', 'Av']
+    labels = ['log(M*)', 'log(SFR)', 'Av']  # Note: SFR will be log-scaled for both
     plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params, labels)
     """
 
@@ -437,6 +449,12 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bayesed_idx = bayesed_param_names.index(bayesed_param)
             bayesed_vals = sample_array[:, bayesed_idx]
             bagpipes_vals = bagpipes_fit.posterior.samples[bagpipes_param]
+            
+            # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
+            if 'SFR' in bayesed_param and bagpipes_param == 'sfr':
+                # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
+                bagpipes_vals = np.log10(bagpipes_vals)
+                print(f"  Applied log10 to BAGPIPES SFR for consistency with BayeSED3")
 
             bayesed_data.append(bayesed_vals)
             bagpipes_data.append(bagpipes_vals)
@@ -514,7 +532,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_fits, object_ids, save=True
 
     param_mapping = {
         'Stellar Mass': ('stellar_mass', 'stellar_mass', True),  # True for log scale
-        'SFR': ('sfr', 'sfr', True),
+        'SFR': ('sfr', 'sfr', True),  # True for log scale (BayeSED3 already log, BAGPIPES needs log)
         'Age': ('age_mass_weighted', 'age', False),
         'Metallicity': ('metallicity_mass_weighted', 'metallicity', False),
         'Av': ('Av', 'Av', False)
@@ -538,12 +556,14 @@ def plot_parameter_scatter(bayesed_results, bagpipes_fits, object_ids, save=True
                 obj_results = bayesed_results.get_object_results(obj_id)
                 if hasattr(obj_results, bayesed_key):
                     bayesed_val = np.median(getattr(obj_results, bayesed_key))
-                    if log_scale:
+                    # BayeSED3 SFR is already in log scale, stellar mass needs log conversion
+                    if log_scale and param_name != 'SFR':
                         bayesed_val = np.log10(bayesed_val)
 
                     # Get BAGPIPES value (median)
                     if obj_id in bagpipes_fits and bagpipes_key in bagpipes_fits[obj_id].posterior.samples:
                         bagpipes_val = np.median(bagpipes_fits[obj_id].posterior.samples[bagpipes_key])
+                        # Apply log scaling to BAGPIPES values (both stellar mass and SFR need log)
                         if log_scale:
                             bagpipes_val = np.log10(bagpipes_val)
 
