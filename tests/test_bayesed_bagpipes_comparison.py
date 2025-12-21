@@ -606,25 +606,17 @@ def main():
         ssp_model='bc2003_hr_stelib_chab_neb_2000r',
         sfh_type='exponential',
         dal_law='calzetti',
+        ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
         no_photometry_fit=True,   # Skip photometry fitting
         no_spectra_fit=False      # Fit spectra (default)
     )
-    
-    # Alternative: To fit photometry only and skip spectra, use:
-    # no_photometry_fit=False,  # Fit photometry (default)
-    # no_spectra_fit=True       # Skip spectra fitting
 
     # Set redshift prior to match BAGPIPES range (0.0 to 2.0)
     params.z = ZParams(
         iprior_type=1,
         min=0.0,
         max=2.0,
-        nbin=40
     )
-    # Set fitting flags after creation
-    params.no_photometry_fit = True   # Skip photometry
-
-
 
     # Run analysis
     result = bayesed.run(params)
@@ -698,7 +690,7 @@ def main():
         print(f"\nGenerating corner comparison plot for object {ID}...")
         # Use the correct parameter names based on the available parameters
         # Note: BayeSED3 derived parameters have '*' suffix
-        bayesed_params = ['z', 'log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]', 'Av_2[0,1]']
+        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2[0,0]']
         bagpipes_params = ['redshift', 'stellar_mass', 'sfr', 'dust:Av']
         labels = ['z', 'log(M*)', 'log(SFR)', 'Av']
         plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels)

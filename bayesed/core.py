@@ -456,6 +456,7 @@ class BayeSEDParams:
     def galaxy(cls, input_file, ssp_model='bc2003_hr_stelib_chab_neb_2000r',
                sfh_type='exponential', dal_law='calzetti', outdir='result',
                ssp_k=1, ssp_f_run=1, ssp_Nstep=1, ssp_i0=0, ssp_i1=0, ssp_i2=0, ssp_i3=0,
+               ssp_iscalable=1, sfh_itype_ceh=0, sfh_itruncated=0,
                base_igroup=None, base_id=None, **kwargs):
         """
         Create BayeSEDParams for simple galaxy SED fitting.
@@ -508,6 +509,18 @@ class BayeSEDParams:
             SSP parameters for customization. These correspond to the k, f_run, Nstep, i0, i1, i2, i3
             parameters in SSPParams. Defaults: k=1, f_run=1, Nstep=1, i0=0, i1=0, i2=0, i3=0.
             Set ssp_i1=1 to enable nebular emission (common default).
+        ssp_iscalable : int
+            SSP scalability parameter (default: 1). Controls normalization method:
+            - 1: Normalization determined with NNLM (Nonnegative Linear Models, faster, suitable for high-SNR data)
+            - 0: Normalization as a free parameter of MultiNest sampling (more robust for low-SNR data)
+        sfh_itype_ceh : int
+            Chemical evolution history type for SFH (default: 0):
+            - 0: No chemical evolution (constant metallicity)
+            - 1: Chemical evolution enabled (metallicity evolves with time)
+        sfh_itruncated : int
+            SFH truncation flag (default: 0):
+            - 0: Normal SFH
+            - 1: Truncated SFH (for modeling quenched/passive galaxies)
         base_igroup : int, optional
             Base igroup for this galaxy instance. If None, automatically determined from existing
             components (default: starts from 0 if no existing components).
@@ -525,9 +538,25 @@ class BayeSEDParams:
 
         Example
         -------
+        >>> # Standard galaxy fitting
         >>> params = BayeSEDParams.galaxy('observation/data.txt')
         >>> interface = BayeSEDInterface()
         >>> interface.run(params)
+        >>>
+        >>> # Advanced galaxy fitting with chemical evolution
+        >>> params = BayeSEDParams.galaxy(
+        ...     'observation/data.txt',
+        ...     ssp_i1=1,              # Enable nebular emission
+        ...     ssp_iscalable=1,       # NNLM normalization (default, faster)
+        ...     sfh_itype_ceh=1,       # Enable chemical evolution
+        ...     sfh_itruncated=0       # Normal SFH (default)
+        ... )
+        >>>
+        >>> # Full Bayesian sampling for normalization (slower but more flexible)
+        >>> params = BayeSEDParams.galaxy(
+        ...     'observation/validation.txt',
+        ...     ssp_iscalable=0        # MultiNest sampling for normalization
+        ... )
         """
         # Import here to avoid circular dependency
         from .model import SEDModel
@@ -555,8 +584,9 @@ class BayeSEDParams:
             ssp_i1=ssp_i1,
             ssp_i2=ssp_i2,
             ssp_i3=ssp_i3,
-            sfh_itype_ceh=0,
-            sfh_itruncated=0,
+            ssp_iscalable=ssp_iscalable,
+            sfh_itype_ceh=sfh_itype_ceh,
+            sfh_itruncated=sfh_itruncated,
             base_igroup=base_igroup,
             base_id=base_id
         )
