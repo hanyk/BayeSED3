@@ -318,7 +318,7 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
     for i in range(n_params, len(axes)):
         fig.delaxes(axes[i])
 
-    plt.suptitle(f'Posterior Comparison - Object {object_id}', fontsize=16)
+    plt.suptitle(f'Object: {object_id}', fontsize=16)
     plt.tight_layout()
 
     if save:
@@ -338,7 +338,7 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
 def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                                 bayesed_params=None, bagpipes_params=None,
                                 labels=None, save=True, show=False):
-    """Create corner plots comparing BayeSED3 and BAGPIPES posterior samples.
+    """Create corner plots comparing BayeSED3 and BAGPIPES posterior samples using GetDist.
 
     Parameters:
     -----------
@@ -371,6 +371,12 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
     labels = ['log(M*)', 'log(SFR)', 'Av']  # Note: SFR will be log-scaled for both
     plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params, labels)
     """
+
+    try:
+        from getdist import plots, MCSamples
+        import matplotlib.pyplot as plt
+    except ImportError:
+        raise ImportError("GetDist is required for corner plot comparison. Install with: pip install getdist")
 
     try:
         # Get BayeSED3 posterior samples (GetDist samples object)
@@ -466,44 +472,98 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             print("No valid parameters found for comparison")
             return None
 
-        print(f"\nCreating corner plot with {len(final_labels)} parameters: {final_labels}")
+        print(f"\nCreating GetDist corner plot with {len(final_labels)} parameters: {final_labels}")
 
-        # Create corner plots
-        fig = plt.figure(figsize=(12, 10))
-
-        # BayeSED3 corner plot (blue)
-        bayesed_samples_array = np.column_stack(bayesed_data)
-        print(f"BayeSED3 samples shape: {bayesed_samples_array.shape}")
-        corner.corner(bayesed_samples_array, labels=final_labels, color='blue',
-                      hist_kwargs={'alpha': 0.6, 'density': True},
-                      contour_kwargs={'alpha': 0.6}, fig=fig)
-
-        # Overlay BAGPIPES (orange)
+        # Get BayeSED3 GetDist samples directly (already a MCSamples object)
+        bayesed_getdist_samples = bayesed_results.get_getdist_samples(object_id=object_id)
+        
+        # Create BAGPIPES MCSamples object
         bagpipes_samples_array = np.column_stack(bagpipes_data)
+        print(f"BayeSED3 samples shape: {bayesed_getdist_samples.samples.shape}")
         print(f"BAGPIPES samples shape: {bagpipes_samples_array.shape}")
-        corner.corner(bagpipes_samples_array, labels=final_labels, color='orange',
-                      hist_kwargs={'alpha': 0.6, 'density': True},
-                      contour_kwargs={'alpha': 0.6}, fig=fig)
-
-        # Add legend
-        from matplotlib.lines import Line2D
-        legend_elements = [Line2D([0], [0], color='blue', lw=2, label='BayeSED3'),
-                           Line2D([0], [0], color='orange', lw=2, label='BAGPIPES')]
-        fig.legend(handles=legend_elements, loc='upper right')
-
-        plt.suptitle(f'Posterior Comparison - Object {object_id}', fontsize=16)
+        
+        # Create clean parameter names for GetDist (no spaces, *, or ?)
+        clean_names = []
+        for label in final_labels:
+            clean_name = label.replace(' ', '_').replace('*', 'star').replace('?', 'q').replace('(', '').replace(')', '')
+            clean_names.append(clean_name)
+        
+        # Create BAGPIPES MCSamples object with clean names and nice labels
+        bagpipes_mcsamples = MCSamples(samples=bagpipes_samples_array, names=clean_names, 
+                                     labels=final_labels, name_tag='BAGPIPES')
+        
+        # Set labels for BayeSED3 samples (following BayeSED's approach)
+        bayesed_getdist_samples.name_tag = 'BayeSED3'
+        bayesed_getdist_samples.label = 'BayeSED3'
+        
+        # Filter BayeSED3 samples to only include the parameters we want to compare
+        # Extract the relevant parameter indices from BayeSED3 samples
+        bayesed_param_names = [p.name for p in bayesed_getdist_samples.paramNames.names]
+        bayesed_indices = []
+        bayesed_filtered_labels = []
+        
+        for i, (bayesed_param, label) in enumerate(zip(bayesed_params, final_labels)):
+            if bayesed_param in bayesed_param_names:
+                idx = bayesed_param_names.index(bayesed_param)
+                bayesed_indices.append(idx)
+                bayesed_filtered_labels.append(label)
+        
+        # Create filtered BayeSED3 samples
+        if bayesed_indices:
+            bayesed_filtered_samples = bayesed_getdist_samples.samples[:, bayesed_indices]
+            bayesed_filtered_mcsamples = MCSamples(samples=bayesed_filtered_samples, 
+                                                 names=clean_names[:len(bayesed_indices)], 
+                                                 labels=bayesed_filtered_labels, 
+                                                 name_tag='BayeSED3')
+        else:
+            print("No matching parameters found in BayeSED3 samples")
+            return None
+        
+        # Create GetDist triangle plot following BayeSED's approach
+        g = plots.get_subplot_plotter(width_inch=12, subplot_size=3.0)
+        
+        # Use BayeSED's plotting style for better comparison visibility
+        g.settings.figure_legend_frame = True
+        g.settings.figure_legend_loc = 'upper right'
+        g.settings.legend_fontsize = 12
+        g.settings.axes_fontsize = 11
+        g.settings.lab_fontsize = 12
+        g.settings.tight_layout = True
+        g.settings.axes_labelsize = 12
+        
+        # Use BayeSED's plotting approach with samples list
+        samples_list = [bayesed_filtered_mcsamples, bagpipes_mcsamples]
+        
+        # Set plotting options for better comparison visibility (following BayeSED's approach)
+        plot_kwargs = {
+            'filled': True,
+            'contour_colors': ['#2E86AB', '#F24236'],  # BayeSED3 blue, BAGPIPES red
+            'contour_ls': ['-', '--'],  # Solid for BayeSED3, dashed for BAGPIPES
+            'contour_lws': [1.5, 2.0],
+        }
+        
+        # Plot using BayeSED's method
+        g.triangle_plot(samples_list, clean_names[:len(bayesed_indices)], **plot_kwargs)
+        
+        # Clean title
+        plt.suptitle(f'Object: {object_id}', 
+                   fontsize=14, y=0.95, fontweight='bold')
+        
+        # Get the current figure
+        fig = plt.gcf()
 
         if save:
             plot_dir = os.path.join("pipes", "plots", "comparison")
             os.makedirs(plot_dir, exist_ok=True)
-            out_path = os.path.join(plot_dir, f"{object_id}_corner_comparison.png")
-            plt.savefig(out_path, bbox_inches="tight", dpi=300)
-            print(f"Saved corner comparison: {out_path}")
+            out_path = os.path.join(plot_dir, f"{object_id}_corner_comparison_getdist.png")
+            plt.savefig(out_path, bbox_inches="tight", dpi=300, facecolor='white')
+            print(f"Saved GetDist corner comparison: {out_path}")
 
         if show:
             plt.show()
 
-        plt.close(fig)
+        if not show:
+            plt.close(fig)
         return fig
 
     except Exception as e:
@@ -725,13 +785,13 @@ def main():
         # Generate spectrum plots
         plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
-        # Generate corner comparison plots
+        # Generate corner comparison plots using GetDist for better aesthetics
         print(f"\nGenerating corner comparison plot for object {ID}...")
         # Use the correct parameter names based on the available parameters
         # Note: BayeSED3 derived parameters have '*' suffix
         bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2[0,0]']
         bagpipes_params = ['redshift', 'stellar_mass', 'sfr', 'dust:Av']
-        labels = ['z', 'log(M*)', 'log(SFR)', 'Av']
+        labels = ['z', 'log(Mstar)', 'log(SFR)', 'Av']
         plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels)
 
     # fit_cat = pipes.fit_catalogue(IDs, fit_instructions, load_bayesed_input, photometry_exists=False, run=cat_name, make_plots=False,n_posterior=500)
