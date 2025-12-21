@@ -343,29 +343,6 @@ params = BayeSEDParams(
 params.add_galaxy(galaxy)
 params.add_agn(agn)
 bayesed.run(params)
-
-# For AGN with all components (disk, BLR, NLR, FeII) using real emission line files
-galaxy = SEDModel.create_galaxy(
-    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
-    sfh_type='exponential',
-    dal_law='calzetti'
-)
-
-agn = SEDModel.create_agn(
-    agn_components=['dsk', 'blr', 'nlr', 'feii'],
-    blr_lines_file='observation/test/lines_BLR.txt',
-    nlr_lines_file='observation/test/lines_NLR.txt'
-)
-
-params = BayeSEDParams(
-    input_type=0,
-    input_file='observation/test/qso.txt',
-    outdir='output_qso',
-    save_sample_par=True
-)
-params.add_galaxy(galaxy)
-params.add_agn(agn)
-bayesed.run(params)
 ```
 
 ### Multi-Model Comparison
