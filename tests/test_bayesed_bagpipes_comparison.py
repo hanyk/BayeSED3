@@ -351,7 +351,7 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
 
 def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1):
     """Configure GetDist analysis settings for consistent posterior analysis.
-    
+
     Parameters:
     -----------
     range_confidence : float, default=0
@@ -361,9 +361,9 @@ def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1
         Confidence limits for marginalized constraints (e.g., [0.68, 0.95, 0.99])
     smooth_scale_1D : float, default=-1
         1D smoothing scale (-1 = automatic)
-    smooth_scale_2D : float, default=-1  
+    smooth_scale_2D : float, default=-1
         2D smoothing scale (-1 = automatic)
-        
+
     Returns:
     --------
     dict : GetDist analysis settings dictionary
@@ -377,12 +377,12 @@ def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1
         'boundary_correction_order': 1,
         'mult_bias_correction_order': 1
     }
-    
+
     if contours is not None:
         settings['contours'] = contours
     else:
         settings['contours'] = [0.68, 0.95, 0.99]  # 1σ, 2σ, 3σ
-        
+
     return settings
 
 
@@ -427,7 +427,7 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
     labels = ['log(M*)', 'log(SFR)', 'Av']  # Note: SFR will be log-scaled for both
     true_values = [10.5, -1.2, 0.3]  # True parameter values to mark
-    plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params, 
+    plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params,
                           labels, true_values, range_confidence=0)  # Use full data range
     """
 
@@ -638,8 +638,8 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         g.triangle_plot(samples_list, clean_names[:len(bayesed_indices)], **plot_kwargs)
 
         # Clean title
-        plt.suptitle(f'Object: {object_id}',
-                   fontsize=14, y=0.95, fontweight='bold')
+        plt.suptitle(f' ID={object_id}',
+                   fontsize=14, y=1.00, fontweight='bold')
 
         # Get the current figure
         fig = plt.gcf()
@@ -885,7 +885,7 @@ def main():
         # Fit individual galaxy with timing
         fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
         t0 = time.time()
-        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
+        fit.fit(verbose=True, sampler='nautilus', n_live=40, pool=20)
         runtime_s = time.time() - t0
 
         # Store fit for comparison
@@ -898,10 +898,10 @@ def main():
         print(f"\nGenerating corner comparison plot for object {ID}...")
         # Use the correct parameter names based on the available parameters
         # Note: BayeSED3 derived parameters have '*' suffix
-        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2[0,0]']
-        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}', 'Av_2[0,1]_{True}']
-        bagpipes_params = ['redshift', 'stellar_mass', 'sfr', 'dust:Av']
-        labels = ['z', 'log(Mstar)', 'log(SFR)', 'Av']
+        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+        bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
+        labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
 
         # Extract true values for this object
         try:
