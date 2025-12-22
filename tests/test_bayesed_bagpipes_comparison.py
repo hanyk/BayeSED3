@@ -96,7 +96,7 @@ def load_bayesed_input(ID):
     loader = BayeSEDDataLoader(input_file)
     return loader.load_full_data(ID)
 
-def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=False, runtime_s=None):
+def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=True, runtime_s=None):
     """Plot spectrum posterior with residuals as a tight stacked subplot.
 
     The top panel shows the observed spectrum and model posterior (median and 1σ).
@@ -223,7 +223,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
     if show:
         plt.show()
 
-def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=True, show=False):
+def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=True, show=True):
     """Compare posterior distributions between BayeSED3 and BAGPIPES.
 
     Parameters:
@@ -349,9 +349,47 @@ def plot_posterior_comparison(bayesed_results, bagpipes_fit, object_id, save=Tru
     return fig
 
 
+def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1):
+    """Configure GetDist analysis settings for consistent posterior analysis.
+    
+    Parameters:
+    -----------
+    range_confidence : float, default=0
+        1D marginalized confidence limit to determine parameter ranges.
+        0 = use full data range, 0.001 = 99.9% confidence, 0.01 = 99% confidence, 0.05 = 95% confidence
+    contours : list, optional
+        Confidence limits for marginalized constraints (e.g., [0.68, 0.95, 0.99])
+    smooth_scale_1D : float, default=-1
+        1D smoothing scale (-1 = automatic)
+    smooth_scale_2D : float, default=-1  
+        2D smoothing scale (-1 = automatic)
+        
+    Returns:
+    --------
+    dict : GetDist analysis settings dictionary
+    """
+    settings = {
+        'range_confidence': range_confidence,
+        'smooth_scale_1D': smooth_scale_1D,
+        'smooth_scale_2D': smooth_scale_2D,
+        'fine_bins': 1024,
+        'fine_bins_2D': 256,
+        'boundary_correction_order': 1,
+        'mult_bias_correction_order': 1
+    }
+    
+    if contours is not None:
+        settings['contours'] = contours
+    else:
+        settings['contours'] = [0.68, 0.95, 0.99]  # 1σ, 2σ, 3σ
+        
+    return settings
+
+
 def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                                 bayesed_params=None, bagpipes_params=None,
-                                labels=None, save=True, show=False):
+                                labels=None, true_values=None, save=True, show=True,
+                                range_confidence=0):
     """Create corner plots comparing BayeSED3 and BAGPIPES posterior samples using GetDist.
 
     Parameters:
@@ -369,21 +407,28 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         List of BAGPIPES parameter names to plot (must match length of bayesed_params).
     labels : list of str, optional
         List of labels for the plot axes. If None, uses bayesed_params.
+    true_values : list of float, optional
+        List of true parameter values to mark on the plot. Must match length of bayesed_params.
     save : bool
         Whether to save the plot
     show : bool
         Whether to display the plot
+    range_confidence : float, default=0
+        GetDist range_confidence parameter for determining parameter ranges.
+        0 = use full data range, 0.001 = 99.9% confidence (tighter ranges), 0.01 = 99% confidence, 0.05 = 95% confidence
 
     Example:
     --------
     # First run to see available parameters
     plot_corner_comparison(results, fit, object_id)
 
-    # Then specify parameters to compare
+    # Then specify parameters to compare with custom range confidence
     bayesed_params = ['log(Mstar)', 'log(SFR_{10Myr}/[M_{sun}/yr])', 'Av_2']
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
     labels = ['log(M*)', 'log(SFR)', 'Av']  # Note: SFR will be log-scaled for both
-    plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params, labels)
+    true_values = [10.5, -1.2, 0.3]  # True parameter values to mark
+    plot_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params, 
+                          labels, true_values, range_confidence=0)  # Use full data range
     """
 
     try:
@@ -442,6 +487,11 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             print(f"Error: bayesed_params ({len(bayesed_params)}) and bagpipes_params ({len(bagpipes_params)}) must have same length")
             return None
 
+        # Check true_values length if provided
+        if true_values is not None and len(true_values) != len(bayesed_params):
+            print(f"Error: true_values ({len(true_values)}) must match length of parameter lists ({len(bayesed_params)})")
+            return None
+
         # Use bayesed_params as labels if not provided
         if labels is None:
             labels = bayesed_params
@@ -453,6 +503,7 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         bayesed_data = []
         bagpipes_data = []
         final_labels = []
+        final_true_values = []  # Keep for GetDist markers
 
         for i, (bayesed_param, bagpipes_param, label) in enumerate(zip(bayesed_params, bagpipes_params, labels)):
             # Check BayeSED3 parameter
@@ -480,6 +531,10 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bagpipes_data.append(bagpipes_vals)
             final_labels.append(label)
 
+            # Add corresponding true value if provided
+            if true_values is not None:
+                final_true_values.append(true_values[i])
+
             print(f"✓ Loaded: {bayesed_param} vs {bagpipes_param} -> {label}")
 
         if not bayesed_data or not bagpipes_data:
@@ -487,6 +542,10 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             return None
 
         print(f"\nCreating GetDist corner plot with {len(final_labels)} parameters: {final_labels}")
+
+        # Configure GetDist analysis settings
+        getdist_settings = configure_getdist_settings(range_confidence=range_confidence)
+        print(f"Using GetDist range_confidence = {range_confidence} ({(1-range_confidence)*100:.1f}% confidence ranges)")
 
         # Get BayeSED3 GetDist samples directly (already a MCSamples object)
         bayesed_getdist_samples = bayesed_results.get_getdist_samples(object_id=object_id)
@@ -503,8 +562,10 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             clean_names.append(clean_name)
 
         # Create BAGPIPES MCSamples object with clean names and nice labels
+        # Use range_confidence to control parameter range determination
         bagpipes_mcsamples = MCSamples(samples=bagpipes_samples_array, names=clean_names,
-                                     labels=final_labels, name_tag='BAGPIPES')
+                                     labels=final_labels, name_tag='BAGPIPES',
+                                     settings=getdist_settings)
 
         # Set labels for BayeSED3 samples (following BayeSED's approach)
         bayesed_getdist_samples.name_tag = 'BayeSED3'
@@ -528,7 +589,8 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bayesed_filtered_mcsamples = MCSamples(samples=bayesed_filtered_samples,
                                                  names=clean_names[:len(bayesed_indices)],
                                                  labels=bayesed_filtered_labels,
-                                                 name_tag='BayeSED3')
+                                                 name_tag='BayeSED3',
+                                                 settings=getdist_settings)
         else:
             print("No matching parameters found in BayeSED3 samples")
             return None
@@ -553,10 +615,26 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             'filled': True,
             'contour_colors': ['#2E86AB', '#F24236'],  # BayeSED3 blue, BAGPIPES red
             'contour_ls': ['-', '--'],  # Solid for BayeSED3, dashed for BAGPIPES
-            'contour_lws': [1.5, 2.0],
+            'contour_lws': [2.0, 2.0],
         }
 
-        # Plot using BayeSED's method
+        # Add markers for true values if provided (GetDist native support)
+        if true_values is not None and final_true_values:
+            print(f"Adding true value markers using GetDist native markers for {len(final_true_values)} parameters...")
+            # Create markers dict indexed by parameter name
+            markers_dict = {}
+            for i, (param_name, true_val) in enumerate(zip(clean_names[:len(bayesed_indices)], final_true_values)):
+                markers_dict[param_name] = true_val
+
+            plot_kwargs['markers'] = markers_dict
+            plot_kwargs['marker_args'] = {
+                'color': '#8B4513',      # Dark brown - distinct from blue/red, professional
+                'linestyle': ':',        # Dotted to distinguish from solid/dashed posteriors
+                'linewidth': 2.0,        # Match BayeSED3 contour line width for consistency
+                'alpha': 0.85            # Good visibility while not overwhelming
+            }
+
+        # Plot using BayeSED's method with GetDist native markers
         g.triangle_plot(samples_list, clean_names[:len(bayesed_indices)], **plot_kwargs)
 
         # Clean title
@@ -742,6 +820,7 @@ def main():
     results.print_summary()
     results.plot_bestfit('5494348_STARFORMING')
     results.plot_bestfit('11184100_QUIESCENT')
+    results_bayesed=results.load_hdf5_results()
 
 
     # goodss_filt_list = np.loadtxt("filters/goodss_filt_list.txt", dtype="str")
@@ -820,9 +899,56 @@ def main():
         # Use the correct parameter names based on the available parameters
         # Note: BayeSED3 derived parameters have '*' suffix
         bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2[0,0]']
+        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}', 'Av_2[0,1]_{True}']
         bagpipes_params = ['redshift', 'stellar_mass', 'sfr', 'dust:Av']
         labels = ['z', 'log(Mstar)', 'log(SFR)', 'Av']
-        plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels)
+
+        # Extract true values for this object
+        try:
+            obj_true_values = []
+
+            # Debug: print available columns and object IDs
+            #print(f"Available columns in results_bayesed: {results_bayesed.colnames}")
+            #print(f"Looking for object ID: {ID} (type: {type(ID)})")
+            #print(f"Available IDs in results_bayesed: {results_bayesed['ID'][:5]}...")  # Show first 5 IDs
+
+            for param in true_value_params:
+                if param in results_bayesed.colnames:  # astropy Table uses .colnames not .columns
+                    # Get the true value for this specific object using astropy Table operations
+                    obj_mask = results_bayesed['ID'] == ID
+                    if obj_mask.any():
+                        # For astropy Table, use boolean indexing and get first element
+                        masked_table = results_bayesed[obj_mask]
+                        if len(masked_table) > 0:
+                            true_val = masked_table[param][0]  # astropy Table indexing
+                            obj_true_values.append(float(true_val))  # Ensure it's a float
+                        else:
+                            print(f"Warning: No rows found for object {ID}")
+                            obj_true_values = None
+                            break
+                    else:
+                        print(f"Warning: Object {ID} not found in results_bayesed")
+                        obj_true_values = None
+                        break
+                else:
+                    print(f"Warning: True value parameter '{param}' not found in results_bayesed")
+                    print(f"Available true value columns: {[col for col in results_bayesed.colnames if '_True' in col]}")
+                    obj_true_values = None
+                    break
+
+            if obj_true_values and len(obj_true_values) == len(bayesed_params):
+                print(f"Found true values for object {ID}: {dict(zip(labels, obj_true_values))}")
+            else:
+                obj_true_values = None
+                print(f"Could not extract all true values for object {ID}")
+
+        except Exception as e:
+            print(f"Error extracting true values for object {ID}: {e}")
+            import traceback
+            traceback.print_exc()
+            obj_true_values = None
+
+        plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
 
     # fit_cat = pipes.fit_catalogue(IDs, fit_instructions, load_bayesed_input, photometry_exists=False, run=cat_name, make_plots=False,n_posterior=500)
     # # fit_cat.fit(verbose=True,pool=10,n_live=400)
