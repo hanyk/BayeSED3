@@ -13,7 +13,9 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                  use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
 
-                 model_names=None, show_emission_lines=True, 
+                 model_names=None, show_emission_lines=True, emission_line_fontsize=10,
+
+                 title_fontsize=14, label_fontsize=12, legend_fontsize=10,
 
                  figsize=(12, 8), dpi=300, focus_on_data_range=True, **kwargs):
 
@@ -81,7 +83,23 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         Show emission line markers for spectroscopy (default: True)
 
-    figsize : tuple
+    emission_line_fontsize : int, default 10
+
+        Font size for emission line labels. Larger values make labels more readable.
+
+    title_fontsize : int, default 14
+
+        Font size for the plot title
+
+    label_fontsize : int, default 12
+
+        Font size for axis labels (x and y axis)
+
+    legend_fontsize : int, default 10
+
+        Font size for legend text
+
+    figsize : tuple, default (12, 8)
 
         Figure size (width, height) in inches (default: (12, 8))
 
@@ -688,40 +706,6 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                 if obs_spec is not None and len(obs_spec) > 0:
 
-                    # Emission line markers
-
-                    if show_emission_lines:
-
-                        emission_lines = [
-
-                            (0.65646140, r'H$\alpha$', 'red'),
-
-                            (0.48626830, r'H$\beta$', 'green'),
-
-                            (0.49602949, '[O III]4959', 'blue'),
-
-                            (0.50082397, '[O III]5007', 'cyan'),
-
-                            (0.65498590, '[N II]6548', 'magenta'),
-
-                            (0.65852685, '[N II]6583', 'purple'),
-
-                            (0.37270917, '[O II]3725', 'yellow'),
-
-                            (0.37298754, '[O II]3727', 'orange'),
-
-                            (0.2798, 'Mg II 2798', 'brown')
-
-                        ]
-
-                        for line_wl, label, color in emission_lines:
-
-                            ax1.axvline(x=line_wl, color=color, linestyle='--', 
-
-                                      linewidth=0.5, alpha=0.7)
-
-                    
-
                     bands = np.unique(obs_spec['iband'])
 
                     for band in bands:
@@ -984,7 +968,7 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                     ax2.yaxis.set_ticklabels([])
 
-                    ax2.legend(loc='upper right', bbox_to_anchor=(1, 0.9), fontsize='small')
+                    ax2.legend(loc='upper right', bbox_to_anchor=(1, 0.9), fontsize=legend_fontsize)
 
             except Exception as e:
 
@@ -996,21 +980,21 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         wl_label = r'$\lambda_{\rm rest}/\rm \mu m$' if use_rest_frame else r'$\lambda_{\rm obs}/\rm \mu m$'
 
-        ax1.set_xlabel(wl_label)
+        ax1.set_xlabel(wl_label, fontsize=label_fontsize)
 
         
 
         if flux_unit == 'nufnu':
 
-            ax1.set_ylabel(r'$\nu F_\nu / [\rm \mu Jy \cdot Hz]$')
+            ax1.set_ylabel(r'$\nu F_\nu / [\rm \mu Jy \cdot Hz]$', fontsize=label_fontsize)
 
         elif flux_unit == 'flambda':
 
-            ax1.set_ylabel(r'$F_\lambda / [\rm erg \cdot s^{-1} \cdot cm^{-2} \cdot \AA^{-1}]$')
+            ax1.set_ylabel(r'$F_\lambda / [\rm erg \cdot s^{-1} \cdot cm^{-2} \cdot \AA^{-1}]$', fontsize=label_fontsize)
 
         else:
 
-            ax1.set_ylabel(r'$F_\nu / [\rm \mu Jy]$')
+            ax1.set_ylabel(r'$F_\nu / [\rm \mu Jy]$', fontsize=label_fontsize)
 
         
 
@@ -1018,7 +1002,7 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                 f"z_best={z_best}, Xmin²/Nd={xmin2_nd}")
 
-        ax1.set_title(title)
+        ax1.set_title(title, fontsize=title_fontsize)
 
         
 
@@ -1314,9 +1298,135 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
             ncol = min(3, max(1, n_items // 5)) if n_items > 10 else 1
 
-            ax1.legend(loc='best', ncol=ncol, fontsize='small', framealpha=0.9)
+            ax1.legend(loc='best', ncol=ncol, fontsize=legend_fontsize, framealpha=0.9)
 
         
+
+        # Add emission line markers and labels after all data is plotted and axis limits are set
+        if show_emission_lines:
+            # Get current axis limits
+            xlim = ax1.get_xlim()
+            ylim = ax1.get_ylim()
+            
+            # Define emission lines with wavelengths, labels, and colors
+            emission_lines = [
+                # Hydrogen Balmer series
+                (0.65646140, r'H$\alpha$', 'red'),
+                (0.48626830, r'H$\beta$', 'green'),
+                (0.43407410, r'H$\gamma$', 'lightgreen'),
+                (0.41017500, r'H$\delta$', 'lime'),
+                
+                # Oxygen lines
+                (0.49602949, '[O III]4959', 'blue'),
+                (0.50082397, '[O III]5007', 'cyan'),
+                (0.37270917, '[O II]3726', 'orange'),
+                (0.37298754, '[O II]3729', 'darkorange'),
+                (0.63004000, '[O I]6300', 'coral'),
+                (0.63640000, '[O I]6364', 'lightcoral'),
+                
+                # Nitrogen lines
+                (0.65498590, '[N II]6548', 'magenta'),
+                (0.65852685, '[N II]6583', 'purple'),
+                
+                # Sulfur lines
+                (0.67316300, '[S II]6716', 'pink'),
+                (0.67312100, '[S II]6731', 'hotpink'),
+                (0.95323000, '[S III]9532', 'plum'),
+                
+                # Carbon lines
+                (0.15491000, 'C IV 1549', 'darkblue'),
+                (0.19062000, 'C III] 1909', 'navy'),
+                
+                # Magnesium lines
+                (0.27980000, 'Mg II 2798', 'darkgreen'),
+                (0.28035300, 'Mg II 2803', 'forestgreen'),
+                
+                # Neon lines
+                (0.38691000, '[Ne III]3869', 'teal'),
+                (0.39685000, '[Ne III]3967', 'darkcyan'),
+                (0.24240000, '[Ne IV]2424', 'orchid'),
+                
+                # Silicon lines
+                (0.19347000, 'Si III] 1892', 'brown'),
+                (0.14003000, 'Si IV 1394', 'maroon'),
+                (0.14082000, 'Si IV 1403', 'darkred'),
+                
+                # Helium lines
+                (0.58756000, 'He I 5876', 'gold'),
+                (0.44713000, 'He II 4471', 'yellow'),
+                (0.16400000, 'He II 1640', 'khaki'),
+                
+                # Iron lines (common in AGN)
+                (0.42587000, '[Fe II]4259', 'chocolate'),
+                (0.51270000, '[Fe II]5127', 'sienna'),
+                (0.16300000, '[Fe II]1630', 'saddlebrown'),
+                
+                # Lyman series
+                (0.12157000, r'Ly$\alpha$ 1216', 'indigo'),
+                (0.10260000, r'Ly$\beta$ 1026', 'darkviolet'),
+                
+                # Calcium lines
+                (0.39340000, 'Ca II K 3934', 'gray'),
+                (0.39690000, 'Ca II H 3969', 'darkgray'),
+                (0.85446000, 'Ca II 8542', 'lightgray'),
+                (0.85662000, 'Ca II 8662', 'silver'),
+            ]
+            
+            # Remove duplicates based on wavelength (keep first occurrence)
+            seen_wavelengths = set()
+            unique_emission_lines = []
+            for wl, label, color in emission_lines:
+                if wl not in seen_wavelengths:
+                    seen_wavelengths.add(wl)
+                    unique_emission_lines.append((wl, label, color))
+            
+            # Only show lines that are within the current x-axis range
+            visible_lines = [(wl, label, color) for wl, label, color in unique_emission_lines 
+                           if xlim[0] <= wl <= xlim[1]]
+            
+            if visible_lines:
+                # Sort by wavelength for better label placement
+                visible_lines.sort(key=lambda x: x[0])
+                
+                # Calculate label position (near top of plot, but not overlapping with data)
+                if use_log_scale and ylim[0] > 0:
+                    # For log scale, use geometric mean for label position
+                    label_y = ylim[1] * 0.85  # 85% of the way up in log space
+                else:
+                    # For linear scale, use arithmetic position
+                    label_y = ylim[0] + 0.85 * (ylim[1] - ylim[0])
+                
+                # Filter out lines that are too close together to avoid label overlap
+                # Calculate minimum separation based on x-axis range and log/linear scale
+                if use_log_scale and xlim[0] > 0:
+                    # For log scale, use relative separation
+                    min_separation = (xlim[1] / xlim[0]) ** 0.02  # ~2% of log range
+                    filtered_lines = []
+                    for wl, label, color in visible_lines:
+                        if not filtered_lines or wl / filtered_lines[-1][0] > min_separation:
+                            filtered_lines.append((wl, label, color))
+                else:
+                    # For linear scale, use absolute separation
+                    min_separation = (xlim[1] - xlim[0]) * 0.02  # 2% of range
+                    filtered_lines = []
+                    for wl, label, color in visible_lines:
+                        if not filtered_lines or wl - filtered_lines[-1][0] > min_separation:
+                            filtered_lines.append((wl, label, color))
+                
+                # Draw vertical lines and add labels
+                for line_wl, line_label, color in filtered_lines:
+                    # Draw vertical line
+                    ax1.axvline(x=line_wl, color=color, linestyle='--', 
+                              linewidth=0.8, alpha=0.7, zorder=1)
+                    
+                    # Add label at the top of the line
+                    ax1.text(line_wl, label_y, line_label, 
+                           rotation=90, verticalalignment='bottom', 
+                           horizontalalignment='center',
+                           fontsize=emission_line_fontsize, color=color, alpha=0.9,
+                           bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                                   alpha=0.8, edgecolor='none'),
+                           zorder=2)
 
         plt.tight_layout()
 

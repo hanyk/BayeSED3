@@ -951,7 +951,13 @@ class BayeSEDResults:
 
     def plot_bestfit(self, object_id: Optional[str] = None,
                     output_file: Optional[str] = None, show: bool = True,
-                    **kwargs) -> Any:
+                    filter_file: Optional[str] = None, filter_selection_file: Optional[str] = None,
+                    use_rest_frame: bool = True, flux_unit: str = 'fnu', use_log_scale: Optional[bool] = None,
+                    model_names: Optional[List[str]] = None, show_emission_lines: bool = True,
+                    emission_line_fontsize: int = 10, title_fontsize: int = 14, 
+                    label_fontsize: int = 12, legend_fontsize: int = 10,
+                    figsize: tuple = (12, 8), dpi: int = 300, 
+                    focus_on_data_range: bool = True, **kwargs) -> Any:
         """
         Plot best-fit SED using the bayesed.plotting module.
 
@@ -960,16 +966,68 @@ class BayeSEDResults:
         object_id : str, optional
             Object ID to plot for. If None, uses current scope.
         output_file : str, optional
-            Output file path for saving
+            Output file path for saving. If None, saves as {fits_file}.png
         show : bool, default True
             Whether to display the plot
+        filter_file : str, optional
+            Path to filter response file for overlay
+        filter_selection_file : str, optional
+            Path to filter selection file (filters_selected format)
+        use_rest_frame : bool, default True
+            Use rest-frame wavelengths. If False, uses observed-frame
+        flux_unit : str, default 'fnu'
+            Flux unit: 'fnu' (μJy), 'nufnu' (νFν in μJy*Hz), or 'flambda'
+        use_log_scale : bool, optional
+            Use logarithmic scale for axes. If None (default), auto-detects based on data range.
+            Auto-detection uses log scale when either axis spans more than 1 order of magnitude
+            (range ratio > 10). If negative values are present, defaults to linear scale.
+            Set to True to force log scale, or False to force linear scale.
+        model_names : list of str, optional
+            Custom names for model components. If None, auto-generates from HDU names
+        show_emission_lines : bool, default True
+            Show emission line markers for spectroscopy
+        emission_line_fontsize : int, default 10
+            Font size for emission line labels. Larger values make labels more readable.
+        title_fontsize : int, default 14
+            Font size for the plot title
+        label_fontsize : int, default 12
+            Font size for axis labels (x and y axis)
+        legend_fontsize : int, default 10
+            Font size for legend text
+        figsize : tuple, default (12, 8)
+            Figure size (width, height) in inches
+        dpi : int, default 300
+            Resolution for saved figure
+        focus_on_data_range : bool, default True
+            If True, set x-axis limits to focus on the wavelength range where data exists
+            (photometry and spectroscopy), ignoring the full model range. If False, use
+            the full wavelength range from both models and data
         **kwargs
-            Additional plotting arguments
+            Additional plotting arguments passed to matplotlib plotting functions
 
         Returns
         -------
-        Any
-            Plot object
+        matplotlib.figure.Figure
+            The matplotlib figure object
+
+        Examples
+        --------
+        >>> # Basic usage
+        >>> results.plot_bestfit()
+        >>> 
+        >>> # Customize plot
+        >>> results.plot_bestfit(
+        ...     use_rest_frame=True,
+        ...     flux_unit='nufnu',
+        ...     use_log_scale=True,
+        ...     figsize=(14, 10)
+        ... )
+        >>> 
+        >>> # With filter overlay
+        >>> results.plot_bestfit(
+        ...     filter_file='filters.txt',
+        ...     filter_selection_file='filters_selected.txt'
+        ... )
         """
         # Determine object to plot
         if object_id is None:
@@ -1001,8 +1059,27 @@ class BayeSEDResults:
         # Import plotting function
         from ..plotting import plot_bestfit
 
-        # Create plot with file path
-        fig = plot_bestfit(fits_file, show=show, output_file=output_file, **kwargs)
+        # Create plot with file path, passing all the plotting options
+        fig = plot_bestfit(
+            fits_file, 
+            output_file=output_file, 
+            show=show,
+            filter_file=filter_file,
+            filter_selection_file=filter_selection_file,
+            use_rest_frame=use_rest_frame,
+            flux_unit=flux_unit,
+            use_log_scale=use_log_scale,
+            model_names=model_names,
+            show_emission_lines=show_emission_lines,
+            emission_line_fontsize=emission_line_fontsize,
+            title_fontsize=title_fontsize,
+            label_fontsize=label_fontsize,
+            legend_fontsize=legend_fontsize,
+            figsize=figsize,
+            dpi=dpi,
+            focus_on_data_range=focus_on_data_range,
+            **kwargs
+        )
 
         return fig
 
