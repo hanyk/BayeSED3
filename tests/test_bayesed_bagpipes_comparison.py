@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams
+from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams, MultiNestParams
 from astropy.table import Table, join, hstack, vstack
 import bagpipes as pipes
 import numpy as np
@@ -13,74 +13,88 @@ import corner
 # - BAGPIPES: Provides SFR in M☉/yr - linear scale, needs log10() for comparison
 # Both codes use the same physical units (M☉/yr) but different scaling
 
-resolution1=None
 input_file='observation/CESS_mock/two.txt'
 # c = 2.9979246e+14  # um/s
 c = 2.9979246e+18 #angstrom/s
 
+class BayeSEDDataLoader:
+    """Data loader that handles object-specific resolution curves for BAGPIPES."""
+
+    def __init__(self, input_file):
+        self.input_file = input_file
+        self.resolution_cache = {}  # Cache resolution curves by object ID
+
+    def load_full_data(self, ID):
+        """ Load photometry and/or spectrum from the input file of BayeSED.
+
+        Returns:
+            tuple: (spectrum, resolution) where spectrum is the spectral data
+                   and resolution is the resolution curve for BAGPIPES
+        """
+        cat = Table.read(self.input_file, format='ascii')
+        head = cat.meta['comments'][0].split()
+        cat_name = head[0]
+        Nphot = int(head[1])
+        Nother = int(head[2])
+        Nspec = int(head[3])
+
+        # load up the relevant columns from the catalogue.
+
+        # Find the correct row for the object we want.
+        row=cat['ID']==ID
+
+        # Extract the object we want from the catalogue.
+        if Nphot>0:
+            fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[5:5+Nphot*2:2]]))
+            fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[6:5+Nphot*2:2]]))
+            # Turn these into a 2D array.
+            photometry = np.c_[fluxes.flatten(), fluxerrs.flatten()]
+
+        if Nspec>0:
+            Nskip=5+Nphot*2+Nother+Nspec
+            waves = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+0::4]]))
+            waves = waves.flatten()
+            waves = waves*1e4
+            fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+1::4]]))
+            fluxes = fluxes.flatten()
+            fluxes = (c*waves**-1*fluxes*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
+            fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+2::4]]))
+            fluxerrs = fluxerrs.flatten()
+            fluxerrs = (c*waves**-1*fluxerrs*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
+            wdisp = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+3::4]]))
+            wdisp = wdisp.flatten()
+            wdisp = wdisp*1e4
+            resolution = np.c_[waves,waves/(2.35*wdisp)]
+
+            # Cache the resolution curve for this object
+            self.resolution_cache[ID] = resolution
+
+            # Turn these into a 2D array.
+            spectrum = np.c_[waves, fluxes, fluxerrs]
+            mask=fluxerrs>0
+            return spectrum[mask], resolution
+
+    def load_spectrum_only(self, ID):
+        """Load only spectrum data for BAGPIPES (wrapper function)."""
+        spectrum, _ = self.load_full_data(ID)
+        return spectrum
+
+    def get_resolution_curve(self, ID):
+        """Get the resolution curve for a specific object ID."""
+        if ID not in self.resolution_cache:
+            # Load data to populate cache
+            self.load_full_data(ID)
+        return self.resolution_cache[ID]
+
+
+# Legacy function for backward compatibility
 def load_bayesed_input(ID):
-    """ Load photometry and/or spectrum from the input file of BayeSED. """
-    cat = Table.read(input_file, format='ascii')
-    head = cat.meta['comments'][0].split()
-    cat_name = head[0]
-    Nphot = int(head[1])
-    Nother = int(head[2])
-    Nspec = int(head[3])
+    """ Legacy function - creates a temporary data loader.
 
-    # load up the relevant columns from the catalogue.
-
-    # Find the correct row for the object we want.
-    row=cat['ID']==ID
-
-    # Extract the object we want from the catalogue.
-    if Nphot>0:
-        fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[5:5+Nphot*2:2]]))
-        fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[6:5+Nphot*2:2]]))
-        # Turn these into a 2D array.
-        photometry = np.c_[fluxes.flatten(), fluxerrs.flatten()]
-
-    if Nspec>0:
-        Nskip=5+Nphot*2+Nother+Nspec
-        waves = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+0::4]]))
-        waves = waves.flatten()
-        waves = waves*1e4
-        fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+1::4]]))
-        fluxes = fluxes.flatten()
-        fluxes = (c*waves**-1*fluxes*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
-        fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+2::4]]))
-        fluxerrs = fluxerrs.flatten()
-        fluxerrs = (c*waves**-1*fluxerrs*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
-        wdisp = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+3::4]]))
-        wdisp = wdisp.flatten()
-        wdisp = wdisp*1e4
-        resolution = np.c_[waves,waves/(2.35*wdisp)]
-        resolution1=resolution
-        # Turn these into a 2D array.
-        spectrum = np.c_[waves, fluxes, fluxerrs]
-        mask=fluxerrs>0
-        return spectrum[mask]
-    # blow up the errors associated with any missing fluxes.
-    # for i in range(len(photometry)):
-    # if (photometry[i, 0] == 0.) or (photometry[i, 1] <= 0):
-    # photometry[i,:] = [0., 9.9*10**99.]
-
-    # # Enforce a maximum SNR of 20, or 10 in the IRAC channels.
-    # for i in range(len(photometry)):
-    # if i < 10:
-    # max_snr = 20.
-
-        # else:
-        # max_snr = 10.
-
-        # if photometry[i, 0]/photometry[i, 1] > max_snr:
-        # photometry[i, 1] = photometry[i, 0]/max_snr
-
-    # if Nphot>0 and Nspec>0:
-    # return spectrum,photometry
-    # if Nphot>0:
-    # return photometry
-    # if Nspec>0:
-    # return spectrum[mask]
+    Note: For production use, create a BayeSEDDataLoader instance instead.
+    """
+    loader = BayeSEDDataLoader(input_file)
+    return loader.load_full_data(ID)
 
 def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=False, runtime_s=None):
     """Plot spectrum posterior with residuals as a tight stacked subplot.
@@ -455,7 +469,7 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bayesed_idx = bayesed_param_names.index(bayesed_param)
             bayesed_vals = sample_array[:, bayesed_idx]
             bagpipes_vals = bagpipes_fit.posterior.samples[bagpipes_param]
-            
+
             # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
             if 'SFR' in bayesed_param and bagpipes_param == 'sfr':
                 # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
@@ -476,52 +490,52 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
 
         # Get BayeSED3 GetDist samples directly (already a MCSamples object)
         bayesed_getdist_samples = bayesed_results.get_getdist_samples(object_id=object_id)
-        
+
         # Create BAGPIPES MCSamples object
         bagpipes_samples_array = np.column_stack(bagpipes_data)
         print(f"BayeSED3 samples shape: {bayesed_getdist_samples.samples.shape}")
         print(f"BAGPIPES samples shape: {bagpipes_samples_array.shape}")
-        
+
         # Create clean parameter names for GetDist (no spaces, *, or ?)
         clean_names = []
         for label in final_labels:
             clean_name = label.replace(' ', '_').replace('*', 'star').replace('?', 'q').replace('(', '').replace(')', '')
             clean_names.append(clean_name)
-        
+
         # Create BAGPIPES MCSamples object with clean names and nice labels
-        bagpipes_mcsamples = MCSamples(samples=bagpipes_samples_array, names=clean_names, 
+        bagpipes_mcsamples = MCSamples(samples=bagpipes_samples_array, names=clean_names,
                                      labels=final_labels, name_tag='BAGPIPES')
-        
+
         # Set labels for BayeSED3 samples (following BayeSED's approach)
         bayesed_getdist_samples.name_tag = 'BayeSED3'
         bayesed_getdist_samples.label = 'BayeSED3'
-        
+
         # Filter BayeSED3 samples to only include the parameters we want to compare
         # Extract the relevant parameter indices from BayeSED3 samples
         bayesed_param_names = [p.name for p in bayesed_getdist_samples.paramNames.names]
         bayesed_indices = []
         bayesed_filtered_labels = []
-        
+
         for i, (bayesed_param, label) in enumerate(zip(bayesed_params, final_labels)):
             if bayesed_param in bayesed_param_names:
                 idx = bayesed_param_names.index(bayesed_param)
                 bayesed_indices.append(idx)
                 bayesed_filtered_labels.append(label)
-        
+
         # Create filtered BayeSED3 samples
         if bayesed_indices:
             bayesed_filtered_samples = bayesed_getdist_samples.samples[:, bayesed_indices]
-            bayesed_filtered_mcsamples = MCSamples(samples=bayesed_filtered_samples, 
-                                                 names=clean_names[:len(bayesed_indices)], 
-                                                 labels=bayesed_filtered_labels, 
+            bayesed_filtered_mcsamples = MCSamples(samples=bayesed_filtered_samples,
+                                                 names=clean_names[:len(bayesed_indices)],
+                                                 labels=bayesed_filtered_labels,
                                                  name_tag='BayeSED3')
         else:
             print("No matching parameters found in BayeSED3 samples")
             return None
-        
+
         # Create GetDist triangle plot following BayeSED's approach
         g = plots.get_subplot_plotter(width_inch=12, subplot_size=3.0)
-        
+
         # Use BayeSED's plotting style for better comparison visibility
         g.settings.figure_legend_frame = True
         g.settings.figure_legend_loc = 'upper right'
@@ -530,10 +544,10 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         g.settings.lab_fontsize = 12
         g.settings.tight_layout = True
         g.settings.axes_labelsize = 12
-        
+
         # Use BayeSED's plotting approach with samples list
         samples_list = [bayesed_filtered_mcsamples, bagpipes_mcsamples]
-        
+
         # Set plotting options for better comparison visibility (following BayeSED's approach)
         plot_kwargs = {
             'filled': True,
@@ -541,14 +555,14 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             'contour_ls': ['-', '--'],  # Solid for BayeSED3, dashed for BAGPIPES
             'contour_lws': [1.5, 2.0],
         }
-        
+
         # Plot using BayeSED's method
         g.triangle_plot(samples_list, clean_names[:len(bayesed_indices)], **plot_kwargs)
-        
+
         # Clean title
-        plt.suptitle(f'Object: {object_id}', 
+        plt.suptitle(f'Object: {object_id}',
                    fontsize=14, y=0.95, fontweight='bold')
-        
+
         # Get the current figure
         fig = plt.gcf()
 
@@ -713,6 +727,11 @@ def main():
         min=0.01,         # Minimum fractional systematic error
         max=0.1,          # Maximum fractional systematic error
     )
+    params.multinest = MultiNestParams(
+        nlive=40,          # Good balance of speed/accuracy
+        efr=0.1,            # Moderate efficiency
+        tol=0.5,            # Standard tolerance
+    )
 
 
     # Run analysis
@@ -728,10 +747,17 @@ def main():
     # goodss_filt_list = np.loadtxt("filters/goodss_filt_list.txt", dtype="str")
     # spectrum,photometry=load_bayesed_input('10524881')
     # IDs=cat['ID'].__array__().astype(str)
-    IDs=results.list_objects()
-    galaxy = pipes.galaxy(IDs[0], load_bayesed_input,photometry_exists=False)
-    # galaxy = pipes.galaxy('25658916', load_bayesed_input,photometry_exists=False)
+    # Create data loader for handling object-specific resolution curves
+    # This approach properly handles the fact that different astronomical objects
+    # can have different spectral resolutions due to:
+    # - Different observing conditions
+    # - Different instrumental setups
+    # - Different redshifts affecting observed wavelength coverage
+    data_loader = BayeSEDDataLoader(input_file)
 
+    IDs = results.list_objects()
+
+    # BAGPIPES fit instructions (common for all objects)
     exp = {}
     exp["age"] = (0.1, 15.)
     exp["tau"] = (0.3, 10.)
@@ -745,38 +771,42 @@ def main():
     nebular = {}
     nebular["logU"] = -2.3
 
-    fit_instructions = {}
-    fit_instructions["redshift"] = (0., 2.)
-    fit_instructions["exponential"] = exp
-    fit_instructions["dust"] = dust
-    fit_instructions["nebular"] = nebular
-    fit_instructions["veldisp"] = 300  #km/s
-    # fit_instructions["veldisp"] = (1., 1000.)   #km/s
-    # fit_instructions["veldisp_prior"] = "log_10"
-    fit_instructions["R_curve"] = resolution1
+    base_fit_instructions = {}
+    base_fit_instructions["redshift"] = (0., 2.)
+    base_fit_instructions["exponential"] = exp
+    base_fit_instructions["dust"] = dust
+    base_fit_instructions["nebular"] = nebular
+    base_fit_instructions["veldisp"] = 300  #km/s
 
     noise = {}
     noise["type"] = "white_scaled"
     noise["scaling"] = (1., 1.5)
     noise["scaling_prior"] = "log_10"
-    fit_instructions["noise"] = noise
+    base_fit_instructions["noise"] = noise
 
     # plt.plot(fit_instructions["R_curve"][:, 0], fit_instructions["R_curve"][:, 1])
     # plt.xlabel("Wavelength/ \AA")
     # plt.ylabel("Spectral resolving power")
     # plt.show()
 
-    cat_name=results.catalog_name
+    cat_name = results.catalog_name
     bagpipes_fits = {}  # Store fits for posterior comparison
 
     for ID in IDs:
-        # Create individual galaxy object
-        galaxy = pipes.galaxy(ID, load_bayesed_input, photometry_exists=False)
+        # Get object-specific resolution curve
+        resolution_curve = data_loader.get_resolution_curve(ID)
+
+        # Create object-specific fit instructions with the correct resolution
+        fit_instructions = base_fit_instructions.copy()
+        fit_instructions["R_curve"] = resolution_curve
+
+        # Create individual galaxy object using the data loader
+        galaxy = pipes.galaxy(ID, data_loader.load_spectrum_only, photometry_exists=False)
 
         # Fit individual galaxy with timing
         fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
         t0 = time.time()
-        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=10)
+        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
         runtime_s = time.time() - t0
 
         # Store fit for comparison
