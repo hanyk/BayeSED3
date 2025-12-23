@@ -3,6 +3,7 @@ from astropy.table import Table, join, hstack, vstack
 import bagpipes as pipes
 import numpy as np
 import os
+import sys
 import matplotlib.pyplot as plt
 import time
 from scipy import stats
@@ -13,9 +14,51 @@ import corner
 # - BAGPIPES: Provides SFR in M☉/yr - linear scale, needs log10() for comparison
 # Both codes use the same physical units (M☉/yr) but different scaling
 
-input_file='observation/CESS_mock/two.txt'
 # c = 2.9979246e+14  # um/s
 c = 2.9979246e+18 #angstrom/s
+
+def extract_catalog_name(input_file):
+    """Extract catalog name from the first line of BayeSED input file.
+
+    This is much more efficient for large files since we only read the first line
+    instead of loading the entire table.
+
+    Parameters:
+    -----------
+    input_file : str
+        Path to the BayeSED input file
+
+    Returns:
+    --------
+    str
+        Catalog name extracted from the first comment line
+
+    Raises:
+    -------
+    ValueError
+        If the file format is not as expected
+    """
+    try:
+        with open(input_file, 'r') as f:
+            first_line = f.readline().strip()
+
+        # Check if it's a comment line starting with #
+        if not first_line.startswith('#'):
+            raise ValueError(f"Expected first line to be a comment (starting with #), got: {first_line}")
+
+        # Parse the header: # catalog_name Nphot Nother Nspec [additional_params]
+        header_parts = first_line[1:].strip().split()  # Remove # and split
+
+        if len(header_parts) < 4:
+            raise ValueError(f"Expected at least 4 header parameters, got {len(header_parts)}: {header_parts}")
+
+        cat_name = header_parts[0]
+        return cat_name
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+    except Exception as e:
+        raise ValueError(f"Error reading catalog name from {input_file}: {e}")
 
 class BayeSEDDataLoader:
     """Data loader that handles object-specific resolution curves for BAGPIPES."""
@@ -41,7 +84,11 @@ class BayeSEDDataLoader:
         # load up the relevant columns from the catalogue.
 
         # Find the correct row for the object we want.
-        row=cat['ID']==ID
+        # Handle mixed types in ID column by converting both to strings for comparison
+        if isinstance(ID, str):
+            row = cat['ID'].astype(str) == ID
+        else:
+            row = cat['ID'] == ID
 
         # Extract the object we want from the catalogue.
         if Nphot>0:
@@ -766,15 +813,79 @@ def plot_parameter_scatter(bayesed_results, bagpipes_fits, object_ids, save=True
 
 def main():
     """Main function to run BayeSED3 vs BAGPIPES comparison."""
+
+    # Parse command line arguments
+    input_file = 'observation/CESS_mock/two.txt'  # Default
+    filters_file = None
+    filters_selected_file = None
+
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    if len(sys.argv) > 2:
+        filters_file = sys.argv[2]
+    if len(sys.argv) > 3:
+        filters_selected_file = sys.argv[3]
+
+    # Check if input file exists
+    if not os.path.exists(input_file):
+        print(f"Error: Input file '{input_file}' not found.")
+        sys.exit(1)
+
+    # Auto-set related paths based on input_file directory
+    input_dir = os.path.dirname(input_file)
+    input_basename = os.path.splitext(os.path.basename(input_file))[0]
+
+    # Auto-detect filter files if not provided via command line
+    if filters_file is None:
+        # Look for common filter file patterns
+        for pattern in ['filters_bassmzl.txt', 'filters.txt']:
+            candidate = os.path.join(input_dir, pattern)
+            if os.path.exists(candidate):
+                filters_file = candidate
+                break
+    else:
+        # Check if provided filter file exists
+        if not os.path.exists(filters_file):
+            print(f"Error: Filter file '{filters_file}' not found.")
+            sys.exit(1)
+
+    if filters_selected_file is None:
+        # Look for selected filters file patterns
+        for pattern in ['filters_selected_csst.txt', 'filters_selected.txt']:
+            candidate = os.path.join(input_dir, pattern)
+            if os.path.exists(candidate):
+                filters_selected_file = candidate
+                break
+    else:
+        # Check if provided selected filter file exists
+        if not os.path.exists(filters_selected_file):
+            print(f"Error: Selected filters file '{filters_selected_file}' not found.")
+            sys.exit(1)
+
+    # Set output directory
+    output_dir = os.path.join(input_dir, 'output')
+
+    print(f"Input file: {input_file}")
+    print(f"Input directory: {input_dir}")
+    print(f"Filters file: {filters_file}")
+    print(f"Selected filters file: {filters_selected_file}")
+    print(f"Output directory: {output_dir}")
+
+    # Warn if filter files not found (they may be optional)
+    if filters_file is None:
+        print("Warning: No filter file found. Looking for: filters_bassmzl.txt, filters.txt")
+    if filters_selected_file is None:
+        print("Warning: No selected filters file found. Looking for: filters_selected_csst.txt, filters_selected.txt")
+
     # Initialize interface
-    bayesed = BayeSEDInterface(mpi_mode='auto')
+    bayesed = BayeSEDInterface(mpi_mode='1')
 
     # Simple galaxy fitting with no_photometry_fit=True (fit spectra only)
     params = BayeSEDParams.galaxy(
         input_file=input_file,
-        filters='observation/CESS_mock/filters_bassmzl.txt',
-        filters_selected='observation/CESS_mock/filters_selected_csst.txt',
-        outdir='observation/CESS_mock/output',
+        filters=filters_file,
+        filters_selected=filters_selected_file,
+        outdir=output_dir,
         ssp_model='bc2003_hr_stelib_chab_neb_300r',
         sfh_type='exponential',
         dal_law='calzetti',
@@ -816,11 +927,23 @@ def main():
     result = bayesed.run(params)
 
     # Load and analyze results
-    results = BayeSEDResults('observation/CESS_mock/output', catalog_name='seedcat2')
+    # Extract catalog name from input file (efficient - only reads first line)
+    cat_name = extract_catalog_name(input_file)
+
+    results = BayeSEDResults(output_dir, catalog_name=cat_name)
     results.print_summary()
-    results.plot_bestfit('5494348_STARFORMING')
-    results.plot_bestfit('11184100_QUIESCENT')
-    results_bayesed=results.load_hdf5_results()
+
+    # Get available objects for plotting
+    available_objects = results.list_objects()
+    if available_objects:
+        # Plot first few objects if available
+        for obj_id in available_objects[:2]:  # Plot first 2 objects
+            try:
+                results.plot_bestfit(obj_id)
+            except Exception as e:
+                print(f"Could not plot bestfit for {obj_id}: {e}")
+
+    results_bayesed = results.load_hdf5_results()
 
 
     # goodss_filt_list = np.loadtxt("filters/goodss_filt_list.txt", dtype="str")
@@ -885,7 +1008,7 @@ def main():
         # Fit individual galaxy with timing
         fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
         t0 = time.time()
-        fit.fit(verbose=True, sampler='nautilus', n_live=40, pool=20)
+        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
         runtime_s = time.time() - t0
 
         # Store fit for comparison
@@ -955,5 +1078,32 @@ def main():
     # fit_cat.fit(verbose=True,mpi_serial=True,n_live=400)
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
+        print("Usage: python test_bayesed_bagpipes_comparison.py [input_file] [filters_file] [filters_selected_file]")
+        print("")
+        print("Arguments:")
+        print("  input_file           Path to the BayeSED input file (default: observation/CESS_mock/two.txt)")
+        print("  filters_file         Path to the filter definitions file (optional)")
+        print("  filters_selected_file Path to the selected filters file (optional)")
+        print("")
+        print("If filter files are not provided, the script will automatically detect them in the same directory:")
+        print("  - Filter files: filters_bassmzl.txt, filters.txt")
+        print("  - Selected filters: filters_selected_csst.txt, filters_selected.txt")
+        print("  - Output directory: <input_dir>/output")
+        print("")
+        print("Examples:")
+        print("  # Use default input file with auto-detected filters")
+        print("  python test_bayesed_bagpipes_comparison.py")
+        print("")
+        print("  # Use custom input file with auto-detected filters")
+        print("  python test_bayesed_bagpipes_comparison.py observation/test3/test_STARFORMING.txt")
+        print("")
+        print("  # Use custom input file and filter files")
+        print("  python test_bayesed_bagpipes_comparison.py observation/CSST/test.txt observation/CSST/filters_bassmzl.txt observation/CSST/filters_selected_csst.txt")
+        print("")
+        print("  # Use custom input and filters definition only (selected filters auto-detected)")
+        print("  python test_bayesed_bagpipes_comparison.py observation/test3/test_STARFORMING.txt filters/custom_filters.txt")
+        sys.exit(0)
+
     main()
 

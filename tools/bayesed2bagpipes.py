@@ -202,7 +202,11 @@ def main():
         # load up the relevant columns from the catalogue.
 
         # Find the correct row for the object we want.
-        row=cat['ID']==ID
+        # Handle mixed types in ID column by converting both to strings for comparison
+        if isinstance(ID, str):
+            row = cat['ID'].astype(str) == ID
+        else:
+            row = cat['ID'] == ID
 
         # Extract the object we want from the catalogue.
         if Nphot>0:
