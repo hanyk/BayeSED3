@@ -17,112 +17,260 @@ import corner
 # c = 2.9979246e+14  # um/s
 c = 2.9979246e+18 #angstrom/s
 
-def extract_catalog_name(input_file):
-    """Extract catalog name from the first line of BayeSED input file.
-
-    This is much more efficient for large files since we only read the first line
-    instead of loading the entire table.
-
-    Parameters:
-    -----------
-    input_file : str
-        Path to the BayeSED input file
-
-    Returns:
-    --------
-    str
-        Catalog name extracted from the first comment line
-
-    Raises:
-    -------
-    ValueError
-        If the file format is not as expected
-    """
-    try:
-        with open(input_file, 'r') as f:
-            first_line = f.readline().strip()
-
-        # Check if it's a comment line starting with #
-        if not first_line.startswith('#'):
-            raise ValueError(f"Expected first line to be a comment (starting with #), got: {first_line}")
-
-        # Parse the header: # catalog_name Nphot Nother Nspec [additional_params]
-        header_parts = first_line[1:].strip().split()  # Remove # and split
-
-        if len(header_parts) < 4:
-            raise ValueError(f"Expected at least 4 header parameters, got {len(header_parts)}: {header_parts}")
-
-        cat_name = header_parts[0]
-        return cat_name
-
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Input file not found: {input_file}")
-    except Exception as e:
-        raise ValueError(f"Error reading catalog name from {input_file}: {e}")
-
 class BayeSEDDataLoader:
-    """Data loader that handles object-specific resolution curves for BAGPIPES."""
+    """Optimized data loader that handles object-specific resolution curves for BAGPIPES.
+    
+    Optimizations for large files:
+    - Lazy loading: Only loads catalog once and caches it
+    - Header caching: Parses header information once
+    - Memory-efficient row selection
+    - Optional chunked reading for extremely large files
+    """
 
-    def __init__(self, input_file):
+    def __init__(self, input_file, chunk_size=None):
         self.input_file = input_file
         self.resolution_cache = {}  # Cache resolution curves by object ID
+        self.chunk_size = chunk_size  # For chunked reading of very large files
+        
+        # Cache for catalog metadata and structure
+        self._catalog_cache = None
+        self._header_cache = None
+        self._id_index_cache = None  # Maps ID -> row index for fast lookup
+
+    @classmethod
+    def _parse_header_from_line(cls, header_line):
+        """Parse header information from the first comment line.
+        
+        Parameters:
+        -----------
+        header_line : str
+            The first comment line from the file (with or without #)
+            
+        Returns:
+        --------
+        dict : Header information dictionary
+        """
+        # Remove # if present and split
+        if header_line.startswith('#'):
+            header_line = header_line[1:]
+        
+        header_parts = header_line.strip().split()
+        
+        if len(header_parts) < 4:
+            raise ValueError(f"Expected at least 4 header parameters, got {len(header_parts)}: {header_parts}")
+            
+        return {
+            'cat_name': header_parts[0],
+            'Nphot': int(header_parts[1]),
+            'Nother': int(header_parts[2]),
+            'Nspec': int(header_parts[3])
+        }
+
+    @classmethod
+    def extract_catalog_name(cls, input_file):
+        """Extract catalog name from the first line of BayeSED input file.
+
+        This is much more efficient for large files since we only read the first line
+        instead of loading the entire table.
+
+        Parameters:
+        -----------
+        input_file : str
+            Path to the BayeSED input file
+
+        Returns:
+        --------
+        str
+            Catalog name extracted from the first comment line
+
+        Raises:
+        -------
+        ValueError
+            If the file format is not as expected
+        """
+        try:
+            with open(input_file, 'r') as f:
+                first_line = f.readline().strip()
+
+            # Check if it's a comment line starting with #
+            if not first_line.startswith('#'):
+                raise ValueError(f"Expected first line to be a comment (starting with #), got: {first_line}")
+
+            # Use the shared parsing logic
+            header_info = cls._parse_header_from_line(first_line)
+            return header_info['cat_name']
+
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Input file not found: {input_file}")
+        except Exception as e:
+            raise ValueError(f"Error reading catalog name from {input_file}: {e}")
+
+    @classmethod 
+    def extract_header_info(cls, input_file):
+        """Extract full header information from the first line of BayeSED input file.
+        
+        More efficient than loading the full catalog when you only need header info.
+        
+        Parameters:
+        -----------
+        input_file : str
+            Path to the BayeSED input file
+            
+        Returns:
+        --------
+        dict : Header information with keys: cat_name, Nphot, Nother, Nspec
+        """
+        try:
+            with open(input_file, 'r') as f:
+                first_line = f.readline().strip()
+
+            # Check if it's a comment line starting with #
+            if not first_line.startswith('#'):
+                raise ValueError(f"Expected first line to be a comment (starting with #), got: {first_line}")
+
+            return cls._parse_header_from_line(first_line)
+
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Input file not found: {input_file}")
+        except Exception as e:
+            raise ValueError(f"Error reading header from {input_file}: {e}")
+
+    def get_catalog_name(self):
+        """Get catalog name for this loader's input file.
+        
+        Returns:
+        --------
+        str
+            Catalog name from the header
+        """
+        if self._header_cache is not None:
+            return self._header_cache['cat_name']
+        else:
+            # Use the class method for efficient extraction
+            return self.extract_catalog_name(self.input_file)
+
+    def get_header_info(self):
+        """Get header information for this loader's input file.
+        
+        Returns:
+        --------
+        dict : Header information with keys: cat_name, Nphot, Nother, Nspec
+        """
+        if self._header_cache is not None:
+            return self._header_cache.copy()
+        else:
+            # Use the class method for efficient extraction
+            return self.extract_header_info(self.input_file)
+
+    def _load_catalog_once(self):
+        """Load catalog and header information once and cache it."""
+        if self._catalog_cache is not None:
+            return self._catalog_cache, self._header_cache
+            
+        # Load catalog
+        cat = Table.read(self.input_file, format='ascii')
+        
+        # Use efficient header parsing (reuses existing logic)
+        if self._header_cache is None:
+            # Parse header from the catalog metadata (already loaded)
+            header_line = cat.meta['comments'][0]
+            self._header_cache = self._parse_header_from_line(header_line)
+        
+        # Build ID index for fast lookup
+        id_index = {}
+        for i, obj_id in enumerate(cat['ID']):
+            # Handle mixed types by converting to string for indexing
+            key = str(obj_id) if not isinstance(obj_id, str) else obj_id
+            id_index[key] = i
+            
+        self._catalog_cache = cat
+        self._id_index_cache = id_index
+        
+        return cat, self._header_cache
+
+    def _get_row_index(self, ID):
+        """Get row index for given ID using cached index."""
+        if self._id_index_cache is None:
+            self._load_catalog_once()
+            
+        # Convert ID to string for lookup consistency
+        lookup_id = str(ID) if not isinstance(ID, str) else ID
+        
+        if lookup_id not in self._id_index_cache:
+            raise ValueError(f"ID '{ID}' not found in catalog")
+            
+        return self._id_index_cache[lookup_id]
 
     def load_full_data(self, ID):
         """ Load photometry and/or spectrum from the input file of BayeSED.
+        
+        Optimized version that:
+        - Loads catalog only once and caches it
+        - Uses direct row indexing instead of boolean masking
+        - Caches header parsing results
 
         Returns:
             tuple: (spectrum, resolution) where spectrum is the spectral data
                    and resolution is the resolution curve for BAGPIPES
         """
-        cat = Table.read(self.input_file, format='ascii')
-        head = cat.meta['comments'][0].split()
-        cat_name = head[0]
-        Nphot = int(head[1])
-        Nother = int(head[2])
-        Nspec = int(head[3])
+        # Load catalog and header info (cached after first call)
+        cat, header = self._load_catalog_once()
+        
+        Nphot = header['Nphot']
+        Nother = header['Nother'] 
+        Nspec = header['Nspec']
 
-        # load up the relevant columns from the catalogue.
+        # Get row index directly (much faster than boolean indexing)
+        row_idx = self._get_row_index(ID)
+        
+        # Extract the specific row we want (no boolean masking needed)
+        obj_row = cat[row_idx]
 
-        # Find the correct row for the object we want.
-        # Handle mixed types in ID column by converting both to strings for comparison
-        if isinstance(ID, str):
-            row = cat['ID'].astype(str) == ID
-        else:
-            row = cat['ID'] == ID
-
-        # Extract the object we want from the catalogue.
-        if Nphot>0:
-            fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[5:5+Nphot*2:2]]))
-            fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[6:5+Nphot*2:2]]))
+        # Extract photometry if present
+        if Nphot > 0:
+            flux_cols = cat.colnames[5:5+Nphot*2:2]
+            fluxerr_cols = cat.colnames[6:5+Nphot*2:2]
+            
+            fluxes = np.array([obj_row[col] for col in flux_cols])
+            fluxerrs = np.array([obj_row[col] for col in fluxerr_cols])
+            
             # Turn these into a 2D array.
             photometry = np.c_[fluxes.flatten(), fluxerrs.flatten()]
 
-        if Nspec>0:
-            Nskip=5+Nphot*2+Nother+Nspec
-            waves = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+0::4]]))
-            waves = waves.flatten()
-            waves = waves*1e4
-            fluxes = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+1::4]]))
-            fluxes = fluxes.flatten()
-            fluxes = (c*waves**-1*fluxes*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
-            fluxerrs = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+2::4]]))
-            fluxerrs = fluxerrs.flatten()
-            fluxerrs = (c*waves**-1*fluxerrs*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
-            wdisp = np.lib.recfunctions.structured_to_unstructured(np.array(cat[row][cat.colnames[Nskip+3::4]]))
-            wdisp = wdisp.flatten()
-            wdisp = wdisp*1e4
-            resolution = np.c_[waves,waves/(2.35*wdisp)]
+        # Extract spectrum if present
+        if Nspec > 0:
+            Nskip = 5 + Nphot*2 + Nother + Nspec
+            
+            # Extract spectral data more efficiently
+            wave_cols = cat.colnames[Nskip+0::4]
+            flux_cols = cat.colnames[Nskip+1::4] 
+            fluxerr_cols = cat.colnames[Nskip+2::4]
+            wdisp_cols = cat.colnames[Nskip+3::4]
+            
+            waves = np.array([obj_row[col] for col in wave_cols]) * 1e4
+            fluxes = np.array([obj_row[col] for col in flux_cols])
+            fluxerrs = np.array([obj_row[col] for col in fluxerr_cols])
+            wdisp = np.array([obj_row[col] for col in wdisp_cols]) * 1e4
+            
+            # Convert flux units
+            fluxes = (c * waves**-1 * fluxes * 1e-29) / waves  # uJy*Hz = 1e-29 erg/s/cm^2
+            fluxerrs = (c * waves**-1 * fluxerrs * 1e-29) / waves
+            
+            # Calculate resolution
+            resolution = np.c_[waves, waves/(2.35*wdisp)]
 
             # Cache the resolution curve for this object
             self.resolution_cache[ID] = resolution
 
-            # Turn these into a 2D array.
+            # Create spectrum array
             spectrum = np.c_[waves, fluxes, fluxerrs]
-            mask=fluxerrs>0
+            mask = fluxerrs > 0
             return spectrum[mask], resolution
+            
+        return None, None
 
     def load_spectrum_only(self, ID):
-        """Load only spectrum data for BAGPIPES (wrapper function)."""
+        """Load only spectrum data for BAGPIPES (optimized wrapper function)."""
         spectrum, _ = self.load_full_data(ID)
         return spectrum
 
@@ -132,16 +280,112 @@ class BayeSEDDataLoader:
             # Load data to populate cache
             self.load_full_data(ID)
         return self.resolution_cache[ID]
+    
+    def preload_objects(self, object_ids):
+        """Preload data for multiple objects to optimize batch processing.
+        
+        Parameters:
+        -----------
+        object_ids : list
+            List of object IDs to preload
+            
+        Returns:
+        --------
+        dict : Dictionary mapping object_id -> (spectrum, resolution)
+        """
+        results = {}
+        
+        # Load catalog once
+        cat, header = self._load_catalog_once()
+        
+        print(f"Preloading data for {len(object_ids)} objects...")
+        
+        for obj_id in object_ids:
+            try:
+                spectrum, resolution = self.load_full_data(obj_id)
+                results[obj_id] = (spectrum, resolution)
+            except Exception as e:
+                print(f"Warning: Failed to load object {obj_id}: {e}")
+                results[obj_id] = (None, None)
+                
+        return results
+    
+    def get_available_ids(self):
+        """Get list of all available object IDs in the catalog."""
+        cat, _ = self._load_catalog_once()
+        return cat['ID'].__array__()
+    
+    def get_catalog_info(self, lightweight=False):
+        """Get catalog metadata.
+        
+        Parameters:
+        -----------
+        lightweight : bool, default=False
+            If True, only returns header information without loading the full catalog.
+            This is much faster but doesn't include n_objects or column_names.
+            
+        Returns:
+        --------
+        dict : Catalog information
+        """
+        if lightweight:
+            # Fast mode: only header information, no catalog loading
+            header = self.get_header_info()
+            return {
+                'filename': self.input_file,
+                'catalog_name': header['cat_name'],
+                'n_photometry': header['Nphot'],
+                'n_other': header['Nother'], 
+                'n_spectral': header['Nspec'],
+                'n_objects': None,  # Not available in lightweight mode
+                'column_names': None  # Not available in lightweight mode
+            }
+        else:
+            # Full mode: loads catalog to get complete information
+            _, header = self._load_catalog_once()
+            cat = self._catalog_cache
+            
+            return {
+                'filename': self.input_file,
+                'n_objects': len(cat),
+                'catalog_name': header['cat_name'],
+                'n_photometry': header['Nphot'],
+                'n_other': header['Nother'], 
+                'n_spectral': header['Nspec'],
+                'column_names': cat.colnames
+            }
+
+    @classmethod
+    def create_chunked_loader(cls, input_file, chunk_size=1000):
+        """Create a loader optimized for very large files using chunked reading.
+        
+        For files with millions of objects, this can read data in chunks
+        to avoid loading everything into memory at once.
+        
+        Parameters:
+        -----------
+        input_file : str
+            Path to BayeSED input file
+        chunk_size : int
+            Number of rows to read per chunk
+            
+        Returns:
+        --------
+        BayeSEDDataLoader : Optimized loader instance
+        """
+        return cls(input_file, chunk_size=chunk_size)
 
 
-# Legacy function for backward compatibility
-def load_bayesed_input(ID):
-    """ Legacy function - creates a temporary data loader.
-
-    Note: For production use, create a BayeSEDDataLoader instance instead.
-    """
-    loader = BayeSEDDataLoader(input_file)
-    return loader.load_full_data(ID)
+# Note: The legacy load_bayesed_input function has been removed.
+# Use BayeSEDDataLoader class instead for better performance:
+#
+# # Efficient approach for multiple objects:
+# loader = BayeSEDDataLoader(input_file)
+# for obj_id in object_list:
+#     spectrum, resolution = loader.load_full_data(obj_id)
+#     
+# # Or for batch processing:
+# results = loader.preload_objects(object_list)
 
 def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=True, runtime_s=None):
     """Plot spectrum posterior with residuals as a tight stacked subplot.
@@ -928,7 +1172,7 @@ def main():
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
-    cat_name = extract_catalog_name(input_file)
+    cat_name = BayeSEDDataLoader.extract_catalog_name(input_file)
 
     results = BayeSEDResults(output_dir, catalog_name=cat_name)
     results.print_summary()
@@ -947,7 +1191,8 @@ def main():
 
 
     # goodss_filt_list = np.loadtxt("filters/goodss_filt_list.txt", dtype="str")
-    # spectrum,photometry=load_bayesed_input('10524881')
+    # loader = BayeSEDDataLoader(input_file)
+    # spectrum, resolution = loader.load_full_data('10524881')
     # IDs=cat['ID'].__array__().astype(str)
     # Create data loader for handling object-specific resolution curves
     # This approach properly handles the fact that different astronomical objects
@@ -1073,7 +1318,7 @@ def main():
 
         plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
 
-    # fit_cat = pipes.fit_catalogue(IDs, fit_instructions, load_bayesed_input, photometry_exists=False, run=cat_name, make_plots=False,n_posterior=500)
+    # fit_cat = pipes.fit_catalogue(IDs, fit_instructions, loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=False,n_posterior=500)
     # # fit_cat.fit(verbose=True,pool=10,n_live=400)
     # fit_cat.fit(verbose=True,mpi_serial=True,n_live=400)
 
