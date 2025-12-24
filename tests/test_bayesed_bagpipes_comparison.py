@@ -1059,7 +1059,7 @@ def main():
     """Main function to run BayeSED3 vs BAGPIPES comparison."""
 
     # Parse command line arguments
-    input_file = 'observation/CESS_mock/two.txt'  # Default
+    input_file = None
     filters_file = None
     filters_selected_file = None
 
@@ -1070,9 +1070,19 @@ def main():
     if len(sys.argv) > 3:
         filters_selected_file = sys.argv[3]
 
+    # Require input file to be explicitly provided by user
+    if input_file is None:
+        print("Error: Input file must be provided.")
+        print("")
+        print("Usage: python test_bayesed_bagpipes_comparison.py <input_file> [filters_file] [filters_selected_file]")
+        print("")
+        print("Use --help for more detailed usage information.")
+        sys.exit(1)
+
     # Check if input file exists
     if not os.path.exists(input_file):
         print(f"Error: Input file '{input_file}' not found.")
+        print("Please provide a valid input file path.")
         sys.exit(1)
 
     # Auto-set related paths based on input_file directory
@@ -1324,30 +1334,16 @@ def main():
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
-        print("Usage: python test_bayesed_bagpipes_comparison.py [input_file] [filters_file] [filters_selected_file]")
+        print("Usage: python test_bayesed_bagpipes_comparison.py <input_file> [filters_file] [filters_selected_file]")
         print("")
         print("Arguments:")
-        print("  input_file           Path to the BayeSED input file (default: observation/CESS_mock/two.txt)")
+        print("  input_file           Path to the BayeSED input file (REQUIRED)")
         print("  filters_file         Path to the filter definitions file (optional)")
         print("  filters_selected_file Path to the selected filters file (optional)")
         print("")
-        print("If filter files are not provided, the script will automatically detect them in the same directory:")
-        print("  - Filter files: filters_bassmzl.txt, filters.txt")
-        print("  - Selected filters: filters_selected_csst.txt, filters_selected.txt")
-        print("  - Output directory: <input_dir>/output")
-        print("")
         print("Examples:")
-        print("  # Use default input file with auto-detected filters")
-        print("  python test_bayesed_bagpipes_comparison.py")
-        print("")
-        print("  # Use custom input file with auto-detected filters")
-        print("  python test_bayesed_bagpipes_comparison.py observation/test3/test_STARFORMING.txt")
-        print("")
-        print("  # Use custom input file and filter files")
-        print("  python test_bayesed_bagpipes_comparison.py observation/CSST/test.txt observation/CSST/filters_bassmzl.txt observation/CSST/filters_selected_csst.txt")
-        print("")
-        print("  # Use custom input and filters definition only (selected filters auto-detected)")
-        print("  python test_bayesed_bagpipes_comparison.py observation/test3/test_STARFORMING.txt filters/custom_filters.txt")
+        print("  python test_bayesed_bagpipes_comparison.py observation/test/gal.txt")
+        print("  python test_bayesed_bagpipes_comparison.py observation/CESS_mock/two.txt")
         sys.exit(0)
 
     main()
