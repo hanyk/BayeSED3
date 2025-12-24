@@ -1270,6 +1270,482 @@ class BayeSEDResults:
             else:
                 raise
 
+    def plot_parameter_scatter(self, x_parameter: str, 
+                              y_parameter: str,
+                              x_err: Optional[str] = None,
+                              y_err: Optional[str] = None,
+                              color_parameter: Optional[str] = None,
+                              object_ids: Optional[Union[str, List[str]]] = None,
+                              show_diagonal: bool = True,
+                              show_colorbar: bool = True,
+                              show_stats: bool = True,
+                              figsize: tuple = (8, 6),
+                              xlim: Optional[tuple] = None,
+                              ylim: Optional[tuple] = None,
+                              output_file: Optional[str] = None,
+                              show: bool = True,
+                              xlabel: Optional[str] = None,
+                              ylabel: Optional[str] = None,
+                              title: Optional[str] = None,
+                              **kwargs) -> Any:
+        """
+        Create a scatter plot comparing any two parameter columns with optional error bars.
+        
+        This method creates scatter plots similar to:
+        plt.scatter(results.parameters['log(Mstar)[0,1]_{True}'], 
+                   results.parameters['log(Mstar)[0,0]_{median}'])
+        
+        Parameters
+        ----------
+        x_parameter : str
+            Full column name for x-axis values (e.g., 'log(Mstar)[0,1]_{True}')
+        y_parameter : str
+            Full column name for y-axis values (e.g., 'log(Mstar)[0,0]_{median}')
+        x_err : str, optional
+            Column name for x-axis error bars. Can be:
+            - Sigma column (e.g., 'log(Mstar)[0,0]_{sigma}')
+            - 'percentile' or 'percentile_68' for 68% confidence interval (16th/84th percentiles)
+            - 'percentile_95' for 95% confidence interval (2.5th/97.5th percentiles)
+            - 'percentile_90' for 90% confidence interval (5th/95th percentiles)
+            - Custom percentile (e.g., 'percentile_99' for 99% confidence interval)
+            - Direct column name for custom error values
+        y_err : str, optional
+            Column name for y-axis error bars. Same options as x_err.
+        color_parameter : str, optional
+            Full column name for color coding points. If None, uses single color.
+        object_ids : str or List[str], optional
+            Specific object ID(s) to include. If None, uses all available objects.
+        show_diagonal : bool, default True
+            Whether to show the diagonal line (y=x)
+        show_colorbar : bool, default True
+            Whether to show colorbar (only used if color_parameter is specified)
+        show_stats : bool, default True
+            Whether to show correlation statistics on the plot. Includes Pearson r,
+            Spearman ρ, and error-weighted correlation (if errors are available).
+        figsize : tuple, default (8, 6)
+            Figure size (width, height) in inches
+        xlim : tuple, optional
+            X-axis limits as (xmin, xmax). If None, uses automatic scaling.
+        ylim : tuple, optional
+            Y-axis limits as (ymin, ymax). If None, uses automatic scaling.
+        output_file : str, optional
+            Output file path for saving plot
+        show : bool, default True
+            Whether to display the plot
+        xlabel : str, optional
+            Custom x-axis label. If None, uses x_parameter name.
+        ylabel : str, optional
+            Custom y-axis label. If None, uses y_parameter name.
+        title : str, optional
+            Custom plot title. If None, auto-generates from parameter names.
+        **kwargs
+            Additional arguments passed to plt.errorbar() or plt.scatter()
+            
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The matplotlib figure object
+            
+        Examples
+        --------
+        >>> # Basic scatter plot
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               'log(Mstar)[0,0]_{median}')
+        >>> 
+        >>> # With error bars using sigma
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               y_err='log(Mstar)[0,0]_{sigma}')
+        >>> 
+        >>> # With error bars using percentiles (68% confidence interval)
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               'log(age)[0,0]_{median}',
+        ...                               x_err='percentile', y_err='percentile')
+        >>> 
+        >>> # With 95% confidence interval error bars
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               'log(age)[0,0]_{median}',
+        ...                               x_err='percentile_95', y_err='percentile_95')
+        >>> 
+        >>> # Mixed error types: 90% percentiles for x, sigma for y
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               'SFR_{median}',
+        ...                               x_err='percentile_90', y_err='sigma')
+        >>> 
+        >>> # Custom axis ranges
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               xlim=(9, 12), ylim=(9, 12))
+        >>> 
+        >>> # Zoom into specific region with error bars
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               'log(age)[0,0]_{median}',
+        ...                               x_err='percentile_68', y_err='percentile_68',
+        ...                               xlim=(10, 11.5), ylim=(8.5, 10.2))
+        >>> 
+        >>> # Turn off statistics display
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               show_stats=False)
+        >>> 
+        >>> # With error bars and correlation statistics
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               'SFR_{median}',
+        ...                               x_err='sigma', y_err='sigma',
+        ...                               show_stats=True)
+        >>> 
+        >>> # With color coding
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               color_parameter='log(age)[0,0]_{median}')
+        """
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ImportError:
+            raise ImportError("matplotlib and numpy are required for plotting. Install with: pip install matplotlib numpy")
+        
+        # Get the HDF5 table with appropriate filtering
+        hdf5_table = self.load_hdf5_results(filter_snr=False, min_snr=0.0)
+        
+        # Apply object filtering if specified
+        if object_ids is not None:
+            if isinstance(object_ids, str):
+                object_ids = [object_ids]
+            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in hdf5_table['ID']]
+            if any(object_mask):
+                hdf5_table = hdf5_table[object_mask]
+            else:
+                available_objects = [str(obj_id) for obj_id in hdf5_table['ID']]
+                raise ValueError(f"None of the specified objects {object_ids} found in data. "
+                               f"Available objects: {available_objects}")
+        
+        # Check if columns exist
+        available_cols = hdf5_table.colnames
+        
+        if x_parameter not in available_cols:
+            # Try to find similar columns
+            similar_cols = [col for col in available_cols if x_parameter.split('_')[0] in col or x_parameter.split('[')[0] in col]
+            if similar_cols:
+                raise ValueError(f"Column '{x_parameter}' not found. Similar columns: {similar_cols[:10]}")
+            else:
+                raise ValueError(f"Column '{x_parameter}' not found. Available columns: {available_cols[:10]}...")
+        
+        if y_parameter not in available_cols:
+            # Try to find similar columns
+            similar_cols = [col for col in available_cols if y_parameter.split('_')[0] in col or y_parameter.split('[')[0] in col]
+            if similar_cols:
+                raise ValueError(f"Column '{y_parameter}' not found. Similar columns: {similar_cols[:10]}")
+            else:
+                raise ValueError(f"Column '{y_parameter}' not found. Available columns: {available_cols[:10]}...")
+        
+        # Extract data
+        x_values = np.array(hdf5_table[x_parameter])
+        y_values = np.array(hdf5_table[y_parameter])
+        
+        # Handle error bars
+        def get_error_values(param, err_spec, param_name):
+            """Get error values for a parameter."""
+            if err_spec is None:
+                return None
+            
+            if err_spec.startswith('percentile'):
+                # Parse percentile specification
+                if err_spec == 'percentile':
+                    # Default to 68% confidence interval (16th/84th percentiles)
+                    lower_p, upper_p = 0.16, 0.84
+                elif '_' in err_spec:
+                    # Custom percentile like 'percentile_95' or 'percentile_90'
+                    try:
+                        confidence_level = float(err_spec.split('_')[1])
+                        if confidence_level > 1:
+                            confidence_level = confidence_level / 100.0  # Convert percentage to fraction
+                        
+                        # Calculate symmetric percentiles around median
+                        lower_p = (1 - confidence_level) / 2
+                        upper_p = 1 - lower_p
+                        
+                        logger.info(f"Using {confidence_level*100:.1f}% confidence interval: {lower_p:.3f}/{upper_p:.3f} percentiles")
+                    except (ValueError, IndexError):
+                        logger.warning(f"Invalid percentile specification '{err_spec}'. Using default 68% interval.")
+                        lower_p, upper_p = 0.16, 0.84
+                else:
+                    logger.warning(f"Invalid percentile specification '{err_spec}'. Using default 68% interval.")
+                    lower_p, upper_p = 0.16, 0.84
+                
+                # Auto-calculate from specified percentiles
+                base_param = param.replace('_{median}', '').replace('_{mean}', '').replace('_{MAP}', '').replace('_{MAL}', '')
+                
+                # Format percentiles as strings (handle both decimal and percentage formats)
+                if lower_p < 1:
+                    lower_str = f'{lower_p:.3f}'.rstrip('0').rstrip('.')
+                    upper_str = f'{upper_p:.3f}'.rstrip('0').rstrip('.')
+                else:
+                    lower_str = f'{lower_p:.0f}'
+                    upper_str = f'{upper_p:.0f}'
+                
+                # Try different column name formats
+                possible_formats = [
+                    (f'_{{{lower_str}}}', f'_{{{upper_str}}}'),  # _{0.16}, _{0.84}
+                    (f'_{lower_str}', f'_{upper_str}'),          # _0.16, _0.84
+                    (f'_p{int(lower_p*100)}', f'_p{int(upper_p*100)}'),  # _p16, _p84
+                ]
+                
+                lower_col = upper_col = None
+                for lower_fmt, upper_fmt in possible_formats:
+                    lower_candidate = base_param + lower_fmt
+                    upper_candidate = base_param + upper_fmt
+                    
+                    if lower_candidate in available_cols and upper_candidate in available_cols:
+                        lower_col = lower_candidate
+                        upper_col = upper_candidate
+                        break
+                
+                if lower_col and upper_col:
+                    lower_values = np.array(hdf5_table[lower_col])
+                    upper_values = np.array(hdf5_table[upper_col])
+                    param_values = np.array(hdf5_table[param])
+                    
+                    # Calculate asymmetric errors
+                    lower_err = param_values - lower_values
+                    upper_err = upper_values - param_values
+                    
+                    logger.info(f"Using percentile columns: {lower_col}, {upper_col}")
+                    # Return as [lower_errors, upper_errors] for asymmetric error bars
+                    return np.array([lower_err, upper_err])
+                else:
+                    # Show what columns were tried
+                    tried_cols = []
+                    for lower_fmt, upper_fmt in possible_formats:
+                        tried_cols.extend([base_param + lower_fmt, base_param + upper_fmt])
+                    
+                    logger.warning(f"Percentile columns not found for {param_name}. Tried: {tried_cols}")
+                    
+                    # Show available similar columns
+                    similar_cols = [col for col in available_cols if base_param in col and any(p in col for p in ['0.', '_p', '_{0.', '_{1.'])]
+                    if similar_cols:
+                        logger.info(f"Available percentile-like columns: {similar_cols}")
+                    
+                    return None
+            
+            elif err_spec == 'sigma':
+                # Auto-find sigma column
+                base_param = param.replace('_{median}', '').replace('_{mean}', '').replace('_{MAP}', '').replace('_{MAL}', '')
+                sigma_col = base_param + '_{sigma}'
+                
+                if sigma_col in available_cols:
+                    return np.array(hdf5_table[sigma_col])
+                else:
+                    logger.warning(f"Sigma column not found: {sigma_col}")
+                    return None
+            
+            else:
+                # Direct column name
+                if err_spec in available_cols:
+                    return np.array(hdf5_table[err_spec])
+                else:
+                    logger.warning(f"Error column '{err_spec}' not found for {param_name}")
+                    return None
+        
+        x_err_values = get_error_values(x_parameter, x_err, 'x_parameter')
+        y_err_values = get_error_values(y_parameter, y_err, 'y_parameter')
+        
+        # Handle color parameter if specified
+        color_values = None
+        if color_parameter is not None:
+            if color_parameter not in available_cols:
+                logger.warning(f"Color parameter '{color_parameter}' not found. Available columns: "
+                             f"{[col for col in available_cols if color_parameter.split('_')[0] in col or color_parameter.split('[')[0] in col][:5]}")
+                logger.warning("Proceeding without color coding.")
+            else:
+                color_values = np.array(hdf5_table[color_parameter])
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Prepare plotting arguments
+        plot_kwargs = {'alpha': 0.7}
+        if x_err_values is not None or y_err_values is not None:
+            # Use errorbar plot
+            plot_kwargs.update({'fmt': 'o', 'markersize': 5, 'capsize': 3})
+        else:
+            # Use scatter plot
+            plot_kwargs.update({'s': 50})
+        
+        plot_kwargs.update(kwargs)  # Override with user kwargs
+        
+        # Create the plot
+        if x_err_values is not None or y_err_values is not None:
+            # Use errorbar
+            if color_values is not None:
+                # For colored error bars, we need to plot each point individually
+                # or use a scatter plot with error bars overlay
+                scatter = ax.scatter(x_values, y_values, c=color_values, s=plot_kwargs.get('s', 50), 
+                                   alpha=plot_kwargs.get('alpha', 0.7))
+                
+                # Add error bars without markers
+                ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
+                           fmt='none', alpha=0.5, capsize=plot_kwargs.get('capsize', 3))
+                
+                if show_colorbar:
+                    cbar = plt.colorbar(scatter, ax=ax)
+                    cbar.set_label(color_parameter)
+            else:
+                ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, **plot_kwargs)
+        else:
+            # Use scatter plot
+            if color_values is not None:
+                scatter = ax.scatter(x_values, y_values, c=color_values, **plot_kwargs)
+                if show_colorbar:
+                    cbar = plt.colorbar(scatter, ax=ax)
+                    cbar.set_label(color_parameter)
+            else:
+                scatter = ax.scatter(x_values, y_values, **plot_kwargs)
+        
+        # Set axis limits if specified
+        if xlim is not None:
+            ax.set_xlim(xlim)
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        
+        # Calculate and display correlation statistics if requested
+        if show_stats:
+            try:
+                from scipy import stats
+                
+                # Remove NaN values for correlation calculations
+                valid_mask = ~(np.isnan(x_values) | np.isnan(y_values))
+                x_clean = x_values[valid_mask]
+                y_clean = y_values[valid_mask]
+                
+                if len(x_clean) > 2:  # Need at least 3 points for meaningful correlation
+                    # Pearson correlation
+                    pearson_r, pearson_p = stats.pearsonr(x_clean, y_clean)
+                    
+                    # Spearman correlation (rank-based, more robust)
+                    spearman_rho, spearman_p = stats.spearmanr(x_clean, y_clean)
+                    
+                    # Prepare statistics text
+                    stats_text = f'N = {len(x_clean)}\n'
+                    stats_text += f'Pearson r = {pearson_r:.3f}'
+                    if pearson_p < 0.001:
+                        stats_text += ' (p < 0.001)'
+                    elif pearson_p < 0.01:
+                        stats_text += f' (p < 0.01)'
+                    elif pearson_p < 0.05:
+                        stats_text += f' (p < 0.05)'
+                    else:
+                        stats_text += f' (p = {pearson_p:.3f})'
+                    
+                    stats_text += f'\nSpearman ρ = {spearman_rho:.3f}'
+                    if spearman_p < 0.001:
+                        stats_text += ' (p < 0.001)'
+                    elif spearman_p < 0.01:
+                        stats_text += f' (p < 0.01)'
+                    elif spearman_p < 0.05:
+                        stats_text += f' (p < 0.05)'
+                    else:
+                        stats_text += f' (p = {spearman_p:.3f})'
+                    
+                    # Error-weighted correlation if errors are available
+                    if x_err_values is not None and y_err_values is not None:
+                        try:
+                            # Calculate error-weighted correlation
+                            x_err_clean = x_err_values[valid_mask] if x_err_values.ndim == 1 else np.mean(x_err_values[:, valid_mask], axis=0)
+                            y_err_clean = y_err_values[valid_mask] if y_err_values.ndim == 1 else np.mean(y_err_values[:, valid_mask], axis=0)
+                            
+                            # Avoid division by zero
+                            x_err_clean = np.maximum(x_err_clean, 1e-10)
+                            y_err_clean = np.maximum(y_err_clean, 1e-10)
+                            
+                            # Weights inversely proportional to combined error
+                            weights = 1.0 / (x_err_clean**2 + y_err_clean**2)
+                            weights = weights / np.sum(weights)  # Normalize weights
+                            
+                            # Weighted means
+                            x_weighted_mean = np.sum(weights * x_clean)
+                            y_weighted_mean = np.sum(weights * y_clean)
+                            
+                            # Weighted correlation coefficient
+                            numerator = np.sum(weights * (x_clean - x_weighted_mean) * (y_clean - y_weighted_mean))
+                            x_var = np.sum(weights * (x_clean - x_weighted_mean)**2)
+                            y_var = np.sum(weights * (y_clean - y_weighted_mean)**2)
+                            
+                            if x_var > 0 and y_var > 0:
+                                weighted_r = numerator / np.sqrt(x_var * y_var)
+                                stats_text += f'\nWeighted r = {weighted_r:.3f}'
+                            
+                        except Exception as e:
+                            logger.debug(f"Could not calculate weighted correlation: {e}")
+                    
+                    # Position the text box in the upper left corner
+                    ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, 
+                           verticalalignment='top', horizontalalignment='left',
+                           bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
+                           fontsize=10, family='monospace')
+                    
+                else:
+                    logger.warning("Not enough valid data points for correlation statistics")
+                    
+            except ImportError:
+                logger.warning("scipy not available for correlation statistics")
+            except Exception as e:
+                logger.warning(f"Could not calculate correlation statistics: {e}")
+        
+        # Add diagonal line if requested
+        if show_diagonal:
+            # Get the current axis limits after the scatter plot
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            
+            # Calculate the range for the diagonal line based on the overlapping region
+            line_min = max(xlim[0], ylim[0])
+            line_max = min(xlim[1], ylim[1])
+            
+            # Only draw diagonal if there's an overlapping range
+            if line_min < line_max:
+                ax.plot([line_min, line_max], [line_min, line_max], 'k--', alpha=0.8, linewidth=1, label='y=x')
+                ax.legend()
+        
+        # Set labels
+        ax.set_xlabel(xlabel if xlabel is not None else x_parameter, fontsize=12)
+        ax.set_ylabel(ylabel if ylabel is not None else y_parameter, fontsize=12)
+        
+        # Set title
+        if title is not None:
+            ax.set_title(title, fontsize=14)
+        else:
+            # Auto-generate title
+            x_base = x_parameter.split('_')[0].split('[')[0]
+            y_base = y_parameter.split('_')[0].split('[')[0]
+            if x_base == y_base:
+                ax.set_title(f'{x_base}: {x_parameter} vs {y_parameter}', fontsize=14)
+            else:
+                ax.set_title(f'{x_parameter} vs {y_parameter}', fontsize=14)
+        
+        # Make axes equal if values are in similar range (only if show_diagonal is True)
+        if show_diagonal:
+            ax.set_aspect('equal', adjustable='box')
+        
+        # Add grid
+        ax.grid(True, alpha=0.3)
+        
+        # Tight layout
+        plt.tight_layout()
+        
+        # Save if requested
+        if output_file:
+            fig.savefig(output_file, dpi=300, bbox_inches='tight')
+            logger.info(f"Saved scatter plot to: {output_file}")
+        
+        # Show if requested
+        if show:
+            plt.show()
+        
+        logger.info(f"Created scatter plot: {len(x_values)} points")
+        
+        return fig
+
     def print_summary(self) -> None:
         """Print a summary of the loaded results."""
         print("=" * 60)
