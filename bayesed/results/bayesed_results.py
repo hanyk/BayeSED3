@@ -32,6 +32,12 @@ class BayeSEDResults:
     object_id : str, optional
         Object ID for object-level access
 
+    Attributes
+    ----------
+    parameters : astropy.table.Table
+        The loaded HDF5 parameter table containing all objects and their
+        fitted parameter values. Available immediately after initialization.
+        Contains 'ID' column plus all parameter columns from the HDF5 file.
 
     """
 
@@ -48,6 +54,7 @@ class BayeSEDResults:
         # Main data storage - loaded once
         self._hdf5_table = None
         self._hdf5_file = None
+        self.parameters = None  # Public access to HDF5 table
 
         # Parameter labeling
         self._custom_labels = {}
@@ -212,6 +219,9 @@ class BayeSEDResults:
 
                 # Combine ID and parameters using hstack
                 self._hdf5_table = hstack([id_table, parameters_table])
+                
+                # Make the table available as public parameters attribute
+                self.parameters = self._hdf5_table
 
                 logger.info(f"Loaded HDF5 table: {len(self._hdf5_table)} objects, {len(colnames)} parameters")
 
