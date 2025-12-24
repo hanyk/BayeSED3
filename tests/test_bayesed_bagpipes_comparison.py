@@ -956,104 +956,342 @@ def plot_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         return None
 
 
-def plot_parameter_scatter(bayesed_results, bagpipes_fits, object_ids, save=True, show=False):
-    """Create scatter plots comparing derived parameters between BayeSED3 and BAGPIPES.
-
+def extract_true_values(results_bayesed, object_id, true_value_params, labels=None, verbose=True):
+    """Extract true values for a specific object from BayeSED results.
+    
+    This helper function extracts true parameter values from an astropy Table
+    containing BayeSED results for use in corner plot comparisons.
+    
     Parameters:
     -----------
-    bayesed_results : BayeSEDResults
-        BayeSED3 results object
-    bagpipes_fits : dict
-        Dictionary of BAGPIPES fit objects keyed by object ID
-    object_ids : list
-        List of object IDs to compare
+    results_bayesed : astropy.table.Table
+        BayeSED results table containing true value columns
+    object_id : str or int
+        Object ID to extract true values for
+    true_value_params : list of str
+        List of true value parameter column names (e.g., ['z_{True}', 'log(Mstar)[0,1]_{True}'])
+    labels : list of str, optional
+        List of parameter labels for logging (e.g., ['z', 'log(M*)', 'log(SFR)'])
+    verbose : bool, default=True
+        Whether to print warning and success messages
+    
+    Returns:
+    --------
+    list of float or None
+        List of true parameter values if all found, None if any missing or error occurred
+        
+    Example:
+    --------
+    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+    labels = ['z', 'log(M*)', 'log(SFR)']
+    obj_true_values = extract_true_values(results_bayesed, '5494348_STARFORMING', true_value_params, labels)
+    if obj_true_values:
+        print(f"True values: {obj_true_values}")
+    """
+    try:
+        obj_true_values = []
+        
+        for param in true_value_params:
+            if param in results_bayesed.colnames:  # astropy Table uses .colnames not .columns
+                # Get the true value for this specific object using astropy Table operations
+                obj_mask = results_bayesed['ID'] == object_id
+                if obj_mask.any():
+                    # For astropy Table, use boolean indexing and get first element
+                    masked_table = results_bayesed[obj_mask]
+                    if len(masked_table) > 0:
+                        true_val = masked_table[param][0]  # astropy Table indexing
+                        obj_true_values.append(float(true_val))  # Ensure it's a float
+                    else:
+                        if verbose:
+                            print(f"Warning: No rows found for object {object_id}")
+                        return None
+                else:
+                    if verbose:
+                        print(f"Warning: Object {object_id} not found in results_bayesed")
+                    return None
+            else:
+                if verbose:
+                    print(f"Warning: True value parameter '{param}' not found in results_bayesed")
+                    print(f"Available true value columns: {[col for col in results_bayesed.colnames if '_True' in col]}")
+                return None
+        
+        # Check if all parameters were found and log success
+        if obj_true_values and len(obj_true_values) == len(true_value_params):
+            if verbose and labels:
+                print(f"Found true values for object {object_id}: {dict(zip(labels, obj_true_values))}")
+            return obj_true_values
+        else:
+            if verbose:
+                print(f"Could not extract all true values for object {object_id}")
+            return None
+        
+    except Exception as e:
+        if verbose:
+            print(f"Error extracting true values for object {object_id}: {e}")
+            import traceback
+            traceback.print_exc()
+        return None
+
+
+def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, bagpipes_params, 
+                          labels=None, save=True, show=False):
+    """Create scatter plots comparing derived parameters between BayeSED3 and BAGPIPES.
+    
+    This improved version:
+    - Always uses all objects available in both datasets
+    - Uses astropy table for BayeSED parameters
+    - Loads BAGPIPES parameters from fits file saved by fit_cat.fit
+    - Allows user to specify which parameters to compare (like plot_corner_comparison)
+    
+    Parameters:
+    -----------
+    bayesed_results : BayeSEDResults or astropy.table.Table
+        BayeSED3 results object or astropy table with results
+    bagpipes_cat_file : str
+        Path to BAGPIPES catalog fits file (e.g., 'pipes/cats/catalog_name.fits')
+    bayesed_params : list of str
+        List of BayeSED3 parameter names to plot
+    bagpipes_params : list of str
+        List of BAGPIPES parameter names to plot (must match length of bayesed_params)
+    labels : list of str, optional
+        List of labels for the plot axes. If None, uses bayesed_params.
     save : bool
         Whether to save the plot
     show : bool
         Whether to display the plot
+        
+    Example:
+    --------
+    # First check available parameters
+    plot_parameter_scatter(results, bagpipes_file, None, None)
+    
+    # Then specify parameters to compare
+    bayesed_params = ['log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2']
+    bagpipes_params = ['stellar_mass', 'sfr', 'Av']
+    labels = ['log(M*)', 'log(SFR)', 'Av']
+    plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels)
     """
+    
+    # Check if bagpipes_cat_file exists before attempting to load it
+    if not os.path.exists(bagpipes_cat_file):
+        print(f"Error: BAGPIPES catalog file not found: {bagpipes_cat_file}")
+        
+        # Try to provide helpful suggestions
+        bagpipes_dir = os.path.dirname(bagpipes_cat_file)
+        if os.path.exists(bagpipes_dir):
+            print(f"Available files in {bagpipes_dir}:")
+            try:
+                for f in os.listdir(bagpipes_dir):
+                    if f.endswith('.fits'):
+                        print(f"  {f}")
+            except Exception:
+                print("  (Could not list directory contents)")
+        else:
+            print(f"Directory {bagpipes_dir} does not exist")
+            
+        return None
+    
+    # Load BayeSED results as astropy table
+    if hasattr(bayesed_results, 'load_hdf5_results'):
+        # If it's a BayeSEDResults object, load the table
+        bayesed_table = bayesed_results.load_hdf5_results()
+        print(f"Loaded BayeSED results table with {len(bayesed_table)} objects")
+    else:
+        # Assume it's already an astropy table
+        bayesed_table = bayesed_results
+        print(f"Using provided BayeSED table with {len(bayesed_table)} objects")
+    
+    # Load BAGPIPES catalog fits file
+    try:
+        bagpipes_table = Table.read(bagpipes_cat_file)
+        print(f"Loaded BAGPIPES catalog from {bagpipes_cat_file} with {len(bagpipes_table)} objects")
+    except Exception as e:
+        print(f"Error loading BAGPIPES catalog from {bagpipes_cat_file}: {e}")
+        return None
+    
+    # If no parameters specified, show available parameters
+    if bayesed_params is None or bagpipes_params is None:
+        print(f"\n=== Available Parameters ===")
+        print(f"\nBayeSED3 parameters ({len(bayesed_table.colnames)}):")
+        for i, param in enumerate(bayesed_table.colnames):
+            print(f"  {i:2d}: {param}")
 
-    param_mapping = {
-        'Stellar Mass': ('stellar_mass', 'stellar_mass', True),  # True for log scale
-        'SFR': ('sfr', 'sfr', True),  # True for log scale (BayeSED3 already log, BAGPIPES needs log)
-        'Age': ('age_mass_weighted', 'age', False),
-        'Metallicity': ('metallicity_mass_weighted', 'metallicity', False),
-        'Av': ('Av', 'Av', False)
-    }
+        print(f"\nBAGPIPES parameters ({len(bagpipes_table.colnames)}):")
+        for i, param in enumerate(bagpipes_table.colnames):
+            print(f"  {i:2d}: {param}")
 
+        print(f"\nTo create scatter plot, specify parameter lists:")
+        print(f"bayesed_params = ['param1', 'param2', ...]")
+        print(f"bagpipes_params = ['param1', 'param2', ...]")
+        print(f"labels = ['label1', 'label2', ...]  # optional")
+        print(f"plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels)")
+        return None
+
+    # Check parameter lists have same length
+    if len(bayesed_params) != len(bagpipes_params):
+        print(f"Error: bayesed_params ({len(bayesed_params)}) and bagpipes_params ({len(bagpipes_params)}) must have same length")
+        return None
+
+    # Use bayesed_params as labels if not provided
+    if labels is None:
+        labels = bayesed_params
+    elif len(labels) != len(bayesed_params):
+        print(f"Error: labels ({len(labels)}) must match length of parameter lists ({len(bayesed_params)})")
+        return None
+    
+    # Find common objects between both tables
+    bayesed_ids = set(bayesed_table['ID'])
+    bagpipes_ids = set(bagpipes_table['ID'])
+    common_ids = bayesed_ids & bagpipes_ids
+    
+    print(f"Found {len(common_ids)} common objects between BayeSED3 and BAGPIPES")
+    print(f"BayeSED3 has {len(bayesed_ids)} objects, BAGPIPES has {len(bagpipes_ids)} objects")
+    
+    if len(common_ids) == 0:
+        print("No common objects found for comparison")
+        return None
+    
+    # Create figure
     n_params = len(param_mapping)
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     axes = axes.flatten()
-
-    for i, (param_name, (bayesed_key, bagpipes_key, log_scale)) in enumerate(param_mapping.items()):
+    
+    # Track statistics for summary
+    param_stats = {}
+    
+    for i, (bayesed_param, bagpipes_param, label) in enumerate(zip(bayesed_params, bagpipes_params, labels)):
         if i >= len(axes):
             break
-
+            
         ax = axes[i]
         bayesed_vals = []
         bagpipes_vals = []
-
-        for obj_id in object_ids:
+        valid_ids = []
+        
+        # Check if columns exist
+        bayesed_available_cols = [col for col in bayesed_table.colnames if bayesed_param in col]
+        bagpipes_available_cols = [col for col in bagpipes_table.colnames if bagpipes_param in col]
+        
+        if bayesed_param not in bayesed_table.colnames:
+            if bayesed_available_cols:
+                print(f"Warning: BayeSED3 column '{bayesed_param}' not found. Similar columns available: {bayesed_available_cols}")
+            else:
+                print(f"Warning: BayeSED3 column '{bayesed_param}' not found. Available columns: {list(bayesed_table.colnames)[:10]}...")
+            continue
+            
+        if bagpipes_param not in bagpipes_table.colnames:
+            if bagpipes_available_cols:
+                print(f"Warning: BAGPIPES column '{bagpipes_param}' not found. Similar columns available: {bagpipes_available_cols}")
+            else:
+                print(f"Warning: BAGPIPES column '{bagpipes_param}' not found. Available columns: {list(bagpipes_table.colnames)[:10]}...")
+            continue
+        
+        # Extract values for all common objects
+        for obj_id in common_ids:
             try:
-                # Get BayeSED3 value (median)
-                obj_results = bayesed_results.get_object_results(obj_id)
-                if hasattr(obj_results, bayesed_key):
-                    bayesed_val = np.median(getattr(obj_results, bayesed_key))
-                    # BayeSED3 SFR is already in log scale, stellar mass needs log conversion
-                    if log_scale and param_name != 'SFR':
-                        bayesed_val = np.log10(bayesed_val)
-
-                    # Get BAGPIPES value (median)
-                    if obj_id in bagpipes_fits and bagpipes_key in bagpipes_fits[obj_id].posterior.samples:
-                        bagpipes_val = np.median(bagpipes_fits[obj_id].posterior.samples[bagpipes_key])
-                        # Apply log scaling to BAGPIPES values (both stellar mass and SFR need log)
-                        if log_scale:
+                # Get BayeSED3 value
+                bayesed_mask = bayesed_table['ID'] == obj_id
+                if bayesed_mask.any():
+                    bayesed_val = bayesed_table[bayesed_mask][bayesed_param][0]
+                    
+                    # Get BAGPIPES value
+                    bagpipes_mask = bagpipes_table['ID'] == obj_id
+                    if bagpipes_mask.any():
+                        bagpipes_val = bagpipes_table[bagpipes_mask][bagpipes_param][0]
+                        
+                        # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
+                        if 'SFR' in bayesed_param and bagpipes_param == 'sfr':
+                            # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
                             bagpipes_val = np.log10(bagpipes_val)
-
-                        bayesed_vals.append(bayesed_val)
-                        bagpipes_vals.append(bagpipes_val)
+                        
+                        # Handle stellar mass: both need log conversion if not already log
+                        elif 'Mstar' in bayesed_param and bagpipes_param == 'stellar_mass':
+                            # Both need log conversion
+                            if not ('log' in bayesed_param.lower()):
+                                bayesed_val = np.log10(bayesed_val)
+                            bagpipes_val = np.log10(bagpipes_val)
+                        
+                        # Check for valid values (not NaN or infinite)
+                        if np.isfinite(bayesed_val) and np.isfinite(bagpipes_val):
+                            bayesed_vals.append(bayesed_val)
+                            bagpipes_vals.append(bagpipes_val)
+                            valid_ids.append(obj_id)
+                            
             except Exception as e:
+                print(f"Warning: Error processing object {obj_id} for {label}: {e}")
                 continue
-
-        if bayesed_vals and bagpipes_vals:
-            ax.scatter(bayesed_vals, bagpipes_vals, alpha=0.7, s=50)
-
+        
+        if len(bayesed_vals) > 0 and len(bagpipes_vals) > 0:
+            # Convert to numpy arrays
+            bayesed_vals = np.array(bayesed_vals)
+            bagpipes_vals = np.array(bagpipes_vals)
+            
+            # Create scatter plot
+            ax.scatter(bayesed_vals, bagpipes_vals, alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
+            
             # Add 1:1 line
-            min_val = min(min(bayesed_vals), min(bagpipes_vals))
-            max_val = max(max(bayesed_vals), max(bagpipes_vals))
-            ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, label='1:1')
-
-            # Calculate correlation
+            min_val = min(np.min(bayesed_vals), np.min(bagpipes_vals))
+            max_val = max(np.max(bayesed_vals), np.max(bagpipes_vals))
+            ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, label='1:1', linewidth=2)
+            
+            # Calculate statistics
             correlation = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
-            ax.text(0.05, 0.95, f'r = {correlation:.3f}', transform=ax.transAxes,
-                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-            xlabel = f'BayeSED3 {"log(" + param_name + ")" if log_scale else param_name}'
-            ylabel = f'BAGPIPES {"log(" + param_name + ")" if log_scale else param_name}'
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
+            bias = np.mean(bagpipes_vals - bayesed_vals)  # BAGPIPES - BayeSED3
+            rms = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
+            
+            # Store statistics
+            param_stats[label] = {
+                'correlation': correlation,
+                'bias': bias,
+                'rms': rms,
+                'n_objects': len(bayesed_vals)
+            }
+            
+            # Add statistics text
+            stats_text = f'r = {correlation:.3f}\nbias = {bias:.3f}\nRMS = {rms:.3f}\nN = {len(bayesed_vals)}'
+            ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
+                    verticalalignment='top', fontsize=10,
+                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            
+            # Set labels
+            ax.set_xlabel(f'BayeSED3 {label}')
+            ax.set_ylabel(f'BAGPIPES {label}')
             ax.grid(True, alpha=0.3)
             ax.legend()
-
+            
+            print(f"✓ {label}: {len(bayesed_vals)} objects, r={correlation:.3f}, bias={bias:.3f}")
+        else:
+            print(f"✗ {label}: No valid data points found")
+            ax.text(0.5, 0.5, f'No valid data\nfor {label}', 
+                   transform=ax.transAxes, ha='center', va='center',
+                   bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    
     # Remove empty subplots
     for i in range(n_params, len(axes)):
         fig.delaxes(axes[i])
-
-    plt.suptitle('Parameter Comparison: BayeSED3 vs BAGPIPES', fontsize=16)
+    
+    plt.suptitle(f'Parameter Comparison: BayeSED3 vs BAGPIPES ({len(common_ids)} objects)', fontsize=16)
     plt.tight_layout()
-
+    
+    # Print summary statistics
+    print(f"\n=== Parameter Comparison Summary ===")
+    for param_name, stats in param_stats.items():
+        print(f"{param_name:15s}: r={stats['correlation']:6.3f}, bias={stats['bias']:7.3f}, RMS={stats['rms']:6.3f}, N={stats['n_objects']:3d}")
+    
     if save:
         plot_dir = os.path.join("pipes", "plots", "comparison")
         os.makedirs(plot_dir, exist_ok=True)
-        out_path = os.path.join(plot_dir, "parameter_scatter_comparison.png")
+        out_path = os.path.join(plot_dir, "parameter_scatter_comparison_all_objects.png")
         plt.savefig(out_path, bbox_inches="tight", dpi=300)
-        print(f"Saved scatter comparison: {out_path}")
-
+        print(f"\nSaved scatter comparison: {out_path}")
+    
     if show:
         plt.show()
-
-    plt.close(fig)
-    return fig
+    
+    if not show:
+        plt.close(fig)
+    
+    return fig, param_stats
 
 def main():
     """Main function to run BayeSED3 vs BAGPIPES comparison."""
@@ -1244,6 +1482,26 @@ def main():
     fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
     # fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=True, n_live=400) #multiple objects are fitted at once, each using one core
 
+    # Define comparison parameters (used by both plot_parameter_scatter and plot_corner_comparison)
+    bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+    bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
+    labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
+
+    # Create parameter scatter comparison plot using all objects
+    print(f"\n=== Creating Parameter Scatter Comparison Plot ===")
+    bagpipes_cat_file = os.path.join("pipes", "cats", f"{cat_name}.fits")
+    
+    fig, param_stats = plot_parameter_scatter(
+        bayesed_results=results_bayesed,  # Use the astropy table directly
+        bagpipes_cat_file=bagpipes_cat_file,
+        bayesed_params=bayesed_params,
+        bagpipes_params=bagpipes_params,
+        labels=labels,
+        save=True,
+        show=True
+    )
+
     bagpipes_fits = {}  # Store fits for posterior comparison
 
     for ID in IDs[:10]:
@@ -1271,57 +1529,7 @@ def main():
 
         # Generate corner comparison plots using GetDist for better aesthetics
         print(f"\nGenerating corner comparison plot for object {ID}...")
-        # Use the correct parameter names based on the available parameters
-        # Note: BayeSED3 derived parameters have '*' suffix
-        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
-        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
-        bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
-        labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
-
-        # Extract true values for this object
-        try:
-            obj_true_values = []
-
-            # Debug: print available columns and object IDs
-            #print(f"Available columns in results_bayesed: {results_bayesed.colnames}")
-            #print(f"Looking for object ID: {ID} (type: {type(ID)})")
-            #print(f"Available IDs in results_bayesed: {results_bayesed['ID'][:5]}...")  # Show first 5 IDs
-
-            for param in true_value_params:
-                if param in results_bayesed.colnames:  # astropy Table uses .colnames not .columns
-                    # Get the true value for this specific object using astropy Table operations
-                    obj_mask = results_bayesed['ID'] == ID
-                    if obj_mask.any():
-                        # For astropy Table, use boolean indexing and get first element
-                        masked_table = results_bayesed[obj_mask]
-                        if len(masked_table) > 0:
-                            true_val = masked_table[param][0]  # astropy Table indexing
-                            obj_true_values.append(float(true_val))  # Ensure it's a float
-                        else:
-                            print(f"Warning: No rows found for object {ID}")
-                            obj_true_values = None
-                            break
-                    else:
-                        print(f"Warning: Object {ID} not found in results_bayesed")
-                        obj_true_values = None
-                        break
-                else:
-                    print(f"Warning: True value parameter '{param}' not found in results_bayesed")
-                    print(f"Available true value columns: {[col for col in results_bayesed.colnames if '_True' in col]}")
-                    obj_true_values = None
-                    break
-
-            if obj_true_values and len(obj_true_values) == len(bayesed_params):
-                print(f"Found true values for object {ID}: {dict(zip(labels, obj_true_values))}")
-            else:
-                obj_true_values = None
-                print(f"Could not extract all true values for object {ID}")
-
-        except Exception as e:
-            print(f"Error extracting true values for object {ID}: {e}")
-            import traceback
-            traceback.print_exc()
-            obj_true_values = None
+        obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels, verbose=True)
 
         plot_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
 
