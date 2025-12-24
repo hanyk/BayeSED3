@@ -67,6 +67,35 @@ class BayeSEDResults:
         if self.object_id:
             logger.info(f"Object-level access for object: {self.object_id}")
 
+    def _extract_catalog_name_from_filename(self, filename: str) -> str:
+        """
+        Extract catalog name from HDF5 filename.
+        
+        Pattern: {catalog_name}_{config_starting_with_digit}...
+        The catalog name is everything before the first part that starts with a digit.
+        
+        Examples:
+        - gal_0csp_sfh200_... → gal
+        - qso_0csp_sfh200_... → qso  
+        - test_inoise1_0csp_... → test_inoise1
+        - W0533_ALMA_0csp_... → W0533_ALMA
+        """
+        parts = filename.split('_')
+        
+        # Find the first part that starts with a digit
+        catalog_parts = []
+        for part in parts:
+            if part and part[0].isdigit():
+                # Found the config part - everything before this is catalog name
+                break
+            catalog_parts.append(part)
+        
+        if not catalog_parts:
+            # Fallback to first part if no digit-starting part found
+            return parts[0] if parts else filename
+            
+        return '_'.join(catalog_parts)
+
     def _find_hdf5_file(self) -> None:
         """Find the HDF5 file to load based on catalog_name and model_config."""
         if not self.output_dir.exists():
@@ -81,10 +110,11 @@ class BayeSEDResults:
         # Auto-detect catalog_name if not provided
         if not self.catalog_name:
             # Extract unique catalog names from all HDF5 files
+            # Pattern: {catalog_name}_{config_starting_with_digit}...
             catalog_names = set()
             for hdf5_file in hdf5_files:
                 filename = Path(hdf5_file).stem
-                catalog_name = filename.split('_')[0]
+                catalog_name = self._extract_catalog_name_from_filename(filename)
                 catalog_names.add(catalog_name)
 
             if len(catalog_names) == 1:

@@ -14,6 +14,36 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _extract_catalog_name_from_filename(filename: str) -> str:
+    """
+    Extract catalog name from HDF5 filename.
+    
+    Pattern: {catalog_name}_{config_starting_with_digit}...
+    The catalog name is everything before the first part that starts with a digit.
+    
+    Examples:
+    - gal_0csp_sfh200_... → gal
+    - qso_0csp_sfh200_... → qso  
+    - test_inoise1_0csp_... → test_inoise1
+    - W0533_ALMA_0csp_... → W0533_ALMA
+    """
+    parts = filename.split('_')
+    
+    # Find the first part that starts with a digit
+    catalog_parts = []
+    for part in parts:
+        if part and part[0].isdigit():
+            # Found the config part - everything before this is catalog name
+            break
+        catalog_parts.append(part)
+    
+    if not catalog_parts:
+        # Fallback to first part if no digit-starting part found
+        return parts[0] if parts else filename
+        
+    return '_'.join(catalog_parts)
+
+
 def list_catalog_names(output_dir: str) -> List[str]:
     """
     List available catalog names in an output directory.
@@ -47,10 +77,10 @@ def list_catalog_names(output_dir: str) -> List[str]:
         catalog_names = set()
 
         for hdf5_file in hdf5_files:
-            # Extract catalog name (part before first underscore)
+            # Extract catalog name using improved logic
             filename = hdf5_file.stem
             if '_' in filename:
-                catalog_name = filename.split('_')[0]
+                catalog_name = _extract_catalog_name_from_filename(filename)
                 catalog_names.add(catalog_name)
 
         return sorted(list(catalog_names))
