@@ -914,7 +914,8 @@ class BayeSEDResults:
                       object_id: Optional[str] = None,
                       method: str = 'getdist', filled: bool = True,
                       show: bool = True, output_file: Optional[str] = None,
-                      **kwargs) -> Any:
+                      show_median: bool = True, show_confidence_intervals: bool = True,
+                      confidence_level: float = 0.68, **kwargs) -> Any:
         """
         Plot posterior distributions using GetDist.
 
@@ -932,6 +933,12 @@ class BayeSEDResults:
             Whether to display the plot
         output_file : str, optional
             Output file path for saving
+        show_median : bool, default True
+            Whether to show median markers on plots
+        show_confidence_intervals : bool, default True
+            Whether to show confidence intervals on 1D marginal plots
+        confidence_level : float, default 0.68
+            Confidence level for intervals (0.68 for 1-sigma, 0.95 for 2-sigma)
         **kwargs
             Additional plotting arguments
 
@@ -963,17 +970,186 @@ class BayeSEDResults:
         # Import GetDist plotting
         try:
             from getdist import plots
+            import matplotlib.pyplot as plt
+            import numpy as np
         except ImportError:
             raise ImportError("GetDist is required for plotting. Install with: pip install getdist")
+
+        # Helper functions for confidence intervals
+        def _compute_statistics(samples_gd, param_names):
+            """Compute medians and confidence intervals using GetDist built-in methods."""
+            markers = {}
+            confidence_intervals = {}
+
+            if not (show_median or show_confidence_intervals):
+                return markers, confidence_intervals
+
+            for param in param_names:
+                try:
+                    # Use GetDist's built-in 1D density analysis
+                    density = samples_gd.get1DDensity(param)
+                    
+                    if show_median:
+                        # Use GetDist's built-in median calculation (properly weighted)
+                        # The most reliable way is to use the 1D density's percentile method
+                        try:
+                            # Get the 50th percentile (median) from the 1D density
+                            # This properly handles weighted samples
+                            markers[param] = density.P50()  # 50th percentile = median
+                        except AttributeError:
+                            try:
+                                # Alternative: use the confidence interval method
+                                # Get the central value (median) by using a very small confidence interval
+                                central_val = samples_gd.confidence(param, 0.001)  # Very narrow interval around median
+                                if central_val is not None:
+                                    if hasattr(central_val, '__len__') and len(central_val) > 0:
+                                        markers[param] = central_val[0] if len(central_val) == 1 else (central_val[0] + central_val[1]) / 2
+                                    else:
+                                        markers[param] = central_val
+                                else:
+                                    markers[param] = density.mean
+                            except:
+                                # Final fallback: use mean
+                                markers[param] = density.mean
+                    
+                    if show_confidence_intervals:
+                        # Use GetDist's built-in confidence interval calculation
+                        # This properly handles weighted samples and edge cases
+                        lower = density.getLower(confidence_level)
+                        upper = density.getUpper(confidence_level)
+                        confidence_intervals[param] = (lower, upper)
+                        
+                except Exception as e:
+                    logger.debug(f"GetDist built-in statistics failed for parameter {param}: {e}")
+                    # Fallback to manual calculation for this parameter
+                    try:
+                        gd_param_names = samples_gd.getParamNames().list()
+                        if param not in gd_param_names:
+                            continue
+                            
+                        idx = gd_param_names.index(param)
+                        samples_array = samples_gd.samples[:, idx]
+                        weights = getattr(samples_gd, 'weights', None)
+
+                        if show_median:
+                            if weights is not None:
+                                markers[param] = np.average(samples_array, weights=weights)
+                            else:
+                                markers[param] = np.median(samples_array)
+
+                        if show_confidence_intervals:
+                            lower_percentile = (1 - confidence_level) / 2
+                            upper_percentile = 1 - lower_percentile
+                            
+                            if weights is not None:
+                                # Weighted quantiles
+                                sorted_idx = np.argsort(samples_array)
+                                sorted_samples = samples_array[sorted_idx]
+                                sorted_weights = weights[sorted_idx]
+                                cumsum_weights = np.cumsum(sorted_weights)
+                                cumsum_weights = cumsum_weights / cumsum_weights[-1]
+                                lower_idx = np.searchsorted(cumsum_weights, lower_percentile)
+                                upper_idx = np.searchsorted(cumsum_weights, upper_percentile)
+                                confidence_intervals[param] = (sorted_samples[lower_idx], sorted_samples[upper_idx])
+                            else:
+                                quantiles = np.quantile(samples_array, [lower_percentile, upper_percentile])
+                                confidence_intervals[param] = (quantiles[0], quantiles[1])
+                    except Exception as fallback_e:
+                        logger.debug(f"Fallback statistics computation also failed for {param}: {fallback_e}")
+
+            return markers, confidence_intervals
+
+        def _add_ci_to_1d_plot(ax, lower, upper, confidence_level):
+            """Add confidence interval to 1D plot."""
+            ax.axvspan(lower, upper, color='blue', alpha=0.15)
+            # No legend - would be cluttered in corner plots
+
+        def _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level):
+            """Add confidence intervals to diagonal (1D marginal) plots in triangle plot."""
+            if not fig or not hasattr(fig, 'axes'):
+                return
+
+            # Find diagonal axes: 1D marginals have lines but no collections
+            diagonal_axes = [
+                ax for ax in fig.axes
+                if (len(ax.lines) > 0 and len(ax.collections) == 0 and
+                    (not ax.get_ylabel() or ax.get_ylabel() == ''))
+            ]
+
+            if len(diagonal_axes) != len(params):
+                # Fallback: match by parameter name in xlabel
+                import re
+                for param in params:
+                    if param not in confidence_intervals:
+                        continue
+                    lower, upper = confidence_intervals[param]
+                    param_base = param.split('[')[0].strip()
+
+                    for ax in diagonal_axes:
+                        xlabel = ax.get_xlabel() or ''
+                        # Try matching parameter name
+                        if (param in xlabel or param_base in xlabel or
+                            param_base in re.sub(r'\\[a-zA-Z]+\{([^}]+)\}', r'\1', xlabel)):
+                            _add_ci_to_1d_plot(ax, lower, upper, confidence_level)
+                            break
+            else:
+                # Match by position (most reliable)
+                for idx, param in enumerate(params):
+                    if param in confidence_intervals and idx < len(diagonal_axes):
+                        lower, upper = confidence_intervals[param]
+                        _add_ci_to_1d_plot(diagonal_axes[idx], lower, upper, confidence_level)
+
+        # Compute statistics if needed
+        markers = {}
+        confidence_intervals = {}
+        if show_median or show_confidence_intervals:
+            try:
+                markers, confidence_intervals = _compute_statistics(samples, params)
+            except Exception as e:
+                import warnings
+                warnings.warn(
+                    f"Could not compute statistics: {e}. Statistics will not be displayed.",
+                    UserWarning
+                )
+                show_median = False
+                show_confidence_intervals = False
 
         # Create plotter
         g = plots.get_subplot_plotter()
 
         # Create plot based on number of parameters
-        if len(params) == 1:
+        is_1d = len(params) == 1
+        
+        if is_1d:
+            # 1D plot
             g.plot_1d(samples, params[0], **kwargs)
+            
+            # Add confidence interval for 1D plot
+            if show_confidence_intervals and params[0] in confidence_intervals:
+                ax = plt.gca()
+                lower, upper = confidence_intervals[params[0]]
+                _add_ci_to_1d_plot(ax, lower, upper, confidence_level)
         else:
-            g.triangle_plot([samples], params, filled=filled, **kwargs)
+            # Triangle plot with markers and confidence intervals
+            g.triangle_plot([samples], params, filled=filled,
+                           markers=markers if markers else None,
+                           marker_args={'color': 'red', 'linestyle': '--',
+                                      'linewidth': 1.5, 'alpha': 0.7},
+                           **kwargs)
+
+            # Add confidence intervals to diagonal plots
+            if show_confidence_intervals:
+                try:
+                    fig = (getattr(g, 'fig', None) or
+                          getattr(g, 'figure', None) or
+                          plt.gcf())
+                    _add_ci_to_triangle_plot(fig, params, confidence_intervals, confidence_level)
+                except Exception as e:
+                    import warnings
+                    warnings.warn(
+                        f"Could not add confidence intervals: {e}",
+                        UserWarning
+                    )
 
         # Save if requested
         if output_file:
@@ -1125,7 +1301,8 @@ class BayeSEDResults:
 
     def plot_posterior_free(self, output_file: Optional[str] = None,
                            show: bool = True, object_id: Optional[str] = None,
-                           **kwargs) -> Any:
+                           show_median: bool = True, show_confidence_intervals: bool = True,
+                           confidence_level: float = 0.68, **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for free parameters.
 
@@ -1137,6 +1314,12 @@ class BayeSEDResults:
             Whether to display the plot
         object_id : str, optional
             Object ID to plot. If None and in sample-level mode, uses first object.
+        show_median : bool, default True
+            Whether to show median markers on plots
+        show_confidence_intervals : bool, default True
+            Whether to show confidence intervals on 1D marginal plots
+        confidence_level : float, default 0.68
+            Confidence level for intervals (0.68 for 1-sigma, 0.95 for 2-sigma)
         **kwargs
             Additional plotting parameters
 
@@ -1191,7 +1374,10 @@ class BayeSEDResults:
                     logger.warning(f"Could not filter parameters: {e}")
 
             return self.plot_posterior(params=free_params, object_id=object_id,
-                                     output_file=output_file, show=show, **kwargs)
+                                     output_file=output_file, show=show,
+                                     show_median=show_median, 
+                                     show_confidence_intervals=show_confidence_intervals,
+                                     confidence_level=confidence_level, **kwargs)
         except Exception as e:
             if "GetDist" in str(e) or "No chains found" in str(e):
                 logger.warning(f"GetDist plotting not available: {e}")
@@ -1205,7 +1391,8 @@ class BayeSEDResults:
     def plot_posterior_derived(self, max_params: int = 10,
                               output_file: Optional[str] = None,
                               show: bool = True, object_id: Optional[str] = None,
-                              **kwargs) -> Any:
+                              show_median: bool = True, show_confidence_intervals: bool = True,
+                              confidence_level: float = 0.68, **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for derived parameters.
 
@@ -1219,6 +1406,12 @@ class BayeSEDResults:
             Whether to display the plot
         object_id : str, optional
             Object ID to plot. If None and in sample-level mode, uses first object.
+        show_median : bool, default True
+            Whether to show median markers on plots
+        show_confidence_intervals : bool, default True
+            Whether to show confidence intervals on 1D marginal plots
+        confidence_level : float, default 0.68
+            Confidence level for intervals (0.68 for 1-sigma, 0.95 for 2-sigma)
         **kwargs
             Additional plotting parameters
 
@@ -1258,7 +1451,10 @@ class BayeSEDResults:
                 derived_params = derived_params[:max_params]
 
             return self.plot_posterior(params=derived_params, object_id=object_id,
-                                     output_file=output_file, show=show, **kwargs)
+                                     output_file=output_file, show=show,
+                                     show_median=show_median,
+                                     show_confidence_intervals=show_confidence_intervals,
+                                     confidence_level=confidence_level, **kwargs)
         except Exception as e:
             if "GetDist" in str(e) or "No chains found" in str(e):
                 logger.warning(f"GetDist plotting not available: {e}")
