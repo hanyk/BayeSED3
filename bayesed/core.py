@@ -2528,7 +2528,7 @@ class BayeSEDInterface:
     def _format_template_params(self, template_params):
         return f"{template_params.igroup},{template_params.id},{template_params.name},{template_params.iscalable}"
 
-    def load_results(self, output_dir, catalog_name, model_config=None, object_id=None):
+    def load_results(self, output_dir, catalog_name=None, model_config=None, object_id=None):
         """
         Load BayeSED analysis results from output directory.
 
@@ -2536,8 +2536,9 @@ class BayeSEDInterface:
         ----------
         output_dir : str
             Directory containing BayeSED output files
-        catalog_name : str
-            Catalog name to load results for. Use list_catalog_names_in_directory() to discover available catalogs.
+        catalog_name : str, optional
+            Catalog name to load results for. If None, auto-detects from available HDF5 files.
+            Use list_catalog_names() to discover available catalogs when multiple exist.
         model_config : str or int, optional
             Model configuration to load. Required when multiple configurations exist for the catalog.
             Can be:
@@ -2555,17 +2556,21 @@ class BayeSEDInterface:
         Raises
         ------
         ValueError
-            If catalog_name is not found or multiple model configurations exist and model_config is not specified
+            If catalog_name is not found, multiple catalogs exist and catalog_name is not specified,
+            or multiple model configurations exist and model_config is not specified
 
         Examples
         --------
-        >>> # Discover available catalogs first
-        >>> from bayesed import list_catalog_names
+        >>> # Auto-detect catalog (works when only one catalog exists)
+        >>> interface = BayeSEDInterface()
+        >>> results = interface.load_results('output')  # Auto-detects catalog_name
+        >>>
+        >>> # Discover available catalogs when multiple exist
+        >>> from bayesed.results import list_catalog_names
         >>> catalogs = list_catalog_names('output')
         >>> print("Available catalogs:", catalogs)
         >>>
         >>> # Load results with explicit catalog
-        >>> interface = BayeSEDInterface()
         >>> results = interface.load_results('output', 'my_catalog')
         >>>
         >>> # Load specific model configuration

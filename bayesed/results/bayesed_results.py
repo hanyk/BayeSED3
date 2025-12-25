@@ -125,9 +125,8 @@ class BayeSEDResults:
                 # Multiple catalogs - require explicit selection
                 sorted_catalogs = sorted(catalog_names)
                 raise ValueError(
-                    f"Multiple catalogs found in output directory: {sorted_catalogs}. "
-                    f"Please specify catalog_name parameter. Example: "
-                    f"BayeSEDResults('{self.output_dir}', catalog_name='{sorted_catalogs[0]}')"
+                    f"Multiple catalogs found. Please specify catalog_name parameter. "
+                    f"Available catalogs: {sorted_catalogs}"
                 )
 
         # Find files matching the catalog
