@@ -4,27 +4,19 @@ import bagpipes as pipes
 import numpy as np
 import os
 import sys
+import argparse
 import matplotlib.pyplot as plt
 import time
 from scipy import stats
 import corner
 
-# IMPORTANT: SFR units and scaling consistency
-# - BayeSED3: Provides log(SFR) in log10(M☉/yr) - already logarithmic
-# - BAGPIPES: Provides SFR in M☉/yr - linear scale, needs log10() for comparison
-# Both codes use the same physical units (M☉/yr) but different scaling
-
 # c = 2.9979246e+14  # um/s
 c = 2.9979246e+18 #angstrom/s
 
 class BayeSEDDataLoader:
-    """Optimized data loader that handles object-specific resolution curves for BAGPIPES.
+    """Data loader for input files of BayeSED format.
 
-    Optimizations for large files:
-    - Lazy loading: Only loads catalog once and caches it
-    - Header caching: Parses header information once
-    - Memory-efficient row selection
-    - Optional chunked reading for extremely large files
+    Note: the header and data rows must have same number of columns
     """
 
     def __init__(self, input_file, chunk_size=None):
@@ -933,7 +925,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         List of BAGPIPES parameter names to plot (must match length of bayesed_params)
     labels : list of str, optional
         List of labels for the plot axes. If None, uses bayesed_params.
-        Can include LaTeX formatting (e.g., r'$\log(M_*/M_\odot)$')
+        Can include LaTeX formatting (e.g., r'$\\log(M_*/M_\\odot)$')
     save : bool
         Whether to save the plot
     show : bool
@@ -947,7 +939,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     # Then specify parameters to compare
     bayesed_params = ['log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2']
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
-    labels = [r'$\log(M_*/M_\odot)$', r'$\log(\mathrm{SFR}/M_\odot\,\mathrm{yr}^{-1})$', r'$A_V$']
+    labels = [r'$\\log(M_*/M_\\odot)$', r'$\\log(\\mathrm{SFR}/M_\\odot\\,\\mathrm{yr}^{-1})$', r'$A_V$']
     plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels)
     """
 
@@ -1032,7 +1024,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
 
     # Create figure with dynamic layout based on number of parameters
     n_params = len(bayesed_params)
-    
+
     # Calculate optimal subplot layout
     if n_params == 1:
         nrows, ncols = 1, 1
@@ -1060,9 +1052,9 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         nrows = (n_params + 3) // 4  # Ceiling division
         ncols = 4
         figsize = (20, 5 * nrows)
-    
+
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
-    
+
     # Handle single subplot case
     if n_params == 1:
         axes = [axes]
@@ -1142,21 +1134,21 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
             # Calculate robust axis ranges excluding extreme outliers
             # Use percentiles to exclude outliers (e.g., 2.5% and 97.5% for ~2-sigma range)
             all_vals = np.concatenate([bayesed_vals, bagpipes_vals])
-            
+
             # For SFR parameters, use tighter percentile range due to common extreme outliers
             if 'SFR' in label or 'sfr' in label.lower():
                 p_low, p_high = 5, 95  # 5th to 95th percentile for SFR
             else:
                 p_low, p_high = 2.5, 97.5  # 2.5th to 97.5th percentile for other parameters
-            
+
             robust_min = np.percentile(all_vals, p_low)
             robust_max = np.percentile(all_vals, p_high)
-            
+
             # Add some padding (5% of range)
             range_padding = (robust_max - robust_min) * 0.05
             plot_min = robust_min - range_padding
             plot_max = robust_max + range_padding
-            
+
             # Set axis limits to robust range
             ax.set_xlim(plot_min, plot_max)
             ax.set_ylim(plot_min, plot_max)
@@ -1168,11 +1160,11 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
             correlation = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
             bias = np.mean(bagpipes_vals - bayesed_vals)  # BAGPIPES - BayeSED3
             rms = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
-            
+
             # Count outliers (points outside the robust range)
             n_outliers_x = np.sum((bayesed_vals < plot_min) | (bayesed_vals > plot_max))
             n_outliers_y = np.sum((bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))
-            n_outliers = len(set(np.where((bayesed_vals < plot_min) | (bayesed_vals > plot_max) | 
+            n_outliers = len(set(np.where((bayesed_vals < plot_min) | (bayesed_vals > plot_max) |
                                         (bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))[0]))
 
             # Store statistics
@@ -1189,7 +1181,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
             stats_text = f'r = {correlation:.3f}\nbias = {bias:.3f}\nRMS = {rms:.3f}\nN = {len(bayesed_vals)}'
             if n_outliers > 0:
                 stats_text += f'\nOutliers: {n_outliers} ({100*n_outliers/len(bayesed_vals):.1f}%)'
-            
+
             ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
                     verticalalignment='top', fontsize=10,
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
@@ -1241,25 +1233,41 @@ def main():
     """Main function to run BayeSED3 vs BAGPIPES comparison."""
 
     # Parse command line arguments
-    input_file = None
-    filters_file = None
-    filters_selected_file = None
+    parser = argparse.ArgumentParser(
+        description='Run BayeSED3 vs BAGPIPES comparison analysis',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Basic usage with individual object fitting
+  python test_bayesed_bagpipes_comparison.py observation/CESS_mock/two.txt
 
-    if len(sys.argv) > 1:
-        input_file = sys.argv[1]
-    if len(sys.argv) > 2:
-        filters_file = sys.argv[2]
-    if len(sys.argv) > 3:
-        filters_selected_file = sys.argv[3]
+  # Use catalog fitting mode of bagpipes for multiple objects
+  python test_bayesed_bagpipes_comparison.py observation/CESS_mock/two.txt --bagpipes-fit-cat
+        """
+    )
 
-    # Require input file to be explicitly provided by user
-    if input_file is None:
-        print("Error: Input file must be provided.")
-        print("")
-        print("Usage: python test_bayesed_bagpipes_comparison.py <input_file> [filters_file] [filters_selected_file]")
-        print("")
-        print("Use --help for more detailed usage information.")
-        sys.exit(1)
+    parser.add_argument('input_file',
+                       help='Path to BayeSED input file (required)')
+
+    parser.add_argument('--filters', '--filters-file',
+                       dest='filters_file',
+                       help='Path to filters file (auto-detected if not provided)')
+
+    parser.add_argument('--filters-selected', '--filters-selected-file',
+                       dest='filters_selected_file',
+                       help='Path to selected filters file (auto-detected if not provided)')
+
+    parser.add_argument('--bagpipes-fit-cat', '--fit-cat',
+                       action='store_true',
+                       help='Use BAGPIPES catalog fitting mode for multiple objects simultaneously. '
+                            'If not specified, fits objects individually (default behavior).')
+
+    args = parser.parse_args()
+
+    input_file = args.input_file
+    filters_file = args.filters_file
+    filters_selected_file = args.filters_selected_file
+    bagpipes_fit_cat = args.bagpipes_fit_cat
 
     # Check if input file exists
     if not os.path.exists(input_file):
@@ -1422,79 +1430,63 @@ def main():
     # plt.ylabel("Spectral resolving power")
     # plt.show()
 
-    fit_cat = pipes.fit_catalogue(IDs, fit_instructions, data_loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=False)
-    fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
-    # fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=True, n_live=400) #multiple objects are fitted at once, each using one core
+    if bagpipes_fit_cat:
+        fit_cat = pipes.fit_catalogue(IDs, fit_instructions, data_loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=True)
+        fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
+        # fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=True, n_live=400) #multiple objects are fitted at once, each using one core
 
-    # Define comparison parameters (used by both plot_parameter_scatter and plot_posterior_corner_comparison)
-    bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
-    bayesed_params1 = [ i+"_{median}" for i in bayesed_params ]
-    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
-    bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
-    bagpipes_params1 = [ i+"_50" for i in bagpipes_params ]
-    labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
-    labels1 = [r'$z$', r'$\log(M_{\star}\, /\, \mathrm{M}_{\odot})$', r'$\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})$']
+        # Define comparison parameters (used by both plot_parameter_scatter and plot_posterior_corner_comparison)
+        bayesed_params1 = [ i+"_{median}" for i in bayesed_params ]
+        bagpipes_params1 = [ i+"_50" for i in bagpipes_params ]
+        labels1 = [r'$z$', r'$\log(M_{\star}\, /\, \mathrm{M}_{\odot})$', r'$\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})$']
 
-    # Create parameter scatter comparison plot using all objects
-    print(f"\n=== Creating Parameter Scatter Comparison Plot ===")
-    bagpipes_cat_file = os.path.join("pipes", "cats", f"{cat_name}.fits")
+        # # Create parameter scatter comparison plot using all objects
+        print(f"\n=== Creating Parameter Scatter Comparison Plot ===")
+        bagpipes_cat_file = os.path.join("pipes", "cats", f"{cat_name}.fits")
 
-    fig, param_stats = plot_parameter_scatter(
-        bayesed_results=results_bayesed,  # Use the astropy table directly
-        bagpipes_cat_file=bagpipes_cat_file,
-        bayesed_params=bayesed_params1,
-        bagpipes_params=bagpipes_params1,
-        labels=labels1,
-        save=True,
-        show=True
-    )
+        fig, param_stats = plot_parameter_scatter(
+            bayesed_results=results_bayesed,  # Use the astropy table directly
+            bagpipes_cat_file=bagpipes_cat_file,
+            bayesed_params=bayesed_params1,
+            bagpipes_params=bagpipes_params1,
+            labels=labels1,
+            save=True,
+            show=True
+        )
+    else:
+        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+        bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
+        labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
+        for ID in IDs:
+        # for ID in []:
+            # Get object-specific resolution curve
+            resolution_curve = data_loader.get_resolution_curve(ID)
 
-    bagpipes_fits = {}  # Store fits for posterior comparison
+            # Create object-specific fit instructions with the correct resolution
+            fit_instructions = base_fit_instructions.copy()
+            fit_instructions["R_curve"] = resolution_curve
 
-    # for ID in IDs[:10]:
-    for ID in []:
-        # Get object-specific resolution curve
-        resolution_curve = data_loader.get_resolution_curve(ID)
+            # Create individual galaxy object using the data loader
+            galaxy = pipes.galaxy(ID, data_loader.load_spectrum_only, photometry_exists=False)
 
-        # Create object-specific fit instructions with the correct resolution
-        fit_instructions = base_fit_instructions.copy()
-        fit_instructions["R_curve"] = resolution_curve
+            # Fit individual galaxy with timing
+            fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
+            t0 = time.time()
+            fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
+            runtime_s = time.time() - t0
 
-        # Create individual galaxy object using the data loader
-        galaxy = pipes.galaxy(ID, data_loader.load_spectrum_only, photometry_exists=False)
+            # Generate spectrum plots
+            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
-        # Fit individual galaxy with timing
-        fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
-        t0 = time.time()
-        fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
-        runtime_s = time.time() - t0
+            # Generate corner comparison plots using GetDist
+            print(f"\nGenerating corner comparison plot for object {ID}...")
+            obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels, verbose=True)
 
-        # Store fit for comparison
-        bagpipes_fits[ID] = fit
+            plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
 
-        # Generate spectrum plots
-        plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
-
-        # Generate corner comparison plots using GetDist for better aesthetics
-        print(f"\nGenerating corner comparison plot for object {ID}...")
-        obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels, verbose=True)
-
-        plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
-        print("Usage: python test_bayesed_bagpipes_comparison.py <input_file> [filters_file] [filters_selected_file]")
-        print("")
-        print("Arguments:")
-        print("  input_file           Path to the BayeSED input file (REQUIRED)")
-        print("  filters_file         Path to the filter definitions file (optional)")
-        print("  filters_selected_file Path to the selected filters file (optional)")
-        print("")
-        print("Examples:")
-        print("  python test_bayesed_bagpipes_comparison.py observation/test/gal.txt")
-        print("  python test_bayesed_bagpipes_comparison.py observation/CESS_mock/two.txt")
-        sys.exit(0)
-
     main()
 
