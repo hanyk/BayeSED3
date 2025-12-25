@@ -688,7 +688,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bagpipes_vals = bagpipes_fit.posterior.samples[bagpipes_param]
 
             # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
-            if 'SFR' in bayesed_param and bagpipes_param == 'sfr':
+            if 'SFR' in bayesed_param and 'sfr' in bagpipes_param:
                 # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals)
                 print(f"  Applied log10 to BAGPIPES SFR for consistency with BayeSED3")
@@ -917,6 +917,9 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     - Uses astropy table for BayeSED parameters
     - Loads BAGPIPES parameters from fits file saved by fit_cat.fit
     - Allows user to specify which parameters to compare (like plot_posterior_corner_comparison)
+    - Dynamically adapts subplot layout based on number of parameters
+    - Handles extreme outliers robustly using percentile-based axis ranges
+    - Properly renders LaTeX labels for mathematical expressions
 
     Parameters:
     -----------
@@ -930,6 +933,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         List of BAGPIPES parameter names to plot (must match length of bayesed_params)
     labels : list of str, optional
         List of labels for the plot axes. If None, uses bayesed_params.
+        Can include LaTeX formatting (e.g., r'$\log(M_*/M_\odot)$')
     save : bool
         Whether to save the plot
     show : bool
@@ -943,7 +947,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     # Then specify parameters to compare
     bayesed_params = ['log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]', 'Av_2']
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
-    labels = ['log(M*)', 'log(SFR)', 'Av']
+    labels = [r'$\log(M_*/M_\odot)$', r'$\log(\mathrm{SFR}/M_\odot\,\mathrm{yr}^{-1})$', r'$A_V$']
     plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels)
     """
 
@@ -1016,7 +1020,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
 
     # Find common objects between both tables
     bayesed_ids = set(bayesed_table['ID'])
-    bagpipes_ids = set(bagpipes_table['ID'])
+    bagpipes_ids = set(bagpipes_table['#ID'])
     common_ids = bayesed_ids & bagpipes_ids
 
     print(f"Found {len(common_ids)} common objects between BayeSED3 and BAGPIPES")
@@ -1026,18 +1030,49 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         print("No common objects found for comparison")
         return None
 
-    # Create figure
-    n_params = len(param_mapping)
-    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-    axes = axes.flatten()
+    # Create figure with dynamic layout based on number of parameters
+    n_params = len(bayesed_params)
+    
+    # Calculate optimal subplot layout
+    if n_params == 1:
+        nrows, ncols = 1, 1
+        figsize = (6, 5)
+    elif n_params == 2:
+        nrows, ncols = 1, 2
+        figsize = (12, 5)
+    elif n_params == 3:
+        nrows, ncols = 1, 3
+        figsize = (18, 5)
+    elif n_params == 4:
+        nrows, ncols = 2, 2
+        figsize = (12, 10)
+    elif n_params <= 6:
+        nrows, ncols = 2, 3
+        figsize = (15, 10)
+    elif n_params <= 9:
+        nrows, ncols = 3, 3
+        figsize = (15, 15)
+    elif n_params <= 12:
+        nrows, ncols = 3, 4
+        figsize = (20, 15)
+    else:
+        # For more than 12 parameters, use a 4-column layout
+        nrows = (n_params + 3) // 4  # Ceiling division
+        ncols = 4
+        figsize = (20, 5 * nrows)
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize)
+    
+    # Handle single subplot case
+    if n_params == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
 
     # Track statistics for summary
     param_stats = {}
 
     for i, (bayesed_param, bagpipes_param, label) in enumerate(zip(bayesed_params, bagpipes_params, labels)):
-        if i >= len(axes):
-            break
-
         ax = axes[i]
         bayesed_vals = []
         bagpipes_vals = []
@@ -1070,12 +1105,12 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                     bayesed_val = bayesed_table[bayesed_mask][bayesed_param][0]
 
                     # Get BAGPIPES value
-                    bagpipes_mask = bagpipes_table['ID'] == obj_id
+                    bagpipes_mask = bagpipes_table['#ID'] == obj_id
                     if bagpipes_mask.any():
                         bagpipes_val = bagpipes_table[bagpipes_mask][bagpipes_param][0]
 
                         # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
-                        if 'SFR' in bayesed_param and bagpipes_param == 'sfr':
+                        if 'SFR' in bayesed_param and 'sfr' in bagpipes_param:
                             # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
                             bagpipes_val = np.log10(bagpipes_val)
 
@@ -1104,26 +1139,57 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
             # Create scatter plot
             ax.scatter(bayesed_vals, bagpipes_vals, alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
 
-            # Add 1:1 line
-            min_val = min(np.min(bayesed_vals), np.min(bagpipes_vals))
-            max_val = max(np.max(bayesed_vals), np.max(bagpipes_vals))
-            ax.plot([min_val, max_val], [min_val, max_val], 'r--', alpha=0.8, label='1:1', linewidth=2)
+            # Calculate robust axis ranges excluding extreme outliers
+            # Use percentiles to exclude outliers (e.g., 2.5% and 97.5% for ~2-sigma range)
+            all_vals = np.concatenate([bayesed_vals, bagpipes_vals])
+            
+            # For SFR parameters, use tighter percentile range due to common extreme outliers
+            if 'SFR' in label or 'sfr' in label.lower():
+                p_low, p_high = 5, 95  # 5th to 95th percentile for SFR
+            else:
+                p_low, p_high = 2.5, 97.5  # 2.5th to 97.5th percentile for other parameters
+            
+            robust_min = np.percentile(all_vals, p_low)
+            robust_max = np.percentile(all_vals, p_high)
+            
+            # Add some padding (5% of range)
+            range_padding = (robust_max - robust_min) * 0.05
+            plot_min = robust_min - range_padding
+            plot_max = robust_max + range_padding
+            
+            # Set axis limits to robust range
+            ax.set_xlim(plot_min, plot_max)
+            ax.set_ylim(plot_min, plot_max)
+
+            # Add 1:1 line using the robust range
+            ax.plot([plot_min, plot_max], [plot_min, plot_max], 'r--', alpha=0.8, label='1:1', linewidth=2)
 
             # Calculate statistics
             correlation = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
             bias = np.mean(bagpipes_vals - bayesed_vals)  # BAGPIPES - BayeSED3
             rms = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
+            
+            # Count outliers (points outside the robust range)
+            n_outliers_x = np.sum((bayesed_vals < plot_min) | (bayesed_vals > plot_max))
+            n_outliers_y = np.sum((bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))
+            n_outliers = len(set(np.where((bayesed_vals < plot_min) | (bayesed_vals > plot_max) | 
+                                        (bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))[0]))
 
             # Store statistics
             param_stats[label] = {
                 'correlation': correlation,
                 'bias': bias,
                 'rms': rms,
-                'n_objects': len(bayesed_vals)
+                'n_objects': len(bayesed_vals),
+                'n_outliers': n_outliers,
+                'outlier_fraction': n_outliers / len(bayesed_vals) if len(bayesed_vals) > 0 else 0
             }
 
-            # Add statistics text
+            # Add statistics text with outlier information
             stats_text = f'r = {correlation:.3f}\nbias = {bias:.3f}\nRMS = {rms:.3f}\nN = {len(bayesed_vals)}'
+            if n_outliers > 0:
+                stats_text += f'\nOutliers: {n_outliers} ({100*n_outliers/len(bayesed_vals):.1f}%)'
+            
             ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
                     verticalalignment='top', fontsize=10,
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
@@ -1141,9 +1207,11 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                    transform=ax.transAxes, ha='center', va='center',
                    bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
 
-    # Remove empty subplots
-    for i in range(n_params, len(axes)):
-        fig.delaxes(axes[i])
+    # Remove empty subplots if any
+    total_subplots = nrows * ncols
+    for i in range(n_params, total_subplots):
+        if i < len(axes):
+            fig.delaxes(axes[i])
 
     plt.suptitle(f'Parameter Comparison: BayeSED3 vs BAGPIPES ({len(common_ids)} objects)', fontsize=16)
     plt.tight_layout()
@@ -1151,7 +1219,8 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     # Print summary statistics
     print(f"\n=== Parameter Comparison Summary ===")
     for param_name, stats in param_stats.items():
-        print(f"{param_name:15s}: r={stats['correlation']:6.3f}, bias={stats['bias']:7.3f}, RMS={stats['rms']:6.3f}, N={stats['n_objects']:3d}")
+        outlier_info = f", Outliers: {stats['n_outliers']} ({100*stats['outlier_fraction']:.1f}%)" if stats.get('n_outliers', 0) > 0 else ""
+        print(f"{param_name:15s}: r={stats['correlation']:6.3f}, bias={stats['bias']:7.3f}, RMS={stats['rms']:6.3f}, N={stats['n_objects']:3d}{outlier_info}")
 
     if save:
         plot_dir = os.path.join("pipes", "plots", "comparison")
@@ -1359,9 +1428,12 @@ def main():
 
     # Define comparison parameters (used by both plot_parameter_scatter and plot_posterior_corner_comparison)
     bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+    bayesed_params1 = [ i+"_{median}" for i in bayesed_params ]
     true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
     bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
+    bagpipes_params1 = [ i+"_50" for i in bagpipes_params ]
     labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
+    labels1 = [r'$z$', r'$\log(M_{\star}\, /\, \mathrm{M}_{\odot})$', r'$\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})$']
 
     # Create parameter scatter comparison plot using all objects
     print(f"\n=== Creating Parameter Scatter Comparison Plot ===")
@@ -1370,16 +1442,17 @@ def main():
     fig, param_stats = plot_parameter_scatter(
         bayesed_results=results_bayesed,  # Use the astropy table directly
         bagpipes_cat_file=bagpipes_cat_file,
-        bayesed_params=bayesed_params,
-        bagpipes_params=bagpipes_params,
-        labels=labels,
+        bayesed_params=bayesed_params1,
+        bagpipes_params=bagpipes_params1,
+        labels=labels1,
         save=True,
         show=True
     )
 
     bagpipes_fits = {}  # Store fits for posterior comparison
 
-    for ID in IDs[:10]:
+    # for ID in IDs[:10]:
+    for ID in []:
         # Get object-specific resolution curve
         resolution_curve = data_loader.get_resolution_curve(ID)
 
