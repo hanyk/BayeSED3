@@ -692,7 +692,7 @@ class BayeSEDResults:
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    logger.warning(f"No object_id provided for get_posterior_samples. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for get_posterior_samples. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                 else:
                     raise ValueError("No objects available for posterior samples")
 
@@ -769,7 +769,7 @@ class BayeSEDResults:
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    logger.warning(f"No object_id provided for get_bestfit_spectrum. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for get_bestfit_spectrum. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                 else:
                     raise ValueError("No objects available for best-fit spectrum")
 
@@ -831,7 +831,7 @@ class BayeSEDResults:
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    logger.warning(f"No object_id provided for get_getdist_samples. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for get_getdist_samples. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                 else:
                     raise ValueError("No objects available for GetDist samples")
 
@@ -955,7 +955,7 @@ class BayeSEDResults:
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    logger.warning(f"No object_id provided for plot_posterior. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for plot_posterior. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                 else:
                     raise ValueError("No objects available for plotting")
 
@@ -1253,7 +1253,7 @@ class BayeSEDResults:
                 objects = self.list_objects()
                 if objects:
                     object_id = objects[0]
-                    logger.warning(f"No object_id provided for plot_bestfit. Using first available object: {object_id}")
+                    logger.warning(f"No object_id provided for plot_bestfit. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                 else:
                     raise ValueError("No objects available for plotting best-fit spectrum")
 
@@ -1337,7 +1337,7 @@ class BayeSEDResults:
                     objects = self.list_objects()
                     if objects:
                         object_id = objects[0]
-                        logger.warning(f"No object_id provided for plot_posterior_free. Using first available object: {object_id}")
+                        logger.warning(f"No object_id provided for plot_posterior_free. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                     else:
                         raise ValueError("No objects available for plotting")
 
@@ -1429,7 +1429,7 @@ class BayeSEDResults:
                     objects = self.list_objects()
                     if objects:
                         object_id = objects[0]
-                        logger.warning(f"No object_id provided for plot_posterior_derived. Using first available object: {object_id}")
+                        logger.warning(f"No object_id provided for plot_posterior_derived. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
                     else:
                         raise ValueError("No objects available for plotting")
 
