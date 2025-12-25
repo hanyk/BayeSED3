@@ -1271,9 +1271,9 @@ class BayeSEDResults:
                 raise
 
     def plot_parameter_scatter(self, x_parameter: str, 
-                              y_parameter: str,
+                              y_parameter: Union[str, List[str]],
                               x_err: Optional[str] = None,
-                              y_err: Optional[str] = None,
+                              y_err: Optional[Union[str, List[str]]] = None,
                               color_parameter: Optional[str] = None,
                               object_ids: Optional[Union[str, List[str]]] = None,
                               show_diagonal: bool = True,
@@ -1287,20 +1287,27 @@ class BayeSEDResults:
                               xlabel: Optional[str] = None,
                               ylabel: Optional[str] = None,
                               title: Optional[str] = None,
+                              legend_labels: Optional[List[str]] = None,
+                              legend_loc: str = 'best',
                               **kwargs) -> Any:
         """
-        Create a scatter plot comparing any two parameter columns with optional error bars.
+        Create a scatter plot comparing one x-parameter with one or multiple y-parameters with optional error bars.
         
         This method creates scatter plots similar to:
         plt.scatter(results.parameters['log(Mstar)[0,1]_{True}'], 
                    results.parameters['log(Mstar)[0,0]_{median}'])
         
+        When y_parameter is a list, all y-parameters will be plotted against the same x-parameter
+        in the same figure with different colors and point styles for easy comparison.
+        
         Parameters
         ----------
         x_parameter : str
             Full column name for x-axis values (e.g., 'log(Mstar)[0,1]_{True}')
-        y_parameter : str
-            Full column name for y-axis values (e.g., 'log(Mstar)[0,0]_{median}')
+        y_parameter : str or List[str]
+            Full column name(s) for y-axis values (e.g., 'log(Mstar)[0,0]_{median}' or 
+            ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}']). When a list is provided,
+            all y-parameters will be plotted against the x-parameter with different colors and markers.
         x_err : str, optional
             Column name for x-axis error bars. Can be:
             - Sigma column (e.g., 'log(Mstar)[0,0]_{sigma}')
@@ -1309,10 +1316,14 @@ class BayeSEDResults:
             - 'percentile_90' for 90% confidence interval (5th/95th percentiles)
             - Custom percentile (e.g., 'percentile_99' for 99% confidence interval)
             - Direct column name for custom error values
-        y_err : str, optional
-            Column name for y-axis error bars. Same options as x_err.
+        y_err : str or List[str], optional
+            Column name(s) for y-axis error bars. Same options as x_err. If y_parameter is a list,
+            y_err can be a single string (applied to all y-parameters) or a list of strings
+            (one for each y-parameter, or None for no error bars on specific parameters).
         color_parameter : str, optional
-            Full column name for color coding points. If None, uses single color.
+            Full column name for color coding points. If None and y_parameter is a list, 
+            uses different colors for each y-parameter. If specified with multiple y-parameters,
+            all points will be colored by this parameter.
         object_ids : str or List[str], optional
             Specific object ID(s) to include. If None, uses all available objects.
         show_diagonal : bool, default True
@@ -1322,6 +1333,7 @@ class BayeSEDResults:
         show_stats : bool, default True
             Whether to show correlation statistics on the plot. Includes Pearson r,
             Spearman ρ, and error-weighted correlation (if errors are available).
+            For multiple y-parameters, shows stats for each y vs x relationship.
         figsize : tuple, default (8, 6)
             Figure size (width, height) in inches
         xlim : tuple, optional
@@ -1335,9 +1347,15 @@ class BayeSEDResults:
         xlabel : str, optional
             Custom x-axis label. If None, uses x_parameter name.
         ylabel : str, optional
-            Custom y-axis label. If None, uses y_parameter name.
+            Custom y-axis label. If None, uses y_parameter name(s).
         title : str, optional
             Custom plot title. If None, auto-generates from parameter names.
+        legend_labels : List[str], optional
+            Custom labels for the legend. If provided, must have the same length as y_parameter list.
+            If None, uses automatically extracted labels from parameter names.
+        legend_loc : str, default 'best'
+            Location for the legend. Options: 'best', 'upper right', 'upper left', 'lower left',
+            'lower right', 'right', 'center left', 'center right', 'lower center', 'upper center', 'center'.
         **kwargs
             Additional arguments passed to plt.errorbar() or plt.scatter()
             
@@ -1348,14 +1366,28 @@ class BayeSEDResults:
             
         Examples
         --------
-        >>> # Basic scatter plot
+        >>> # Basic scatter plot (single y-parameter)
         >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
         ...                               'log(Mstar)[0,0]_{median}')
         >>> 
-        >>> # With error bars using sigma
+        >>> # Multiple y-parameters comparison
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'])
+        >>> 
+        >>> # With error bars using sigma (single y-parameter)
         >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
         ...                               'log(Mstar)[0,0]_{median}',
         ...                               y_err='log(Mstar)[0,0]_{sigma}')
+        >>> 
+        >>> # Multiple y-parameters with different error bars
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               ['log(age)[0,0]_{median}', 'SFR_{median}'],
+        ...                               y_err=['log(age)[0,0]_{sigma}', 'SFR_{sigma}'])
+        >>> 
+        >>> # Multiple y-parameters with same error type
+        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
+        ...                               ['log(age)[0,0]_{median}', 'SFR_{median}'],
+        ...                               y_err='percentile')
         >>> 
         >>> # With error bars using percentiles (68% confidence interval)
         >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
@@ -1372,38 +1404,67 @@ class BayeSEDResults:
         ...                               'SFR_{median}',
         ...                               x_err='percentile_90', y_err='sigma')
         >>> 
-        >>> # Custom axis ranges
+        >>> # Custom axis ranges with multiple y-parameters
         >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
-        ...                               'log(Mstar)[0,0]_{median}',
-        ...                               xlim=(9, 12), ylim=(9, 12))
-        >>> 
-        >>> # Zoom into specific region with error bars
-        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
-        ...                               'log(age)[0,0]_{median}',
-        ...                               x_err='percentile_68', y_err='percentile_68',
-        ...                               xlim=(10, 11.5), ylim=(8.5, 10.2))
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'],
+        ...                               xlim=(9, 12), ylim=(8, 12))
         >>> 
         >>> # Turn off statistics display
         >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
-        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'],
         ...                               show_stats=False)
         >>> 
-        >>> # With error bars and correlation statistics
-        >>> results.plot_parameter_scatter('log(Mstar)[0,0]_{median}', 
-        ...                               'SFR_{median}',
-        ...                               x_err='sigma', y_err='sigma',
-        ...                               show_stats=True)
-        >>> 
-        >>> # With color coding
+        >>> # With color coding (overrides automatic coloring for multiple y-parameters)
         >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
-        ...                               'log(Mstar)[0,0]_{median}',
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'],
         ...                               color_parameter='log(age)[0,0]_{median}')
+        >>> 
+        >>> # With custom legend labels
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'],
+        ...                               legend_labels=['Stellar Mass', 'Age'])
+        >>> 
+        >>> # Custom legend position
+        >>> results.plot_parameter_scatter('log(Mstar)[0,1]_{True}', 
+        ...                               ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}'],
+        ...                               legend_loc='upper left')
         """
         try:
             import matplotlib.pyplot as plt
             import numpy as np
         except ImportError:
             raise ImportError("matplotlib and numpy are required for plotting. Install with: pip install matplotlib numpy")
+        
+        # Convert y_parameter to list for consistent handling
+        if isinstance(y_parameter, str):
+            y_parameters = [y_parameter]
+            single_y = True
+        else:
+            y_parameters = y_parameter
+            single_y = False
+        
+        # Handle y_err parameter - convert to list matching y_parameters
+        if y_err is None:
+            y_err_list = [None] * len(y_parameters)
+        elif isinstance(y_err, str):
+            # Single error specification - apply to all y-parameters
+            y_err_list = [y_err] * len(y_parameters)
+        elif isinstance(y_err, list):
+            if len(y_err) != len(y_parameters):
+                raise ValueError(f"Length of y_err list ({len(y_err)}) must match length of y_parameter list ({len(y_parameters)})")
+            y_err_list = y_err
+        else:
+            raise ValueError("y_err must be None, str, or list of str")
+        
+        # Handle legend_labels parameter
+        if legend_labels is not None:
+            if not isinstance(legend_labels, list):
+                raise ValueError("legend_labels must be a list of strings")
+            if len(legend_labels) != len(y_parameters):
+                raise ValueError(f"Length of legend_labels ({len(legend_labels)}) must match length of y_parameter list ({len(y_parameters)})")
+            custom_legend_labels = legend_labels
+        else:
+            custom_legend_labels = None
         
         # Get the HDF5 table with appropriate filtering
         hdf5_table = self.load_hdf5_results(filter_snr=False, min_snr=0.0)
@@ -1431,17 +1492,18 @@ class BayeSEDResults:
             else:
                 raise ValueError(f"Column '{x_parameter}' not found. Available columns: {available_cols[:10]}...")
         
-        if y_parameter not in available_cols:
-            # Try to find similar columns
-            similar_cols = [col for col in available_cols if y_parameter.split('_')[0] in col or y_parameter.split('[')[0] in col]
-            if similar_cols:
-                raise ValueError(f"Column '{y_parameter}' not found. Similar columns: {similar_cols[:10]}")
-            else:
-                raise ValueError(f"Column '{y_parameter}' not found. Available columns: {available_cols[:10]}...")
+        # Check all y_parameters exist
+        for y_param in y_parameters:
+            if y_param not in available_cols:
+                # Try to find similar columns
+                similar_cols = [col for col in available_cols if y_param.split('_')[0] in col or y_param.split('[')[0] in col]
+                if similar_cols:
+                    raise ValueError(f"Column '{y_param}' not found. Similar columns: {similar_cols[:10]}")
+                else:
+                    raise ValueError(f"Column '{y_param}' not found. Available columns: {available_cols[:10]}...")
         
-        # Extract data
+        # Extract x data
         x_values = np.array(hdf5_table[x_parameter])
-        y_values = np.array(hdf5_table[y_parameter])
         
         # Handle error bars
         def get_error_values(param, err_spec, param_name):
@@ -1548,7 +1610,6 @@ class BayeSEDResults:
                     return None
         
         x_err_values = get_error_values(x_parameter, x_err, 'x_parameter')
-        y_err_values = get_error_values(y_parameter, y_err, 'y_parameter')
         
         # Handle color parameter if specified
         color_values = None
@@ -1563,44 +1624,245 @@ class BayeSEDResults:
         # Create the plot
         fig, ax = plt.subplots(figsize=figsize)
         
-        # Prepare plotting arguments
-        plot_kwargs = {'alpha': 0.7}
-        if x_err_values is not None or y_err_values is not None:
-            # Use errorbar plot
-            plot_kwargs.update({'fmt': 'o', 'markersize': 5, 'capsize': 3})
-        else:
-            # Use scatter plot
-            plot_kwargs.update({'s': 50})
+        # Define colors and markers for multiple y-parameters
+        colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+        markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*', 'h']
         
-        plot_kwargs.update(kwargs)  # Override with user kwargs
+        # Extract common and different parts for ylabel and legend
+        def extract_common_and_different_parts(param_names):
+            """
+            Extract common and different parts from parameter names for ylabel and legend.
+            
+            This function analyzes parameter names to find meaningful common parts and 
+            extract the differentiating parts for cleaner labels.
+            
+            Examples:
+            - ['log(age/yr)[0,0]_{mean}', 'log(age/yr)[0,0]_{median}', 'log(age/yr)[0,0]_{MAP}'] 
+              -> common: 'log(age/yr)[0,0]', different: ['mean', 'median', 'MAP']
+            - ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}']
+              -> common: '[0,0]_{median}', different: ['log(Mstar)', 'log(age)']
+            - ['SFR_{median}', 'log(Z)[0,0]_{median}']
+              -> common: '_{median}', different: ['SFR', 'log(Z)[0,0]']
+            """
+            if len(param_names) == 1:
+                return param_names[0], [param_names[0]]
+            
+            # Strategy: Look for patterns in parameter names
+            # Common patterns: parameter_{statistic}, parameter[index]_{statistic}
+            
+            # First, try to identify if all parameters have the same base with different statistics
+            # Look for patterns like _{mean}, _{median}, _{MAP}, etc.
+            
+            # Check if all parameters follow the pattern: base_{statistic}
+            base_parts = []
+            stat_parts = []
+            all_have_underscore_stat = True
+            
+            for name in param_names:
+                # Look for the last underscore followed by a statistic name
+                if '_{' in name:
+                    # Handle both _{stat} and _{stat} patterns
+                    last_underscore_brace = name.rfind('_{')
+                    if last_underscore_brace != -1:
+                        base_part = name[:last_underscore_brace]
+                        stat_part = name[last_underscore_brace+2:]  # Skip _{
+                        if stat_part.endswith('}'):
+                            stat_part = stat_part[:-1]  # Remove trailing }
+                        base_parts.append(base_part)
+                        stat_parts.append(stat_part)
+                    else:
+                        all_have_underscore_stat = False
+                        break
+                elif '_' in name:
+                    # Simple pattern: parameter_statistic
+                    parts = name.rsplit('_', 1)
+                    if len(parts) == 2:
+                        base_part = parts[0]
+                        stat_part = parts[1]
+                        base_parts.append(base_part)
+                        stat_parts.append(stat_part)
+                    else:
+                        all_have_underscore_stat = False
+                        break
+                else:
+                    all_have_underscore_stat = False
+                    break
+            
+            # Case 1: All parameters have the pattern base_{statistic}
+            if all_have_underscore_stat and len(base_parts) == len(param_names):
+                unique_bases = set(base_parts)
+                
+                if len(unique_bases) == 1:
+                    # All base parts are identical - different statistics of same parameter
+                    # This is the case we want: log(age/yr)[0,1]_{mean} vs log(age/yr)[0,1]_{median}
+                    common_part = base_parts[0]
+                    different_parts = stat_parts
+                    return common_part, different_parts
+                else:
+                    # Different base parts, but check if they have same statistic
+                    unique_stats = set(stat_parts)
+                    if len(unique_stats) == 1:
+                        # Same statistic, different parameters
+                        common_part = '_{' + stat_parts[0] + '}'
+                        different_parts = base_parts
+                        return common_part, different_parts
+            
+            # Case 2: Fallback to character-by-character comparison
+            # Find common prefix
+            common_prefix = ""
+            min_len = min(len(name) for name in param_names)
+            for i in range(min_len):
+                if all(name[i] == param_names[0][i] for name in param_names):
+                    common_prefix += param_names[0][i]
+                else:
+                    break
+            
+            # Find common suffix
+            common_suffix = ""
+            for i in range(1, min_len + 1):
+                if all(name[-i] == param_names[0][-i] for name in param_names):
+                    common_suffix = param_names[0][-i] + common_suffix
+                else:
+                    break
+            
+            # Extract different parts (middle parts between common prefix and suffix)
+            different_parts = []
+            for name in param_names:
+                start_idx = len(common_prefix)
+                end_idx = len(name) - len(common_suffix) if common_suffix else len(name)
+                different_part = name[start_idx:end_idx]
+                different_parts.append(different_part)
+            
+            # Construct common part
+            common_part = common_prefix + common_suffix
+            
+            # Clean up and validate results
+            if len(common_part.strip()) < 3:  # Too short to be meaningful
+                # Fallback: use simplified parameter names
+                different_parts = []
+                for name in param_names:
+                    # Extract base parameter name (before first underscore or bracket)
+                    base_name = name.split('_')[0].split('[')[0]
+                    different_parts.append(base_name)
+                common_part = "Multiple Parameters"
+            else:
+                # Clean up different parts - remove common separators
+                cleaned_different = []
+                for part in different_parts:
+                    # Remove leading/trailing underscores, brackets, etc.
+                    cleaned = part.strip('_{}[]')
+                    if not cleaned:
+                        # If nothing left after cleaning, use a fallback
+                        idx = different_parts.index(part)
+                        original_name = param_names[idx]
+                        cleaned = original_name.split('_')[0].split('[')[0]
+                    cleaned_different.append(cleaned)
+                different_parts = cleaned_different
+            
+            return common_part, different_parts
         
-        # Create the plot
-        if x_err_values is not None or y_err_values is not None:
-            # Use errorbar
-            if color_values is not None:
-                # For colored error bars, we need to plot each point individually
-                # or use a scatter plot with error bars overlay
-                scatter = ax.scatter(x_values, y_values, c=color_values, s=plot_kwargs.get('s', 50), 
-                                   alpha=plot_kwargs.get('alpha', 0.7))
-                
-                # Add error bars without markers
-                ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
-                           fmt='none', alpha=0.5, capsize=plot_kwargs.get('capsize', 3))
-                
-                if show_colorbar:
-                    cbar = plt.colorbar(scatter, ax=ax)
-                    cbar.set_label(color_parameter)
-            else:
-                ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, **plot_kwargs)
+        # Get common and different parts for ylabel and legend (only if custom labels not provided)
+        if not single_y and custom_legend_labels is None:
+            common_ylabel, auto_legend_labels = extract_common_and_different_parts(y_parameters)
         else:
-            # Use scatter plot
-            if color_values is not None:
-                scatter = ax.scatter(x_values, y_values, c=color_values, **plot_kwargs)
-                if show_colorbar:
-                    cbar = plt.colorbar(scatter, ax=ax)
-                    cbar.set_label(color_parameter)
+            common_ylabel = y_parameters[0] if single_y else "Multiple Parameters"
+            auto_legend_labels = custom_legend_labels if custom_legend_labels else [y_parameters[0]]
+        
+        # Use custom legend labels if provided, otherwise use auto-extracted labels
+        final_legend_labels = custom_legend_labels if custom_legend_labels else auto_legend_labels
+        
+        # Store data for statistics calculation
+        all_stats_data = []
+        
+        # Plot each y-parameter
+        for i, (y_param, y_err_spec) in enumerate(zip(y_parameters, y_err_list)):
+            # Extract y data and errors
+            y_values = np.array(hdf5_table[y_param])
+            y_err_values = get_error_values(y_param, y_err_spec, f'y_parameter[{i}]')
+            
+            # Prepare plotting arguments
+            plot_kwargs = {'alpha': 0.7}
+            
+            # Set color and marker
+            if color_parameter is None and not single_y:
+                # Use different colors/markers for each y-parameter
+                plot_kwargs['color'] = colors[i % len(colors)]
+                plot_kwargs['marker'] = markers[i % len(markers)]
+                plot_kwargs['label'] = final_legend_labels[i]  # Use final legend labels
+            elif color_parameter is not None:
+                # Use color parameter for coloring
+                plot_kwargs['c'] = color_values
+                plot_kwargs['marker'] = markers[i % len(markers)] if not single_y else 'o'
+                if not single_y:
+                    plot_kwargs['label'] = final_legend_labels[i]  # Use final legend labels
             else:
-                scatter = ax.scatter(x_values, y_values, **plot_kwargs)
+                # Single y-parameter, default styling
+                plot_kwargs['marker'] = 'o'
+            
+            if x_err_values is not None or y_err_values is not None:
+                # Use errorbar plot
+                plot_kwargs.update({'markersize': 5, 'capsize': 3, 'linestyle': 'none'})
+            else:
+                # Use scatter plot
+                plot_kwargs.update({'s': 50})
+            
+            # Override with user kwargs (but preserve color/marker for multi-y)
+            user_kwargs = kwargs.copy()
+            if not single_y and color_parameter is None:
+                # Preserve automatic color/marker for multi-y plots
+                user_kwargs.pop('color', None)
+                user_kwargs.pop('c', None)
+                user_kwargs.pop('marker', None)
+            plot_kwargs.update(user_kwargs)
+            
+            # Create the plot
+            if x_err_values is not None or y_err_values is not None:
+                # Use errorbar
+                if color_parameter is not None and not single_y:
+                    # For colored error bars with multiple y-parameters, plot scatter first then error bars
+                    scatter = ax.scatter(x_values, y_values, c=color_values, 
+                                       s=plot_kwargs.get('s', 50), 
+                                       marker=plot_kwargs.get('marker', 'o'),
+                                       alpha=plot_kwargs.get('alpha', 0.7),
+                                       label=plot_kwargs.get('label'))
+                    
+                    # Add error bars without markers
+                    ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
+                               fmt='none', alpha=0.5, capsize=plot_kwargs.get('capsize', 3),
+                               color=plot_kwargs.get('color', 'gray'))
+                else:
+                    ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
+                               fmt=plot_kwargs.get('marker', 'o'), **{k: v for k, v in plot_kwargs.items() 
+                                                                      if k not in ['marker', 's']})
+            else:
+                # Use scatter plot
+                if color_parameter is not None:
+                    scatter = ax.scatter(x_values, y_values, **plot_kwargs)
+                    if i == 0 and show_colorbar and single_y:  # Only show colorbar once for single y
+                        cbar = plt.colorbar(scatter, ax=ax)
+                        cbar.set_label(color_parameter)
+                else:
+                    ax.scatter(x_values, y_values, **plot_kwargs)
+            
+            # Store data for statistics
+            all_stats_data.append({
+                'x_values': x_values,
+                'y_values': y_values,
+                'x_err_values': x_err_values,
+                'y_err_values': y_err_values,
+                'y_param': y_param
+            })
+        
+        # Add colorbar for multi-y plots with color parameter
+        if color_parameter is not None and not single_y and show_colorbar:
+            # Use the last scatter plot for colorbar
+            if 'scatter' in locals():
+                cbar = plt.colorbar(scatter, ax=ax)
+                cbar.set_label(color_parameter)
+        
+        # Add legend for multiple y-parameters (inside the figure)
+        if not single_y and color_parameter is None:
+            ax.legend(loc=legend_loc, frameon=True, fancybox=True, shadow=True, framealpha=0.9)
         
         # Set axis limits if specified
         if xlim is not None:
@@ -1613,79 +1875,96 @@ class BayeSEDResults:
             try:
                 from scipy import stats
                 
-                # Remove NaN values for correlation calculations
-                valid_mask = ~(np.isnan(x_values) | np.isnan(y_values))
-                x_clean = x_values[valid_mask]
-                y_clean = y_values[valid_mask]
+                stats_text_lines = []
                 
-                if len(x_clean) > 2:  # Need at least 3 points for meaningful correlation
-                    # Pearson correlation
-                    pearson_r, pearson_p = stats.pearsonr(x_clean, y_clean)
+                for i, stats_data in enumerate(all_stats_data):
+                    x_vals = stats_data['x_values']
+                    y_vals = stats_data['y_values']
+                    x_err_vals = stats_data['x_err_values']
+                    y_err_vals = stats_data['y_err_values']
+                    y_param = stats_data['y_param']
                     
-                    # Spearman correlation (rank-based, more robust)
-                    spearman_rho, spearman_p = stats.spearmanr(x_clean, y_clean)
+                    # Remove NaN values for correlation calculations
+                    valid_mask = ~(np.isnan(x_vals) | np.isnan(y_vals))
+                    x_clean = x_vals[valid_mask]
+                    y_clean = y_vals[valid_mask]
                     
-                    # Prepare statistics text
-                    stats_text = f'N = {len(x_clean)}\n'
-                    stats_text += f'Pearson r = {pearson_r:.3f}'
-                    if pearson_p < 0.001:
-                        stats_text += ' (p < 0.001)'
-                    elif pearson_p < 0.01:
-                        stats_text += f' (p < 0.01)'
-                    elif pearson_p < 0.05:
-                        stats_text += f' (p < 0.05)'
+                    if len(x_clean) > 2:  # Need at least 3 points for meaningful correlation
+                        # Pearson correlation
+                        pearson_r, pearson_p = stats.pearsonr(x_clean, y_clean)
+                        
+                        # Spearman correlation (rank-based, more robust)
+                        spearman_rho, spearman_p = stats.spearmanr(x_clean, y_clean)
+                        
+                        # Prepare statistics text for this y-parameter
+                        if not single_y:
+                            # Use the final legend label for cleaner display
+                            stats_text_lines.append(f'{final_legend_labels[i]}:')
+                        
+                        stats_text_lines.append(f'N = {len(x_clean)}')
+                        stats_text_lines.append(f'r = {pearson_r:.3f}')
+                        if pearson_p < 0.001:
+                            stats_text_lines[-1] += ' (p<0.001)'
+                        elif pearson_p < 0.01:
+                            stats_text_lines[-1] += ' (p<0.01)'
+                        elif pearson_p < 0.05:
+                            stats_text_lines[-1] += ' (p<0.05)'
+                        
+                        stats_text_lines.append(f'ρ = {spearman_rho:.3f}')
+                        if spearman_p < 0.001:
+                            stats_text_lines[-1] += ' (p<0.001)'
+                        elif spearman_p < 0.01:
+                            stats_text_lines[-1] += ' (p<0.01)'
+                        elif spearman_p < 0.05:
+                            stats_text_lines[-1] += ' (p<0.05)'
+                        
+                        # Error-weighted correlation if errors are available
+                        if x_err_vals is not None and y_err_vals is not None:
+                            try:
+                                # Calculate error-weighted correlation
+                                x_err_clean = x_err_vals[valid_mask] if x_err_vals.ndim == 1 else np.mean(x_err_vals[:, valid_mask], axis=0)
+                                y_err_clean = y_err_vals[valid_mask] if y_err_vals.ndim == 1 else np.mean(y_err_vals[:, valid_mask], axis=0)
+                                
+                                # Avoid division by zero
+                                x_err_clean = np.maximum(x_err_clean, 1e-10)
+                                y_err_clean = np.maximum(y_err_clean, 1e-10)
+                                
+                                # Weights inversely proportional to combined error
+                                weights = 1.0 / (x_err_clean**2 + y_err_clean**2)
+                                weights = weights / np.sum(weights)  # Normalize weights
+                                
+                                # Weighted means
+                                x_weighted_mean = np.sum(weights * x_clean)
+                                y_weighted_mean = np.sum(weights * y_clean)
+                                
+                                # Weighted correlation coefficient
+                                numerator = np.sum(weights * (x_clean - x_weighted_mean) * (y_clean - y_weighted_mean))
+                                x_var = np.sum(weights * (x_clean - x_weighted_mean)**2)
+                                y_var = np.sum(weights * (y_clean - y_weighted_mean)**2)
+                                
+                                if x_var > 0 and y_var > 0:
+                                    weighted_r = numerator / np.sqrt(x_var * y_var)
+                                    stats_text_lines.append(f'r_w = {weighted_r:.3f}')
+                                
+                            except Exception as e:
+                                logger.debug(f"Could not calculate weighted correlation for {y_param}: {e}")
+                        
+                        # Add separator for multiple y-parameters
+                        if not single_y and i < len(all_stats_data) - 1:
+                            stats_text_lines.append('')
+                    
                     else:
-                        stats_text += f' (p = {pearson_p:.3f})'
-                    
-                    stats_text += f'\nSpearman ρ = {spearman_rho:.3f}'
-                    if spearman_p < 0.001:
-                        stats_text += ' (p < 0.001)'
-                    elif spearman_p < 0.01:
-                        stats_text += f' (p < 0.01)'
-                    elif spearman_p < 0.05:
-                        stats_text += f' (p < 0.05)'
-                    else:
-                        stats_text += f' (p = {spearman_p:.3f})'
-                    
-                    # Error-weighted correlation if errors are available
-                    if x_err_values is not None and y_err_values is not None:
-                        try:
-                            # Calculate error-weighted correlation
-                            x_err_clean = x_err_values[valid_mask] if x_err_values.ndim == 1 else np.mean(x_err_values[:, valid_mask], axis=0)
-                            y_err_clean = y_err_values[valid_mask] if y_err_values.ndim == 1 else np.mean(y_err_values[:, valid_mask], axis=0)
-                            
-                            # Avoid division by zero
-                            x_err_clean = np.maximum(x_err_clean, 1e-10)
-                            y_err_clean = np.maximum(y_err_clean, 1e-10)
-                            
-                            # Weights inversely proportional to combined error
-                            weights = 1.0 / (x_err_clean**2 + y_err_clean**2)
-                            weights = weights / np.sum(weights)  # Normalize weights
-                            
-                            # Weighted means
-                            x_weighted_mean = np.sum(weights * x_clean)
-                            y_weighted_mean = np.sum(weights * y_clean)
-                            
-                            # Weighted correlation coefficient
-                            numerator = np.sum(weights * (x_clean - x_weighted_mean) * (y_clean - y_weighted_mean))
-                            x_var = np.sum(weights * (x_clean - x_weighted_mean)**2)
-                            y_var = np.sum(weights * (y_clean - y_weighted_mean)**2)
-                            
-                            if x_var > 0 and y_var > 0:
-                                weighted_r = numerator / np.sqrt(x_var * y_var)
-                                stats_text += f'\nWeighted r = {weighted_r:.3f}'
-                            
-                        except Exception as e:
-                            logger.debug(f"Could not calculate weighted correlation: {e}")
+                        logger.warning(f"Not enough valid data points for correlation statistics for {y_param}")
+                
+                # Display statistics if we have any
+                if stats_text_lines:
+                    stats_text = '\n'.join(stats_text_lines)
                     
                     # Position the text box in the upper left corner
                     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, 
                            verticalalignment='top', horizontalalignment='left',
                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
-                           fontsize=10, family='monospace')
-                    
-                else:
-                    logger.warning("Not enough valid data points for correlation statistics")
+                           fontsize=9 if not single_y else 10, family='monospace')
                     
             except ImportError:
                 logger.warning("scipy not available for correlation statistics")
@@ -1695,21 +1974,34 @@ class BayeSEDResults:
         # Add diagonal line if requested
         if show_diagonal:
             # Get the current axis limits after the scatter plot
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
+            xlim_current = ax.get_xlim()
+            ylim_current = ax.get_ylim()
             
             # Calculate the range for the diagonal line based on the overlapping region
-            line_min = max(xlim[0], ylim[0])
-            line_max = min(xlim[1], ylim[1])
+            line_min = max(xlim_current[0], ylim_current[0])
+            line_max = min(xlim_current[1], ylim_current[1])
             
             # Only draw diagonal if there's an overlapping range
             if line_min < line_max:
                 ax.plot([line_min, line_max], [line_min, line_max], 'k--', alpha=0.8, linewidth=1, label='y=x')
-                ax.legend()
+                # Only add legend if we don't already have one from multiple y-parameters
+                if single_y or color_parameter is not None:
+                    ax.legend()
         
         # Set labels
         ax.set_xlabel(xlabel if xlabel is not None else x_parameter, fontsize=12)
-        ax.set_ylabel(ylabel if ylabel is not None else y_parameter, fontsize=12)
+        
+        if ylabel is not None:
+            ax.set_ylabel(ylabel, fontsize=12)
+        elif single_y:
+            ax.set_ylabel(y_parameters[0], fontsize=12)
+        else:
+            # For multiple y-parameters, use the extracted common part (unless custom labels override)
+            if custom_legend_labels is None:
+                ax.set_ylabel(common_ylabel, fontsize=12)
+            else:
+                # With custom legend labels, use a generic ylabel
+                ax.set_ylabel('Multiple Parameters', fontsize=12)
         
         # Set title
         if title is not None:
@@ -1717,20 +2009,29 @@ class BayeSEDResults:
         else:
             # Auto-generate title
             x_base = x_parameter.split('_')[0].split('[')[0]
-            y_base = y_parameter.split('_')[0].split('[')[0]
-            if x_base == y_base:
-                ax.set_title(f'{x_base}: {x_parameter} vs {y_parameter}', fontsize=14)
+            if single_y:
+                y_base = y_parameters[0].split('_')[0].split('[')[0]
+                if x_base == y_base:
+                    ax.set_title(f'{x_base}: {x_parameter} vs {y_parameters[0]}', fontsize=14)
+                else:
+                    ax.set_title(f'{x_parameter} vs {y_parameters[0]}', fontsize=14)
             else:
-                ax.set_title(f'{x_parameter} vs {y_parameter}', fontsize=14)
+                y_bases = [param.split('_')[0].split('[')[0] for param in y_parameters]
+                unique_bases = list(dict.fromkeys(y_bases))  # Preserve order, remove duplicates
+                if len(unique_bases) <= 3:
+                    y_title = ' / '.join(unique_bases)
+                else:
+                    y_title = f'{len(y_parameters)} parameters'
+                ax.set_title(f'{x_base} vs {y_title}', fontsize=14)
         
-        # Make axes equal if values are in similar range (only if show_diagonal is True)
-        if show_diagonal:
+        # Make axes equal if values are in similar range (only if show_diagonal is True and single y-parameter)
+        if show_diagonal and single_y:
             ax.set_aspect('equal', adjustable='box')
         
         # Add grid
         ax.grid(True, alpha=0.3)
         
-        # Tight layout
+        # Tight layout (legend is now inside, so no need for extra margin adjustment)
         plt.tight_layout()
         
         # Save if requested
@@ -1742,7 +2043,11 @@ class BayeSEDResults:
         if show:
             plt.show()
         
-        logger.info(f"Created scatter plot: {len(x_values)} points")
+        total_points = len(x_values) * len(y_parameters)
+        if single_y:
+            logger.info(f"Created scatter plot: {len(x_values)} points")
+        else:
+            logger.info(f"Created multi-parameter scatter plot: {len(x_values)} points × {len(y_parameters)} parameters = {total_points} total points")
         
         return fig
 
