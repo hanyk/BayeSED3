@@ -15,30 +15,41 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_catalog_name_from_filename(filename: str) -> str:
-    """
-    Extract catalog name from HDF5 filename.
+    """Extract catalog name from HDF5 filename."""
+    import re
     
-    Pattern: {catalog_name}_{config_starting_with_digit}...
-    The catalog name is everything before the first part that starts with a digit.
+    def _is_model_config_part(part: str) -> bool:
+        """
+        Check if a filename part represents a model configuration.
+        
+        A model config part should start with numbers followed by letters (in that order).
+        This is more restrictive to avoid false positives with catalog names that contain numbers.
+        """
+        if not part:
+            return False
+            
+        import re
+        
+        # Model config must start with digit(s) followed by letter(s)
+        # Examples: 0csp, 1a2b, 2dal8, 5abc, 123def
+        # This pattern ensures numbers come before letters
+        if re.match(r'^\d+[a-zA-Z]', part):
+            return True
+        
+        return False
     
-    Examples:
-    - gal_0csp_sfh200_... → gal
-    - qso_0csp_sfh200_... → qso  
-    - test_inoise1_0csp_... → test_inoise1
-    - W0533_ALMA_0csp_... → W0533_ALMA
-    """
     parts = filename.split('_')
     
-    # Find the first part that starts with a digit
+    # Find the first part that starts with a combination of numbers and letters
     catalog_parts = []
     for part in parts:
-        if part and part[0].isdigit():
+        if part and _is_model_config_part(part):
             # Found the config part - everything before this is catalog name
             break
         catalog_parts.append(part)
     
     if not catalog_parts:
-        # Fallback to first part if no digit-starting part found
+        # Fallback to first part if no valid config part found
         return parts[0] if parts else filename
         
     return '_'.join(catalog_parts)

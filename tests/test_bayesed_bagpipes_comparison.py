@@ -771,7 +771,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         # Set plotting options for better comparison visibility (following BayeSED's approach)
         plot_kwargs = {
             'filled': True,
-            'contour_colors': ['#2E86AB', '#F24236'],  # BayeSED3 blue, BAGPIPES red
+            'contour_colors': ['#F24236', '#2E86AB'],  # BayeSED3 red, BAGPIPES blue
             'contour_ls': ['-', '--'],  # Solid for BayeSED3, dashed for BAGPIPES
             'contour_lws': [2.0, 2.0],
         }
@@ -1477,7 +1477,7 @@ Examples:
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")

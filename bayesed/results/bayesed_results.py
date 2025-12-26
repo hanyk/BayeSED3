@@ -71,30 +71,64 @@ class BayeSEDResults:
         """
         Extract catalog name from HDF5 filename.
         
-        Pattern: {catalog_name}_{config_starting_with_digit}...
-        The catalog name is everything before the first part that starts with a digit.
+        Pattern: {catalog_name}_{config_starting_with_alphanumeric}...
+        The catalog name is everything before the first part that starts with a combination 
+        of numbers and letters (alphanumeric with at least one digit and one letter).
         
         Examples:
         - gal_0csp_sfh200_... → gal
         - qso_0csp_sfh200_... → qso  
         - test_inoise1_0csp_... → test_inoise1
         - W0533_ALMA_0csp_... → W0533_ALMA
+        - seedcat2_STARFORMING_0csp_... → seedcat2_STARFORMING (STARFORMING doesn't start with alphanumeric)
         """
+        import re
+        
         parts = filename.split('_')
         
-        # Find the first part that starts with a digit
+        # Find the first part that starts with a combination of numbers and letters
         catalog_parts = []
         for part in parts:
-            if part and part[0].isdigit():
+            if part and self._is_model_config_part(part):
                 # Found the config part - everything before this is catalog name
                 break
             catalog_parts.append(part)
         
         if not catalog_parts:
-            # Fallback to first part if no digit-starting part found
+            # Fallback to first part if no valid config part found
             return parts[0] if parts else filename
             
         return '_'.join(catalog_parts)
+    
+    def _is_model_config_part(self, part: str) -> bool:
+        """
+        Check if a filename part represents a model configuration.
+        
+        A model config part should start with numbers followed by letters (in that order).
+        This is more restrictive to avoid false positives with catalog names that contain numbers.
+        
+        Parameters
+        ----------
+        part : str
+            Filename part to check
+            
+        Returns
+        -------
+        bool
+            True if this part looks like a model config, False otherwise
+        """
+        if not part:
+            return False
+            
+        import re
+        
+        # Model config must start with digit(s) followed by letter(s)
+        # Examples: 0csp, 1a2b, 2dal8, 5abc, 123def
+        # This pattern ensures numbers come before letters
+        if re.match(r'^\d+[a-zA-Z]', part):
+            return True
+        
+        return False
 
     def _find_hdf5_file(self) -> None:
         """Find the HDF5 file to load based on catalog_name and model_config."""
@@ -129,12 +163,25 @@ class BayeSEDResults:
                     f"Available catalogs: {sorted_catalogs}"
                 )
 
-        # Find files matching the catalog
+        # Find files matching the catalog with strict filtering
         catalog_pattern = f"{self.catalog_name}_*.hdf5"
-        catalog_files = list(self.output_dir.glob(catalog_pattern))
+        all_catalog_files = list(self.output_dir.glob(catalog_pattern))
+        
+        # Filter files to only include those where the part after catalog_name starts with digits+letters
+        catalog_files = []
+        for f in all_catalog_files:
+            filename = f.stem
+            if filename.startswith(self.catalog_name + '_'):
+                # Extract the part after catalog_name and underscore
+                remaining_part = filename[len(self.catalog_name) + 1:]
+                # Split by underscore and check if first part starts with digits+letters
+                if remaining_part:
+                    first_part = remaining_part.split('_')[0]
+                    if self._is_model_config_part(first_part):
+                        catalog_files.append(f)
 
         if not catalog_files:
-            raise FileNotFoundError(f"No HDF5 files found for catalog '{self.catalog_name}' in {self.output_dir}")
+            raise FileNotFoundError(f"No HDF5 files found for catalog '{self.catalog_name}' with valid model config pattern in {self.output_dir}")
 
         # Handle model_config selection
         if self.model_config is not None:
