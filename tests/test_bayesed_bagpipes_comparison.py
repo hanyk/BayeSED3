@@ -1430,6 +1430,9 @@ Examples:
     # plt.ylabel("Spectral resolving power")
     # plt.show()
 
+    bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+    bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
+    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
     if bagpipes_fit_cat:
         fit_cat = pipes.fit_catalogue(IDs, fit_instructions, data_loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=True)
         fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
@@ -1454,9 +1457,6 @@ Examples:
             show=True
         )
     else:
-        bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
-        true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
-        bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
         labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
         for ID in IDs:
         # for ID in []:
