@@ -346,22 +346,97 @@ class BayeSEDResults:
     # Public API Methods - Maintaining backward compatibility
     # ========================================================================
 
-    def get_parameter_names(self) -> List[str]:
+    def get_parameter_names(self, pattern: Optional[str] = None,
+                           match_mode: str = 'contains',
+                           case_sensitive: bool = True) -> List[str]:
         """
-        Get list of parameter names.
+        Get list of parameter names with optional filtering.
+
+        Parameters
+        ----------
+        pattern : str, optional
+            Pattern to filter parameter names. If None, returns all parameter names.
+            Supports:
+            - 'contains': Parameters that contain this substring anywhere (default)
+            - 'regex': Regular expression pattern matching
+        match_mode : str, default 'contains'
+            Matching mode for parameter names:
+            - 'contains': Substring matching anywhere in parameter name
+            - 'regex': Regular expression pattern
+        case_sensitive : bool, default True
+            Whether matching should be case sensitive
 
         Returns
         -------
         List[str]
-            List of parameter names
+            List of parameter names (filtered if pattern is provided)
+
+        Examples
+        --------
+        >>> # Get all parameter names (backward compatible)
+        >>> all_params = results.get_parameter_names()
+        
+        >>> # Find parameters containing "mass"
+        >>> mass_params = results.get_parameter_names("mass")
+        
+        >>> # Find percentile parameters using regex
+        >>> percentiles = results.get_parameter_names(r".*_(16|50|84)$", match_mode='regex')
+        
+        >>> # Case-insensitive search
+        >>> sfr_params = results.get_parameter_names("SFR", case_sensitive=False)
         """
         if self._hdf5_table is None:
             raise RuntimeError("HDF5 table not loaded")
 
         # Get all parameter names (excluding 'ID')
-        param_names = [col for col in self._hdf5_table.colnames if col != 'ID']
+        all_param_names = [col for col in self._hdf5_table.colnames if col != 'ID']
 
-        return param_names
+        # If no pattern specified, return all parameters (backward compatible)
+        if pattern is None:
+            return all_param_names
+
+        # Apply filtering using the same logic as get_parameter_values
+        import re
+        matching_params = []
+
+        if match_mode == 'contains':
+            # Substring matching anywhere in parameter name
+            if case_sensitive:
+                for param in all_param_names:
+                    if pattern in param:
+                        matching_params.append(param)
+            else:
+                search_pattern = pattern.lower()
+                for param in all_param_names:
+                    if search_pattern in param.lower():
+                        matching_params.append(param)
+
+        elif match_mode == 'regex':
+            # Regular expression matching
+            try:
+                if case_sensitive:
+                    regex_pattern = re.compile(pattern)
+                else:
+                    regex_pattern = re.compile(pattern, re.IGNORECASE)
+                
+                for param in all_param_names:
+                    if regex_pattern.search(param):
+                        matching_params.append(param)
+            except re.error as e:
+                raise ValueError(f"Invalid regular expression '{pattern}': {e}")
+
+        else:
+            raise ValueError(f"Invalid match_mode '{match_mode}'. Must be 'contains' or 'regex'")
+
+        if not matching_params and pattern is not None:
+            # Provide helpful error message
+            error_msg = f"No parameters found matching '{pattern}' with mode '{match_mode}'"
+            if not case_sensitive:
+                error_msg += " (case-insensitive)"
+            error_msg += f".\nUse get_parameter_names() to see all available parameters."
+            raise ValueError(error_msg)
+
+        return sorted(matching_params)
 
     def get_free_parameters(self) -> List[str]:
         """
@@ -463,35 +538,91 @@ class BayeSEDResults:
             return []
 
     def get_parameter_values(self, parameter_name: str,
-                           object_ids: Optional[Union[str, List[str]]] = None) -> 'astropy.table.Table':
+                           object_ids: Optional[Union[str, List[str]]] = None,
+                           match_mode: str = 'contains',
+                           case_sensitive: bool = True) -> 'astropy.table.Table':
         """
-        Get parameter values by filtering the loaded HDF5 table.
+        Get parameter values by filtering the loaded HDF5 table with flexible matching.
 
         Parameters
         ----------
         parameter_name : str
-            Name of the parameter to retrieve
+            Parameter name or pattern to search for. Supports:
+            - 'contains': Columns that contain this substring anywhere (default)
+            - 'regex': Regular expression pattern matching
         object_ids : str or List[str], optional
             Specific object ID(s) to filter. Can be a single string or list of strings.
+        match_mode : str, default 'contains'
+            Matching mode for parameter names:
+            - 'contains': Substring matching anywhere in column name
+            - 'regex': Regular expression pattern
+        case_sensitive : bool, default True
+            Whether matching should be case sensitive
 
         Returns
         -------
         astropy.table.Table
             Sub-table containing ID column and all parameter columns that
-            start with the given parameter name
+            match the given parameter name according to the specified mode
+
+        Examples
+        --------
+        >>> # Find all columns containing "mass" anywhere (default)
+        >>> mass_table = results.get_parameter_values("mass")
+        
+        >>> # Case-insensitive search for columns containing "SFR"
+        >>> sfr_table = results.get_parameter_values("sfr", case_sensitive=False)
+        
+        >>> # Regex pattern to find percentile columns
+        >>> percentiles = results.get_parameter_values(r".*_(16|50|84)$", match_mode='regex')
+        
+        >>> # Find columns ending with "_err" or "_error" using regex
+        >>> errors = results.get_parameter_values(r"_(err|error)$", match_mode='regex')
         """
         if self._hdf5_table is None:
             raise RuntimeError("HDF5 table not loaded")
 
-        # Find all columns that start with the parameter name
+        import re
+
         available_columns = self._hdf5_table.colnames
-        matching_columns = [col for col in available_columns if col.startswith(parameter_name)]
+        matching_columns = []
+
+        if match_mode == 'contains':
+            # Substring matching anywhere in column name
+            if case_sensitive:
+                for col in available_columns:
+                    if parameter_name in col:
+                        matching_columns.append(col)
+            else:
+                search_pattern = parameter_name.lower()
+                for col in available_columns:
+                    if search_pattern in col.lower():
+                        matching_columns.append(col)
+
+        elif match_mode == 'regex':
+            # Regular expression matching
+            try:
+                if case_sensitive:
+                    pattern = re.compile(parameter_name)
+                else:
+                    pattern = re.compile(parameter_name, re.IGNORECASE)
+                
+                for col in available_columns:
+                    if pattern.search(col):
+                        matching_columns.append(col)
+            except re.error as e:
+                raise ValueError(f"Invalid regular expression '{parameter_name}': {e}")
+
+        else:
+            raise ValueError(f"Invalid match_mode '{match_mode}'. Must be 'contains' or 'regex'")
 
         if not matching_columns:
-            raise ValueError(
-                f"No columns found starting with '{parameter_name}' in HDF5 table. "
-                f"Available parameter prefixes: {list(set([col.split('_')[0] for col in available_columns if '_' in col and col != 'ID']))[:10]}..."
-            )
+            error_msg = f"No columns found matching '{parameter_name}' with mode '{match_mode}'"
+            if not case_sensitive:
+                error_msg += " (case-insensitive)"
+            error_msg += f" in HDF5 table.\nUse get_parameter_names() to see all available parameters."
+            
+            raise ValueError(error_msg)
 
         # Create sub-table with ID and all matching parameter columns
         columns_to_include = ['ID'] + sorted(matching_columns)
