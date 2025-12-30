@@ -754,16 +754,16 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             return None
 
         # Create GetDist triangle plot following BayeSED's approach
-        g = plots.get_subplot_plotter(width_inch=12, subplot_size=3.0)
+        g = plots.get_subplot_plotter(width_inch=16, subplot_size=3.0,subplot_size_ratio=0.8)
 
         # Use BayeSED's plotting style for better comparison visibility
         g.settings.figure_legend_frame = True
         g.settings.figure_legend_loc = 'upper right'
-        g.settings.legend_fontsize = 12
-        g.settings.axes_fontsize = 11
-        g.settings.lab_fontsize = 12
+        g.settings.legend_fontsize = 18
+        g.settings.axes_fontsize = 18
+        g.settings.lab_fontsize = 18
         g.settings.tight_layout = True
-        g.settings.axes_labelsize = 12
+        g.settings.axes_labelsize = 20
 
         # Use BayeSED's plotting approach with samples list
         samples_list = [bayesed_filtered_mcsamples, bagpipes_mcsamples]
@@ -772,7 +772,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         plot_kwargs = {
             'filled': True,
             'contour_colors': ['#F24236', '#2E86AB'],  # BayeSED3 red, BAGPIPES blue
-            'contour_ls': ['-', '--'],  # Solid for BayeSED3, dashed for BAGPIPES
+            'contour_ls': ['-', '-'],  # Solid for BayeSED3, dashed for BAGPIPES
             'contour_lws': [2.0, 2.0],
         }
 
@@ -786,9 +786,9 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
 
             plot_kwargs['markers'] = markers_dict
             plot_kwargs['marker_args'] = {
-                'color': '#8B4513',      # Dark brown - distinct from blue/red, professional
-                'linestyle': ':',        # Dotted to distinguish from solid/dashed posteriors
-                'linewidth': 2.0,        # Match BayeSED3 contour line width for consistency
+                'color': 'green',      # Dark brown - distinct from blue/red, professional
+                'ls': '--',        # Dotted to distinguish from solid/dashed posteriors
+                'lw': 2.0,        # Match BayeSED3 contour line width for consistency
                 'alpha': 0.85            # Good visibility while not overwhelming
             }
 
@@ -806,7 +806,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             plot_dir = os.path.join("pipes", "plots", "comparison")
             os.makedirs(plot_dir, exist_ok=True)
             out_path = os.path.join(plot_dir, f"{object_id}_corner_comparison_getdist.png")
-            plt.savefig(out_path, bbox_inches="tight", dpi=300, facecolor='white')
+            plt.savefig(out_path, bbox_inches="tight", dpi=400, facecolor='white')
             print(f"Saved GetDist corner comparison: {out_path}")
 
         if show:
@@ -901,7 +901,7 @@ def extract_true_values(results_bayesed, object_id, true_value_params, labels=No
 
 
 def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, bagpipes_params,
-                          labels=None, save=True, show=False):
+                          labels=None, save=True, show=False, catalog_name=None):
     """Create scatter plots comparing derived parameters between BayeSED3 and BAGPIPES.
 
     This improved version:
@@ -930,6 +930,10 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         Whether to save the plot
     show : bool
         Whether to display the plot
+    catalog_name : str, optional
+        Name to include in the saved PNG filename. If provided, saves as
+        'parameter_scatter_comparison_{catalog_name}.png', otherwise uses
+        'parameter_scatter_comparison_all_objects.png'
 
     Example:
     --------
@@ -1217,8 +1221,15 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     if save:
         plot_dir = os.path.join("pipes", "plots", "comparison")
         os.makedirs(plot_dir, exist_ok=True)
-        out_path = os.path.join(plot_dir, "parameter_scatter_comparison_all_objects.png")
-        plt.savefig(out_path, bbox_inches="tight", dpi=300)
+
+        # Generate filename with catalog name if provided
+        if catalog_name:
+            filename = f"{catalog_name}_parameter_scatter_comparison.png"
+        else:
+            filename = "parameter_scatter_comparison_all_objects.png"
+
+        out_path = os.path.join(plot_dir, filename)
+        plt.savefig(out_path, bbox_inches="tight", dpi=400)
         print(f"\nSaved scatter comparison: {out_path}")
 
     if show:
@@ -1397,9 +1408,9 @@ Examples:
     # BAGPIPES fit instructions (common for all objects)
     exp = {}
     exp["age"] = (0.1, 15.)
-    exp["tau"] = (0.3, 10.)
+    exp["tau"] = (1e-3, 10.)
     exp["massformed"] = (1., 15.)
-    exp["metallicity"] = (0., 2.5)
+    exp["metallicity"] = (0.005, 5.0)
 
     dust = {}
     dust["type"] = "Calzetti"
@@ -1454,7 +1465,8 @@ Examples:
             bagpipes_params=bagpipes_params1,
             labels=labels1,
             save=True,
-            show=True
+            show=True,
+            catalog_name=cat_name
         )
     else:
         labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
@@ -1477,7 +1489,7 @@ Examples:
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
