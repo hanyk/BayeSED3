@@ -436,18 +436,22 @@ class BayeSEDResults:
             error_msg += f".\nUse get_parameter_names() to see all available parameters."
             raise ValueError(error_msg)
 
-        return sorted(matching_params)
+        return matching_params
 
     def get_free_parameters(self) -> List[str]:
         """
-        Get list of free (fitted) parameters by reading paramnames files.
+        Get list of free (fitted) parameters by analyzing HDF5 table structure.
+        
+        In BayeSED3 HDF5 files, parameters are ordered with free parameters first,
+        followed by derived parameters starting from the first parameter that 
+        begins with "log(scale)" or "log(norm)".
 
         Returns
         -------
         List[str]
-            List of free parameter names
+            List of free parameter names in original order
         """
-        # Read paramnames file to distinguish free vs derived parameters
+        # First try to read paramnames file (original behavior)
         try:
             # Find a paramnames file to read parameter structure
             if self.object_id:
@@ -456,47 +460,76 @@ class BayeSEDResults:
             else:
                 # Sample-level access - use first available object
                 objects = self.list_objects()
-                if not objects:
-                    return []
-                paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+                if objects:
+                    paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+                else:
+                    paramnames_files = []
 
-            if not paramnames_files:
-                logger.warning("No paramnames files found, assuming all parameters are free")
-                return self.get_parameter_names()
+            if paramnames_files:
+                # Read the first paramnames file
+                paramnames_file = paramnames_files[0]
+                free_params = []
 
-            # Read the first paramnames file
-            paramnames_file = paramnames_files[0]
-            free_params = []
+                with open(paramnames_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Split by whitespace - first column is parameter name
+                            parts = line.split()
+                            if parts:
+                                param_name = parts[0]
+                                # Free parameters don't have * suffix
+                                if not param_name.endswith('*'):
+                                    free_params.append(param_name)
 
-            with open(paramnames_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        # Split by whitespace - first column is parameter name
-                        parts = line.split()
-                        if parts:
-                            param_name = parts[0]
-                            # Free parameters don't have * suffix
-                            if not param_name.endswith('*'):
-                                free_params.append(param_name)
-
-            logger.debug(f"Found {len(free_params)} free parameters from paramnames file")
-            return free_params
+                logger.debug(f"Found {len(free_params)} free parameters from paramnames file")
+                return free_params
 
         except Exception as e:
-            logger.warning(f"Failed to read paramnames file: {e}. Falling back to all parameters.")
-            return self.get_parameter_names()
+            logger.debug(f"Could not read paramnames file: {e}. Using HDF5 structure analysis.")
+
+        # Fallback: Analyze HDF5 table structure
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
+
+        # Get all parameter names (excluding 'ID') in original order
+        all_param_names = [col for col in self._hdf5_table.colnames if col != 'ID']
+        
+        # Filter to only parameters containing "{mean}" to get the main parameter list
+        mean_params = [param for param in all_param_names if '{mean}' in param]
+        
+        if not mean_params:
+            logger.warning("No parameters with '{mean}' found. Falling back to all parameters.")
+            return all_param_names
+        
+        # Find the first parameter that starts with "log(scale)" or "log(norm)"
+        free_params = []
+        for param in mean_params:
+            if param.startswith('log(scale)') or param.startswith('log(norm)'):
+                # Found the boundary - stop here
+                break
+            # Strip the _{mean} suffix to get clean parameter name
+            clean_param = param.replace('_{mean}', '')
+            free_params.append(clean_param)
+        
+        logger.info(f"Found {len(free_params)} free parameters using HDF5 structure analysis")
+        logger.debug(f"Free parameters: {free_params}")
+        
+        return free_params
 
     def get_derived_parameters(self) -> List[str]:
         """
-        Get list of derived parameters by reading paramnames files.
+        Get list of derived parameters by analyzing HDF5 table structure.
+        
+        In BayeSED3 HDF5 files, derived parameters start from the first parameter 
+        that begins with "log(scale)" or "log(norm)" and continue to the end.
 
         Returns
         -------
         List[str]
-            List of derived parameter names
+            List of derived parameter names in original order
         """
-        # Read paramnames file to distinguish free vs derived parameters
+        # First try to read paramnames file (original behavior)
         try:
             # Find a paramnames file to read parameter structure
             if self.object_id:
@@ -505,37 +538,67 @@ class BayeSEDResults:
             else:
                 # Sample-level access - use first available object
                 objects = self.list_objects()
-                if not objects:
-                    return []
-                paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+                if objects:
+                    paramnames_files = self._find_config_files(objects[0], "*_sample_par.paramnames")
+                else:
+                    paramnames_files = []
 
-            if not paramnames_files:
-                logger.warning("No paramnames files found, returning empty derived parameters list")
-                return []
+            if paramnames_files:
+                # Read the first paramnames file
+                paramnames_file = paramnames_files[0]
+                derived_params = []
 
-            # Read the first paramnames file
-            paramnames_file = paramnames_files[0]
-            derived_params = []
+                with open(paramnames_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            # Split by whitespace - first column is parameter name
+                            parts = line.split()
+                            if parts:
+                                param_name = parts[0]
+                                # Derived parameters have * suffix
+                                if param_name.endswith('*'):
+                                    # Remove the * suffix for the returned name
+                                    derived_params.append(param_name.rstrip('*'))
 
-            with open(paramnames_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#'):
-                        # Split by whitespace - first column is parameter name
-                        parts = line.split()
-                        if parts:
-                            param_name = parts[0]
-                            # Derived parameters have * suffix
-                            if param_name.endswith('*'):
-                                # Remove the * suffix for the returned name
-                                derived_params.append(param_name.rstrip('*'))
-
-            logger.debug(f"Found {len(derived_params)} derived parameters from paramnames file")
-            return derived_params
+                logger.debug(f"Found {len(derived_params)} derived parameters from paramnames file")
+                return derived_params
 
         except Exception as e:
-            logger.warning(f"Failed to read paramnames file: {e}. Returning empty derived parameters list.")
+            logger.debug(f"Could not read paramnames file: {e}. Using HDF5 structure analysis.")
+
+        # Fallback: Analyze HDF5 table structure
+        if self._hdf5_table is None:
+            raise RuntimeError("HDF5 table not loaded")
+
+        # Get all parameter names (excluding 'ID') in original order
+        all_param_names = [col for col in self._hdf5_table.colnames if col != 'ID']
+        
+        # Filter to only parameters containing "{mean}" to get the main parameter list
+        mean_params = [param for param in all_param_names if '{mean}' in param]
+        
+        if not mean_params:
+            logger.warning("No parameters with '{mean}' found. Returning empty derived parameters list.")
             return []
+        
+        # Find the first parameter that starts with "log(scale)" or "log(norm)"
+        derived_params = []
+        found_boundary = False
+        
+        for param in mean_params:
+            if param.startswith('log(scale)') or param.startswith('log(norm)'):
+                # Found the boundary - start collecting derived parameters
+                found_boundary = True
+            
+            if found_boundary:
+                # Strip the _{mean} suffix to get clean parameter name
+                clean_param = param.replace('_{mean}', '')
+                derived_params.append(clean_param)
+        
+        logger.info(f"Found {len(derived_params)} derived parameters using HDF5 structure analysis")
+        logger.debug(f"Derived parameters: {derived_params}")
+        
+        return derived_params
 
     def get_parameter_values(self, parameter_name: str,
                            object_ids: Optional[Union[str, List[str]]] = None,
@@ -624,8 +687,8 @@ class BayeSEDResults:
             
             raise ValueError(error_msg)
 
-        # Create sub-table with ID and all matching parameter columns
-        columns_to_include = ['ID'] + sorted(matching_columns)
+        # Create sub-table with ID and all matching parameter columns (preserve original order)
+        columns_to_include = ['ID'] + matching_columns
         sub_table = self._hdf5_table[columns_to_include]
 
         # Apply object filtering if specified
