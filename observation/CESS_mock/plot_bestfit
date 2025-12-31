@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-for i in $(fd -p -e fits output); do python plot_bestfit.py $i --code-name $'BAYESED3\n(without NNLM)'; done
+for i in $(fd -p -e fits . output/seedcat2); do python plot_bestfit.py $i --code-name $'BAYESED3\n(without NNLM)'; done

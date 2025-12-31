@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams, MultiNestParams
+from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams, MultiNestParams, SNRmin2Params
 from astropy.table import Table, join, hstack, vstack
 import bagpipes as pipes
 import numpy as np
@@ -1367,7 +1367,7 @@ Examples:
 
     # Set systematic error for model
     params.sys_err_mod = SysErrParams(
-        iprior_type=3,    # Prior type (1=uniform, 3=log-uniform)
+        iprior_type=3,    # Prior type (1=uniform, 3=linear-decreasing)
         min=0.01,         # Minimum fractional systematic error
         max=0.1,          # Maximum fractional systematic error
     )
@@ -1376,6 +1376,7 @@ Examples:
         efr=0.1,            # Moderate efficiency
         tol=0.5,            # Standard tolerance
     )
+    # params.SNRmin2 = SNRmin2Params(0.0,-1)
 
 
     # Run analysis
@@ -1407,10 +1408,13 @@ Examples:
 
     # BAGPIPES fit instructions (common for all objects)
     exp = {}
-    exp["age"] = (0.1, 15.)
-    exp["tau"] = (1e-3, 10.)
-    exp["massformed"] = (1., 15.)
-    exp["metallicity"] = (0.005, 5.0)
+    exp["age"] = (0.1, 15.) # Gyr
+    exp["age_prior"] = "log_10"
+    exp["tau"] = (1e-3, 10.) # Gyr
+    exp["tau_prior"] = "log_10"
+    exp["massformed"] = (5., 12.) # log_10(mass formed)
+    exp["metallicity"] = (0.005, 5.0) # Zsun
+    # exp["metallicity_prior"] = "log_10"
 
     dust = {}
     dust["type"] = "Calzetti"
