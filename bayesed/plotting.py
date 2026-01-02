@@ -13,9 +13,9 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                  use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
 
-                 model_names=None, show_emission_lines=True, emission_line_fontsize=10,
+                 model_names=None, show_emission_lines=True, emission_line_fontsize=12,
 
-                 title_fontsize=14, label_fontsize=12, legend_fontsize=10,
+                 title_fontsize=16, label_fontsize=16, legend_fontsize=14,
 
                  figsize=(12, 8), dpi=300, focus_on_data_range=True, **kwargs):
 
@@ -83,19 +83,19 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         Show emission line markers for spectroscopy (default: True)
 
-    emission_line_fontsize : int, default 10
+    emission_line_fontsize : int, default 12
 
         Font size for emission line labels. Larger values make labels more readable.
 
-    title_fontsize : int, default 14
+    title_fontsize : int, default 16
 
         Font size for the plot title
 
-    label_fontsize : int, default 12
+    label_fontsize : int, default 16
 
         Font size for axis labels (x and y axis)
 
-    legend_fontsize : int, default 10
+    legend_fontsize : int, default 14
 
         Font size for legend text
 

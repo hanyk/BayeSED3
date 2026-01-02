@@ -1441,6 +1441,13 @@ class BayeSEDResults:
 
         # Create plotter
         g = plots.get_subplot_plotter()
+        
+        # Configure publication-ready font sizes for GetDist plots
+        g.settings.figure_legend_frame = True
+        g.settings.legend_fontsize = 14
+        g.settings.axes_fontsize = 16
+        g.settings.lab_fontsize = 16
+        g.settings.axes_labelsize = 16
 
         # Create plot based on number of parameters
         is_1d = len(params) == 1
@@ -1495,8 +1502,8 @@ class BayeSEDResults:
                     filter_file: Optional[str] = None, filter_selection_file: Optional[str] = None,
                     use_rest_frame: bool = True, flux_unit: str = 'fnu', use_log_scale: Optional[bool] = None,
                     model_names: Optional[List[str]] = None, show_emission_lines: bool = True,
-                    emission_line_fontsize: int = 10, title_fontsize: int = 14, 
-                    label_fontsize: int = 12, legend_fontsize: int = 10,
+                    emission_line_fontsize: int = 12, title_fontsize: int = 16, 
+                    label_fontsize: int = 16, legend_fontsize: int = 14,
                     figsize: tuple = (12, 8), dpi: int = 300, 
                     focus_on_data_range: bool = True, **kwargs) -> Any:
         """
@@ -1527,13 +1534,13 @@ class BayeSEDResults:
             Custom names for model components. If None, auto-generates from HDU names
         show_emission_lines : bool, default True
             Show emission line markers for spectroscopy
-        emission_line_fontsize : int, default 10
+        emission_line_fontsize : int, default 12
             Font size for emission line labels. Larger values make labels more readable.
-        title_fontsize : int, default 14
+        title_fontsize : int, default 16
             Font size for the plot title
-        label_fontsize : int, default 12
+        label_fontsize : int, default 16
             Font size for axis labels (x and y axis)
-        legend_fontsize : int, default 10
+        legend_fontsize : int, default 14
             Font size for legend text
         figsize : tuple, default (12, 8)
             Figure size (width, height) in inches
@@ -2477,7 +2484,7 @@ class BayeSEDResults:
                     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes, 
                            verticalalignment='top', horizontalalignment='left',
                            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8),
-                           fontsize=9 if not single_y else 10, family='monospace')
+                           fontsize=11 if not single_y else 12, family='monospace')
                     
             except ImportError:
                 logger.warning("scipy not available for correlation statistics")
@@ -2502,32 +2509,32 @@ class BayeSEDResults:
                     ax.legend()
         
         # Set labels
-        ax.set_xlabel(xlabel if xlabel is not None else x_parameter, fontsize=12)
+        ax.set_xlabel(xlabel if xlabel is not None else x_parameter, fontsize=16)
         
         if ylabel is not None:
-            ax.set_ylabel(ylabel, fontsize=12)
+            ax.set_ylabel(ylabel, fontsize=16)
         elif single_y:
-            ax.set_ylabel(y_parameters[0], fontsize=12)
+            ax.set_ylabel(y_parameters[0], fontsize=16)
         else:
             # For multiple y-parameters, use the extracted common part (unless custom labels override)
             if custom_legend_labels is None:
-                ax.set_ylabel(common_ylabel, fontsize=12)
+                ax.set_ylabel(common_ylabel, fontsize=16)
             else:
                 # With custom legend labels, use a generic ylabel
-                ax.set_ylabel('Multiple Parameters', fontsize=12)
+                ax.set_ylabel('Multiple Parameters', fontsize=16)
         
         # Set title
         if title is not None:
-            ax.set_title(title, fontsize=14)
+            ax.set_title(title, fontsize=16)
         else:
             # Auto-generate title
             x_base = x_parameter.split('_')[0].split('[')[0]
             if single_y:
                 y_base = y_parameters[0].split('_')[0].split('[')[0]
                 if x_base == y_base:
-                    ax.set_title(f'{x_base}: {x_parameter} vs {y_parameters[0]}', fontsize=14)
+                    ax.set_title(f'{x_base}: {x_parameter} vs {y_parameters[0]}', fontsize=16)
                 else:
-                    ax.set_title(f'{x_parameter} vs {y_parameters[0]}', fontsize=14)
+                    ax.set_title(f'{x_parameter} vs {y_parameters[0]}', fontsize=16)
             else:
                 y_bases = [param.split('_')[0].split('[')[0] for param in y_parameters]
                 unique_bases = list(dict.fromkeys(y_bases))  # Preserve order, remove duplicates
@@ -2535,7 +2542,7 @@ class BayeSEDResults:
                     y_title = ' / '.join(unique_bases)
                 else:
                     y_title = f'{len(y_parameters)} parameters'
-                ax.set_title(f'{x_base} vs {y_title}', fontsize=14)
+                ax.set_title(f'{x_base} vs {y_title}', fontsize=16)
         
         # Make axes equal if values are in similar range (only if show_diagonal is True and single y-parameter)
         if show_diagonal and single_y:
