@@ -1849,9 +1849,9 @@ class BayeSEDResults:
             else:
                 raise
 
-    def plot_parameter_scatter(self, x_parameter: str, 
+    def plot_parameter_scatter(self, x_parameter: Union[str, np.ndarray, List[float]], 
                               y_parameter: Union[str, List[str]],
-                              x_err: Optional[str] = None,
+                              x_err: Optional[Union[str, np.ndarray, List[float]]] = None,
                               y_err: Optional[Union[str, List[str]]] = None,
                               color_parameter: Optional[str] = None,
                               object_ids: Optional[Union[str, List[str]]] = None,
@@ -1881,20 +1881,27 @@ class BayeSEDResults:
         
         Parameters
         ----------
-        x_parameter : str
-            Full column name for x-axis values (e.g., 'log(Mstar)[0,1]_{True}')
+        x_parameter : str or array-like
+            X-axis values. Can be either:
+            - str: Full column name from HDF5 file (e.g., 'log(Mstar)[0,1]_{True}')
+            - array-like: External numpy array or list of values
         y_parameter : str or List[str]
             Full column name(s) for y-axis values (e.g., 'log(Mstar)[0,0]_{median}' or 
             ['log(Mstar)[0,0]_{median}', 'log(age)[0,0]_{median}']). When a list is provided,
             all y-parameters will be plotted against the x-parameter with different colors and markers.
-        x_err : str, optional
-            Column name for x-axis error bars. Can be:
-            - Sigma column (e.g., 'log(Mstar)[0,0]_{sigma}')
-            - 'percentile' or 'percentile_68' for 68% confidence interval (16th/84th percentiles)
-            - 'percentile_95' for 95% confidence interval (2.5th/97.5th percentiles)
-            - 'percentile_90' for 90% confidence interval (5th/95th percentiles)
-            - Custom percentile (e.g., 'percentile_99' for 99% confidence interval)
-            - Direct column name for custom error values
+        x_err : str or array-like, optional
+            X-axis error bars. Can be either:
+            - str: Column name or percentile specification from HDF5 file:
+              * 'sigma' for sigma column
+              * 'percentile' or 'percentile_68' for 68% confidence interval
+              * 'percentile_95' for 95% confidence interval  
+              * 'percentile_90' for 90% confidence interval
+              * Direct column name (e.g., 'log(Mstar)[0,0]_{sigma}')
+            - array-like: External error values. Can be:
+              * 1D array: Symmetric errors (same length as x_parameter)
+              * 2D array: Asymmetric errors, shape (2, N) where first row is lower errors
+                and second row is upper errors (for confidence intervals)
+            Note: If x_parameter is external array, x_err must also be external array or None
         y_err : str or List[str], optional
             Column name(s) for y-axis error bars. Same options as x_err. If y_parameter is a list,
             y_err can be a single string (applied to all y-parameters) or a list of strings
@@ -2063,13 +2070,27 @@ class BayeSEDResults:
         # Check if columns exist
         available_cols = hdf5_table.colnames
         
-        if x_parameter not in available_cols:
-            # Try to find similar columns
-            similar_cols = [col for col in available_cols if x_parameter.split('_')[0] in col or x_parameter.split('[')[0] in col]
-            if similar_cols:
-                raise ValueError(f"Column '{x_parameter}' not found. Similar columns: {similar_cols[:10]}")
-            else:
-                raise ValueError(f"Column '{x_parameter}' not found. Available columns: {available_cols[:10]}...")
+        # Handle x_parameter - can be string (column name) or array-like (external data)
+        if isinstance(x_parameter, str):
+            # Current behavior - validate column exists in HDF5
+            if x_parameter not in available_cols:
+                # Try to find similar columns
+                similar_cols = [col for col in available_cols if x_parameter.split('_')[0] in col or x_parameter.split('[')[0] in col]
+                if similar_cols:
+                    raise ValueError(f"Column '{x_parameter}' not found. Similar columns: {similar_cols[:10]}")
+                else:
+                    raise ValueError(f"Column '{x_parameter}' not found. Available columns: {available_cols[:10]}...")
+            
+            # Extract x data from HDF5
+            x_values = np.array(hdf5_table[x_parameter])
+            x_label_default = x_parameter
+        else:
+            # New behavior - use external array
+            x_values = np.asarray(x_parameter)
+            if len(x_values) != len(hdf5_table):
+                raise ValueError(f"External x_parameter array length ({len(x_values)}) "
+                               f"doesn't match dataset length ({len(hdf5_table)})")
+            x_label_default = "External X Parameter"
         
         # Check all y_parameters exist
         for y_param in y_parameters:
@@ -2080,9 +2101,6 @@ class BayeSEDResults:
                     raise ValueError(f"Column '{y_param}' not found. Similar columns: {similar_cols[:10]}")
                 else:
                     raise ValueError(f"Column '{y_param}' not found. Available columns: {available_cols[:10]}...")
-        
-        # Extract x data
-        x_values = np.array(hdf5_table[x_parameter])
         
         # Handle error bars
         def get_error_values(param, err_spec, param_name):
@@ -2188,7 +2206,39 @@ class BayeSEDResults:
                     logger.warning(f"Error column '{err_spec}' not found for {param_name}")
                     return None
         
-        x_err_values = get_error_values(x_parameter, x_err, 'x_parameter')
+        # Handle x_err - can be string (column name) or array-like (external data)
+        x_err_values = None
+        if x_err is not None:
+            if isinstance(x_err, str):
+                # String x_err - must have string x_parameter for HDF5 column lookup
+                if isinstance(x_parameter, str):
+                    x_err_values = get_error_values(x_parameter, x_err, 'x_parameter')
+                else:
+                    raise ValueError("Cannot use string x_err with external x_parameter array. "
+                                   "Provide x_err as an array or set to None.")
+            else:
+                # External error array
+                x_err_array = np.asarray(x_err)
+                
+                # Handle both symmetric (1D) and asymmetric (2D) error arrays
+                if x_err_array.ndim == 1:
+                    # Symmetric errors
+                    if len(x_err_array) != len(x_values):
+                        raise ValueError(f"External x_err array length ({len(x_err_array)}) "
+                                       f"doesn't match x_parameter length ({len(x_values)})")
+                    x_err_values = x_err_array
+                elif x_err_array.ndim == 2:
+                    # Asymmetric errors (confidence intervals)
+                    if x_err_array.shape[0] != 2:
+                        raise ValueError(f"2D x_err array must have shape (2, N) for asymmetric errors, "
+                                       f"got shape {x_err_array.shape}")
+                    if x_err_array.shape[1] != len(x_values):
+                        raise ValueError(f"2D x_err array second dimension ({x_err_array.shape[1]}) "
+                                       f"doesn't match x_parameter length ({len(x_values)})")
+                    x_err_values = x_err_array
+                else:
+                    raise ValueError(f"External x_err array must be 1D (symmetric) or 2D (asymmetric), "
+                                   f"got {x_err_array.ndim}D array")
         
         # Handle color parameter if specified
         color_values = None
@@ -2568,7 +2618,7 @@ class BayeSEDResults:
                     ax.legend()
         
         # Set labels
-        ax.set_xlabel(xlabel if xlabel is not None else x_parameter, fontsize=16)
+        ax.set_xlabel(xlabel if xlabel is not None else x_label_default, fontsize=16)
         
         if ylabel is not None:
             ax.set_ylabel(ylabel, fontsize=16)
@@ -2585,23 +2635,6 @@ class BayeSEDResults:
         # Set title
         if title is not None:
             ax.set_title(title, fontsize=16)
-        else:
-            # Auto-generate title
-            x_base = x_parameter.split('_')[0].split('[')[0]
-            if single_y:
-                y_base = y_parameters[0].split('_')[0].split('[')[0]
-                if x_base == y_base:
-                    ax.set_title(f'{x_base}: {x_parameter} vs {y_parameters[0]}', fontsize=16)
-                else:
-                    ax.set_title(f'{x_parameter} vs {y_parameters[0]}', fontsize=16)
-            else:
-                y_bases = [param.split('_')[0].split('[')[0] for param in y_parameters]
-                unique_bases = list(dict.fromkeys(y_bases))  # Preserve order, remove duplicates
-                if len(unique_bases) <= 3:
-                    y_title = ' / '.join(unique_bases)
-                else:
-                    y_title = f'{len(y_parameters)} parameters'
-                ax.set_title(f'{x_base} vs {y_title}', fontsize=16)
         
         # Make axes equal if values are in similar range (only if show_diagonal is True and single y-parameter)
         if show_diagonal and single_y:
