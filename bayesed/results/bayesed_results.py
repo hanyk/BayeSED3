@@ -213,28 +213,66 @@ class BayeSEDResults:
             else:
                 # String name - find matching config
                 model_config_str = str(self.model_config)
-
+                
+                # First pass: Look for exact matches
+                exact_matches = []
                 for f in catalog_files:
                     filename = f.stem
                     if filename.startswith(self.catalog_name + '_'):
                         config_name = filename[len(self.catalog_name) + 1:]
-
-                        # Exact match or partial match
-                        if config_name == model_config_str or model_config_str in config_name:
-                            target_file = f
-                            self.model_config = config_name  # Update to full name
-                            break
-
-                if target_file is None:
-                    available_configs = []
+                        if config_name == model_config_str:
+                            exact_matches.append((config_name, f))
+                
+                if len(exact_matches) == 1:
+                    # Found exactly one exact match
+                    config_name, target_file = exact_matches[0]
+                    self.model_config = config_name
+                elif len(exact_matches) > 1:
+                    # Multiple exact matches - this shouldn't happen but handle it
+                    config_list = [match[0] for match in exact_matches[:3]]
+                    if len(exact_matches) > 3:
+                        config_list.append(f"... and {len(exact_matches) - 3} more")
+                    raise ValueError(
+                        f"Multiple exact matches found for model config '{model_config_str}' in catalog '{self.catalog_name}'. "
+                        f"Found {len(exact_matches)} matches: {', '.join(config_list)}. "
+                        f"This indicates duplicate files - please remove duplicates."
+                    )
+                else:
+                    # No exact matches - try partial matching
+                    partial_matches = []
                     for f in catalog_files:
                         filename = f.stem
                         if filename.startswith(self.catalog_name + '_'):
                             config_name = filename[len(self.catalog_name) + 1:]
-                            available_configs.append(config_name)
+                            if model_config_str in config_name:
+                                partial_matches.append((config_name, f))
+                    
+                    if len(partial_matches) == 1:
+                        # Found exactly one partial match
+                        config_name, target_file = partial_matches[0]
+                        self.model_config = config_name
+                        logger.info(f"Using partial match for '{model_config_str}': '{config_name}'")
+                    elif len(partial_matches) > 1:
+                        # Multiple partial matches - require more specific selection
+                        config_list = [match[0] for match in partial_matches[:3]]
+                        if len(partial_matches) > 3:
+                            config_list.append(f"... and {len(partial_matches) - 3} more")
+                        raise ValueError(
+                            f"Multiple partial matches found for model config '{model_config_str}' in catalog '{self.catalog_name}'. "
+                            f"Found {len(partial_matches)} matches: {', '.join(config_list)}. "
+                            f"Please specify a more specific model_config to uniquely identify the desired configuration."
+                        )
+                    else:
+                        # No matches at all
+                        available_configs = []
+                        for f in catalog_files:
+                            filename = f.stem
+                            if filename.startswith(self.catalog_name + '_'):
+                                config_name = filename[len(self.catalog_name) + 1:]
+                                available_configs.append(config_name)
 
-                    raise ValueError(f"Model config '{model_config_str}' not found for catalog '{self.catalog_name}'. "
-                                   f"Available configs: {available_configs}")
+                        raise ValueError(f"Model config '{model_config_str}' not found for catalog '{self.catalog_name}'. "
+                                       f"Available configs: {available_configs}")
 
             self._hdf5_file = str(target_file)
             # Log the selected HDF5 file relative to current working directory
