@@ -2397,29 +2397,29 @@ class BayeSEDResults:
             # Create the plot
             if x_err_values is not None or y_err_values is not None:
                 # Use errorbar
-                if color_parameter is not None and not single_y:
-                    # For colored error bars with multiple y-parameters, plot scatter first then error bars
+                if color_parameter is not None:
+                    # For colored error bars, plot scatter first then error bars
                     scatter = ax.scatter(x_values, y_values, c=color_values, 
                                        s=plot_kwargs.get('s', 50), 
                                        marker=plot_kwargs.get('marker', 'o'),
                                        alpha=plot_kwargs.get('alpha', 0.7),
                                        label=plot_kwargs.get('label'))
                     
-                    # Add error bars without markers
+                    # Add error bars without markers (use fixed color for error bars)
                     ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
                                fmt='none', alpha=0.5, capsize=plot_kwargs.get('capsize', 3),
-                               color=plot_kwargs.get('color', 'gray'))
+                               color='gray')
                 else:
+                    # No color parameter - use regular errorbar
+                    # Remove 'c' from plot_kwargs to avoid conflicts
+                    errorbar_kwargs = {k: v for k, v in plot_kwargs.items() 
+                                     if k not in ['marker', 's', 'c']}
                     ax.errorbar(x_values, y_values, xerr=x_err_values, yerr=y_err_values, 
-                               fmt=plot_kwargs.get('marker', 'o'), **{k: v for k, v in plot_kwargs.items() 
-                                                                      if k not in ['marker', 's']})
+                               fmt=plot_kwargs.get('marker', 'o'), **errorbar_kwargs)
             else:
                 # Use scatter plot
                 if color_parameter is not None:
                     scatter = ax.scatter(x_values, y_values, **plot_kwargs)
-                    if i == 0 and show_colorbar and single_y:  # Only show colorbar once for single y
-                        cbar = plt.colorbar(scatter, ax=ax)
-                        cbar.set_label(color_parameter)
                 else:
                     ax.scatter(x_values, y_values, **plot_kwargs)
             
@@ -2432,9 +2432,9 @@ class BayeSEDResults:
                 'y_param': y_param
             })
         
-        # Add colorbar for multi-y plots with color parameter
-        if color_parameter is not None and not single_y and show_colorbar:
-            # Use the last scatter plot for colorbar
+        # Add colorbar for any plot with color parameter (single or multi-y)
+        if color_parameter is not None and show_colorbar:
+            # Use the scatter plot for colorbar (created in either error bar or scatter plot sections)
             if 'scatter' in locals():
                 cbar = plt.colorbar(scatter, ax=ax)
                 cbar.set_label(color_parameter)
