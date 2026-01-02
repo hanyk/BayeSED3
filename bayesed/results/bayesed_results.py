@@ -385,15 +385,34 @@ class BayeSEDResults:
             return all_files
 
         # Filter files that match the current model configuration
-        config_files = []
+        # Use exact matching first, then partial matching
+        exact_matches = []
+        partial_matches = []
+        
         for file_path in all_files:
             filename = file_path.stem
-            # Check if the filename contains the model config
+            
+            # Extract the config part from filename
             # Files are typically named like: {config_name}_sample_par.txt or {config_name}_bestfit.fits
-            if self.model_config in filename:
-                config_files.append(file_path)
+            # Remove common suffixes to get the config part
+            config_part = filename
+            for suffix in ['_sample_par', '_bestfit', '_paramnames']:
+                if config_part.endswith(suffix):
+                    config_part = config_part[:-len(suffix)]
+                    break
+            
+            # Check for exact match first
+            if config_part == self.model_config:
+                exact_matches.append(file_path)
+            # Then check for partial match
+            elif self.model_config in config_part:
+                partial_matches.append(file_path)
 
-        return config_files
+        # Return exact matches if found, otherwise partial matches
+        if exact_matches:
+            return exact_matches
+        else:
+            return partial_matches
 
     def _select_unique_file(self, files: List[Path], file_type: str, object_id: str, log_selection: bool = False) -> Path:
         """
