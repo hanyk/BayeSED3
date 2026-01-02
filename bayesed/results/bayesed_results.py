@@ -55,6 +55,9 @@ class BayeSEDResults:
         self._hdf5_table = None
         self._hdf5_file = None
         self.parameters = None  # Public access to HDF5 table
+        
+        # Cache for GetDist samples to avoid duplicate loading
+        self._getdist_samples_cache = {}
 
         # Parameter labeling
         self._custom_labels = {}
@@ -234,7 +237,13 @@ class BayeSEDResults:
                                    f"Available configs: {available_configs}")
 
             self._hdf5_file = str(target_file)
-            logger.info(f"Selected HDF5 file for catalog '{self.catalog_name}', config '{self.model_config}': {target_file.name}")
+            # Log the selected HDF5 file relative to current working directory
+            try:
+                relative_path = target_file.resolve().relative_to(Path.cwd().resolve())
+                logger.info(f"Selected HDF5 file for catalog '{self.catalog_name}', config '{self.model_config}': {relative_path}")
+            except ValueError:
+                # If file is not relative to cwd, show absolute path
+                logger.info(f"Selected HDF5 file for catalog '{self.catalog_name}', config '{self.model_config}': {target_file.resolve()}")
 
         else:
             # No model_config specified - use first available or require selection if multiple
@@ -243,7 +252,13 @@ class BayeSEDResults:
                 self._hdf5_file = str(catalog_files[0])
                 filename = Path(self._hdf5_file).stem
                 self.model_config = filename[len(self.catalog_name) + 1:]
-                logger.info(f"Auto-selected single config '{self.model_config}' for catalog '{self.catalog_name}'")
+                # Log the auto-selected HDF5 file relative to current working directory
+                try:
+                    relative_path = catalog_files[0].resolve().relative_to(Path.cwd().resolve())
+                    logger.info(f"Auto-selected single config '{self.model_config}' for catalog '{self.catalog_name}': {relative_path}")
+                except ValueError:
+                    # If file is not relative to cwd, show absolute path
+                    logger.info(f"Auto-selected single config '{self.model_config}' for catalog '{self.catalog_name}': {catalog_files[0].resolve()}")
 
             else:
                 # Multiple configs available - require explicit selection
@@ -341,6 +356,62 @@ class BayeSEDResults:
                 config_files.append(file_path)
 
         return config_files
+
+    def _select_unique_file(self, files: List[Path], file_type: str, object_id: str, log_selection: bool = False) -> Path:
+        """
+        Select a unique file from a list, raising an error if multiple files are found.
+
+        Parameters
+        ----------
+        files : List[Path]
+            List of matching files
+        file_type : str
+            Description of file type for error messages (e.g., "bestfit FITS", "sample_par.txt")
+        object_id : str
+            Object ID for error messages
+        log_selection : bool, default False
+            Whether to log the selected file. Set to True only at the main entry points
+            to avoid duplicate logging.
+
+        Returns
+        -------
+        Path
+            The unique file path
+
+        Raises
+        ------
+        FileNotFoundError
+            If no files are found
+        ValueError
+            If multiple files are found
+        """
+        if not files:
+            object_dir = self.output_dir / self.catalog_name / object_id
+            raise FileNotFoundError(f"No {file_type} files found for object {object_id} and config '{self.model_config}' in {object_dir}")
+
+        if len(files) == 1:
+            selected_file = files[0]
+            # Log the selected file only if requested (to avoid duplicate logging)
+            if log_selection:
+                try:
+                    relative_path = selected_file.resolve().relative_to(Path.cwd().resolve())
+                    logger.info(f"Selected {file_type} file: {relative_path}")
+                except ValueError:
+                    # If file is not relative to cwd, show absolute path
+                    logger.info(f"Selected {file_type} file: {selected_file.resolve()}")
+            return selected_file
+
+        # Multiple files found - show first 3 and raise error
+        file_list = [f.name for f in files[:3]]
+        if len(files) > 3:
+            file_list.append(f"... and {len(files) - 3} more")
+        
+        object_dir = self.output_dir / self.catalog_name / object_id
+        raise ValueError(
+            f"Multiple {file_type} files found for object {object_id} and config '{self.model_config}' in {object_dir}. "
+            f"Found {len(files)} files: {', '.join(file_list)}. "
+            f"Please ensure only one {file_type} file exists for this configuration, or specify a more specific model_config."
+        )
 
     # ========================================================================
     # Public API Methods - Maintaining backward compatibility
@@ -466,8 +537,9 @@ class BayeSEDResults:
                     paramnames_files = []
 
             if paramnames_files:
-                # Read the first paramnames file
-                paramnames_file = paramnames_files[0]
+                # Ensure we have exactly one paramnames file (no logging for intermediate calls)
+                paramnames_file = self._select_unique_file(paramnames_files, "paramnames", 
+                                                         self.object_id if self.object_id else objects[0], log_selection=False)
                 free_params = []
 
                 with open(paramnames_file, 'r') as f:
@@ -544,8 +616,9 @@ class BayeSEDResults:
                     paramnames_files = []
 
             if paramnames_files:
-                # Read the first paramnames file
-                paramnames_file = paramnames_files[0]
+                # Ensure we have exactly one paramnames file (no logging for intermediate calls)
+                paramnames_file = self._select_unique_file(paramnames_files, "paramnames", 
+                                                         self.object_id if self.object_id else objects[0], log_selection=False)
                 derived_params = []
 
                 with open(paramnames_file, 'r') as f:
@@ -941,13 +1014,9 @@ class BayeSEDResults:
         sample_files = self._find_config_files(object_id, "*_sample_par.txt")
         paramnames_files = self._find_config_files(object_id, "*_sample_par.paramnames")
 
-        if not sample_files or not paramnames_files:
-            object_dir = self.output_dir / self.catalog_name / object_id
-            raise FileNotFoundError(f"No sample files found for object {object_id} and config '{self.model_config}' in {object_dir}")
-
-        # Use the first matching file (should be unique for a given config)
-        sample_file = sample_files[0]
-        paramnames_file = paramnames_files[0]
+        # Ensure we have exactly one of each file type (no logging for intermediate calls)
+        sample_file = self._select_unique_file(sample_files, "sample_par.txt", object_id, log_selection=False)
+        paramnames_file = self._select_unique_file(paramnames_files, "paramnames", object_id, log_selection=False)
 
         # Extract base name for GetDist (remove .txt suffix, keep _sample_par)
         base_name = str(sample_file).replace(".txt", "")
@@ -1076,17 +1145,26 @@ class BayeSEDResults:
                 else:
                     raise ValueError("No objects available for GetDist samples")
 
+        # Check cache first to avoid duplicate loading
+        cache_key = f"{object_id}_{self.model_config}"
+        if cache_key in self._getdist_samples_cache:
+            return self._getdist_samples_cache[cache_key]
+
         # Find sample files for this object matching the current configuration
         sample_files = self._find_config_files(object_id, "*_sample_par.txt")
         paramnames_files = self._find_config_files(object_id, "*_sample_par.paramnames")
 
-        if not sample_files or not paramnames_files:
-            object_dir = self.output_dir / self.catalog_name / object_id
-            raise FileNotFoundError(f"No sample files found for object {object_id} and config '{self.model_config}' in {object_dir}")
+        # Ensure we have exactly one of each file type
+        sample_file = self._select_unique_file(sample_files, "sample_par.txt", object_id, log_selection=False)
+        paramnames_file = self._select_unique_file(paramnames_files, "paramnames", object_id, log_selection=False)
 
-        # Use the first matching file (should be unique for a given config)
-        sample_file = sample_files[0]
-        paramnames_file = paramnames_files[0]
+        # Log the selected files once here (main entry point for GetDist operations)
+        try:
+            sample_rel_path = sample_file.resolve().relative_to(Path.cwd().resolve())
+            logger.info(f"Loading GetDist samples for {object_id}: {sample_rel_path}")
+        except ValueError:
+            # If files are not relative to cwd, show absolute paths
+            logger.info(f"Loading GetDist samples for {object_id}: {sample_file.resolve()}")
 
         # Extract base name for GetDist (remove .txt suffix, keep _sample_par)
         base_name = str(sample_file).replace(".txt", "")
@@ -1132,6 +1210,9 @@ class BayeSEDResults:
                 samples = new_samples
 
             logger.info(f"Loaded GetDist samples for {object_id}: {samples.numrows} samples, {samples.n} parameters")
+            
+            # Cache the samples to avoid duplicate loading
+            self._getdist_samples_cache[cache_key] = samples
             return samples
 
         except ImportError:
@@ -1148,6 +1229,10 @@ class BayeSEDResults:
         """
         # Store custom labels for use in GetDist plotting
         self._custom_labels = custom_labels.copy()
+        
+        # Clear GetDist samples cache since labels have changed
+        self._getdist_samples_cache.clear()
+        
         logger.info(f"Set custom labels for {len(custom_labels)} parameters")
 
     def plot_posterior(self, params: Optional[List[str]] = None,
@@ -1498,19 +1583,11 @@ class BayeSEDResults:
                 else:
                     raise ValueError("No objects available for plotting best-fit spectrum")
 
-        # Find bestfit FITS files for this object
-        object_dir = self.output_dir / self.catalog_name / object_id
-        if not object_dir.exists():
-            raise FileNotFoundError(f"Object directory not found: {object_dir}")
+        # Find bestfit FITS files for this object matching the current configuration
+        fits_files = self._find_config_files(object_id, "*_bestfit.fits")
 
-        # Look for bestfit FITS files
-        fits_files = list(object_dir.glob("*_bestfit.fits"))
-
-        if not fits_files:
-            raise FileNotFoundError(f"No bestfit FITS files found for object {object_id} in {object_dir}")
-
-        # Use the first bestfit file (there should typically be only one)
-        fits_file = fits_files[0]
+        # Ensure we have exactly one bestfit file (log selection for main user operation)
+        fits_file = self._select_unique_file(fits_files, "bestfit FITS", object_id, log_selection=True)
 
         # Import plotting function
         from ..plotting import plot_bestfit
