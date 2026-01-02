@@ -1235,8 +1235,8 @@ class BayeSEDResults:
         
         logger.info(f"Set custom labels for {len(custom_labels)} parameters")
 
-    def plot_posterior(self, params: Optional[List[str]] = None,
-                      object_id: Optional[str] = None,
+    def plot_posterior(self, object_id: Optional[str] = None,
+                      params: Optional[List[str]] = None,
                       method: str = 'getdist', filled: bool = True,
                       show: bool = True, output_file: Optional[str] = None,
                       show_median: bool = True, show_confidence_intervals: bool = True,
@@ -1246,10 +1246,10 @@ class BayeSEDResults:
 
         Parameters
         ----------
-        params : List[str], optional
-            Parameters to plot. If None, uses free parameters.
         object_id : str, optional
             Object ID to plot for. If None, uses current scope.
+        params : List[str], optional
+            Parameters to plot. If None, uses free parameters.
         method : str, default 'getdist'
             Plotting method to use
         filled : bool, default True
@@ -1623,8 +1623,9 @@ class BayeSEDResults:
 
         return fig
 
-    def plot_posterior_free(self, output_file: Optional[str] = None,
-                           show: bool = True, object_id: Optional[str] = None,
+    def plot_posterior_free(self, object_id: Optional[str] = None,
+                           output_file: Optional[str] = None,
+                           show: bool = True,
                            show_median: bool = True, show_confidence_intervals: bool = True,
                            confidence_level: float = 0.68, **kwargs) -> Any:
         """
@@ -1632,12 +1633,12 @@ class BayeSEDResults:
 
         Parameters
         ----------
+        object_id : str, optional
+            Object ID to plot. If None and in sample-level mode, uses first object.
         output_file : str, optional
             Output file path for saving plot
         show : bool, default True
             Whether to display the plot
-        object_id : str, optional
-            Object ID to plot. If None and in sample-level mode, uses first object.
         show_median : bool, default True
             Whether to show median markers on plots
         show_confidence_intervals : bool, default True
@@ -1712,9 +1713,10 @@ class BayeSEDResults:
             else:
                 raise
 
-    def plot_posterior_derived(self, max_params: int = 10,
+    def plot_posterior_derived(self, object_id: Optional[str] = None,
+                              max_params: int = 10,
                               output_file: Optional[str] = None,
-                              show: bool = True, object_id: Optional[str] = None,
+                              show: bool = True,
                               show_median: bool = True, show_confidence_intervals: bool = True,
                               confidence_level: float = 0.68, **kwargs) -> Any:
         """
@@ -1722,14 +1724,14 @@ class BayeSEDResults:
 
         Parameters
         ----------
+        object_id : str, optional
+            Object ID to plot. If None and in sample-level mode, uses first object.
         max_params : int, default 10
             Maximum number of parameters to plot
         output_file : str, optional
             Output file path for saving plot
         show : bool, default True
             Whether to display the plot
-        object_id : str, optional
-            Object ID to plot. If None and in sample-level mode, uses first object.
         show_median : bool, default True
             Whether to show median markers on plots
         show_confidence_intervals : bool, default True
