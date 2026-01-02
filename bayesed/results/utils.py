@@ -154,6 +154,7 @@ def plot_posterior_comparison(
     results_list: List['BayeSEDResults'],
     labels: Optional[List[str]] = None,
     params: Optional[List[str]] = None,
+    object_id: Optional[str] = None,
     show: bool = True,
     output_file: Optional[str] = None,
     **kwargs: Any,
@@ -174,6 +175,10 @@ def plot_posterior_comparison(
         Parameters to plot. If None (default), uses all common free parameters
         across all results. This excludes derived parameters and focuses on
         the fitted model parameters.
+    object_id : str, optional
+        Object ID to use for all results. If provided, this object_id will be
+        passed to get_getdist_samples() for each result. If None, each result
+        will use its own object_id or default behavior.
     show : bool, optional
         Whether to display the plot (default: True)
     output_file : str, optional
@@ -200,7 +205,7 @@ def plot_posterior_comparison(
     sample_param_sets: List[set] = []
 
     for i, result in enumerate(results_list):
-        samples_gd = result.get_getdist_samples()
+        samples_gd = result.get_getdist_samples(object_id=object_id)
 
         # Set name tag for legend
         if labels and i < len(labels):
@@ -233,7 +238,7 @@ def plot_posterior_comparison(
                 free_params_list.append(free_params)
             except Exception:
                 # Fallback: use all parameters from GetDist samples if get_free_parameters fails
-                free_params_list.append([p.name for p in result.get_getdist_samples().paramNames.names])
+                free_params_list.append([p.name for p in result.get_getdist_samples(object_id=object_id).paramNames.names])
 
         # Find intersection of free parameters across all results
         if free_params_list:
@@ -378,7 +383,7 @@ def standardize_parameter_names(
     samples_param_names: List[List[str]] = []
     for result in results_list:
         try:
-            samples = result.get_getdist_samples()
+            samples = result.get_getdist_samples(object_id=object_id)
             names = [p.name for p in samples.paramNames.names]
         except Exception:
             # Fallback to free parameters if GetDist samples not available
