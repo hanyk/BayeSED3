@@ -507,7 +507,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
         plt.show()
 
 
-def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1):
+def configure_getdist_settings(range_confidence=0, min_weight_ratio=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1):
     """Configure GetDist analysis settings for consistent posterior analysis.
 
     Parameters:
@@ -528,6 +528,7 @@ def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1
     """
     settings = {
         'range_confidence': range_confidence,
+        'min_weight_ratio': min_weight_ratio,
         'smooth_scale_1D': smooth_scale_1D,
         'smooth_scale_2D': smooth_scale_2D,
         'fine_bins': 1024,
@@ -547,7 +548,7 @@ def configure_getdist_settings(range_confidence=0, contours=None, smooth_scale_1
 def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                                 bayesed_params=None, bagpipes_params=None,
                                 labels=None, true_values=None, save=True, show=True,
-                                range_confidence=0):
+                                range_confidence=0,min_weight_ratio=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1):
     """Create corner plots comparing BayeSED3 and BAGPIPES posterior samples using GetDist.
 
     Parameters:
@@ -702,7 +703,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         print(f"\nCreating GetDist corner plot with {len(final_labels)} parameters: {final_labels}")
 
         # Configure GetDist analysis settings
-        getdist_settings = configure_getdist_settings(range_confidence=range_confidence)
+        analysis_settings = configure_getdist_settings(range_confidence=range_confidence,min_weight_ratio=min_weight_ratio,contours=contours)
         print(f"Using GetDist range_confidence = {range_confidence} ({(1-range_confidence)*100:.1f}% confidence ranges)")
 
         # Get BayeSED3 GetDist samples directly (already a MCSamples object)
@@ -723,7 +724,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         # Use range_confidence to control parameter range determination
         bagpipes_mcsamples = MCSamples(samples=bagpipes_samples_array, names=clean_names,
                                      labels=final_labels, name_tag='BAGPIPES',
-                                     settings=getdist_settings)
+                                     settings=analysis_settings)
 
         # Set labels for BayeSED3 samples (following BayeSED's approach)
         bayesed_getdist_samples.name_tag = 'BayeSED3'
@@ -736,7 +737,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         bayesed_filtered_labels = []
 
         for i, (bayesed_param, label) in enumerate(zip(bayesed_params, final_labels)):
-            if bayesed_param in bayesed_param_names:
+            # if bayesed_param in bayesed_param_names:
                 idx = bayesed_param_names.index(bayesed_param)
                 bayesed_indices.append(idx)
                 bayesed_filtered_labels.append(label)
@@ -748,13 +749,13 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                                                  names=clean_names[:len(bayesed_indices)],
                                                  labels=bayesed_filtered_labels,
                                                  name_tag='BayeSED3',
-                                                 settings=getdist_settings)
+                                                 settings=analysis_settings)
         else:
             print("No matching parameters found in BayeSED3 samples")
             return None
 
         # Create GetDist triangle plot following BayeSED's approach
-        g = plots.get_subplot_plotter(width_inch=16, subplot_size=3.0,subplot_size_ratio=0.8)
+        g = plots.get_subplot_plotter(width_inch=16, subplot_size=3.0,subplot_size_ratio=0.8,analysis_settings=analysis_settings)
 
         # Use BayeSED's plotting style for better comparison visibility
         g.settings.figure_legend_frame = True
@@ -1336,12 +1337,14 @@ Examples:
     bayesed = BayeSEDInterface(mpi_mode='1')
 
     # Simple galaxy fitting with no_photometry_fit=True (fit spectra only)
+    ssp='bc2003_hr_stelib_chab_neb_300r'
+    # ssp='bc2003_hr_stelib_chab_neb_2000r'
     params = BayeSEDParams.galaxy(
         input_file=input_file,
         filters=filters_file,
         filters_selected=filters_selected_file,
         outdir=output_dir,
-        ssp_model='bc2003_hr_stelib_chab_neb_300r',
+        ssp_model=ssp,
         sfh_type='exponential',
         dal_law='calzetti',
         ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
@@ -1353,7 +1356,7 @@ Examples:
 
     # Set redshift prior to match BAGPIPES range (0.0 to 2.0)
     params.z = ZParams(
-        iprior_type=1,
+        iprior_type=3,
         min=0.0,
         max=2.0,
     )
@@ -1377,6 +1380,7 @@ Examples:
         tol=0.5,            # Standard tolerance
     )
     # params.SNRmin2 = SNRmin2Params(0.0,-1)
+    # params.unweighted_samples = True
 
 
     # Run analysis
@@ -1386,7 +1390,7 @@ Examples:
     # Extract catalog name from input file (efficient - only reads first line)
     cat_name = BayeSEDDataLoader.extract_catalog_name(input_file)
 
-    results = BayeSEDResults(output_dir, catalog_name=cat_name)
+    results = BayeSEDResults(output_dir, catalog_name=cat_name,model_config=ssp)
     results.print_summary()
 
     # Get available objects for plotting
@@ -1431,10 +1435,10 @@ Examples:
     base_fit_instructions["veldisp"] = 300  #km/s
 
     noise = {}
-    noise["type"] = "white_scaled"
-    noise["scaling"] = (1., 1.5)
-    noise["scaling_prior"] = "log_10"
-    base_fit_instructions["noise"] = noise
+    # noise["type"] = "white_scaled"
+    # noise["scaling"] = (1., 1.5)
+    # noise["scaling_prior"] = "log_10"
+    # base_fit_instructions["noise"] = noise
 
 
     resolution_curve = data_loader.get_resolution_curve(IDs[0])
@@ -1490,16 +1494,17 @@ Examples:
             fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
             t0 = time.time()
             fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
+            #fit.fit(verbose=True, sampler='multinest', n_live=40, pool=20)
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
             obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels, verbose=True)
 
-            plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values)
+            plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values,range_confidence=0.0,min_weight_ratio=0.0)
 
 
 
