@@ -902,7 +902,9 @@ def extract_true_values(results_bayesed, object_id, true_value_params, labels=No
 
 
 def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, bagpipes_params,
-                          labels=None, save=True, show=False, catalog_name=None):
+                          labels=None, colorbar_param=None, colorbar_label=None,
+                          x_axis_param=None, x_axis_label=None, show_unity_line=True,
+                          x_axis_stats='x_axis', save=True, show=False, catalog_name=None):
     """Create scatter plots comparing derived parameters between BayeSED3 and BAGPIPES.
 
     This improved version:
@@ -912,7 +914,10 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     - Allows user to specify which parameters to compare (like plot_posterior_corner_comparison)
     - Dynamically adapts subplot layout based on number of parameters
     - Handles extreme outliers robustly using percentile-based axis ranges
+    - Uses NMAD-based robust statistics (correlation, bias, RMS) excluding 3σ outliers
+    - NMAD (Normalized Median Absolute Deviation) provides outlier-resistant statistics
     - Properly renders LaTeX labels for mathematical expressions
+    - Supports colorbar based on any column in the BayeSED table
 
     Parameters:
     -----------
@@ -927,6 +932,28 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     labels : list of str, optional
         List of labels for the plot axes. If None, uses bayesed_params.
         Can include LaTeX formatting (e.g., r'$\\log(M_*/M_\\odot)$')
+    colorbar_param : str, optional
+        Name of column in bayesed_table to use for colorbar. If provided, scatter points
+        will be colored based on this parameter's values.
+    colorbar_label : str, optional
+        Label for the colorbar. If None and colorbar_param is provided, uses colorbar_param.
+        Can include LaTeX formatting (e.g., r'$\\log(\\mathrm{SFR})$')
+    x_axis_param : list of str, optional
+        List of column names in bayesed_table to use as x-axis for each subplot. If provided,
+        creates parameter vs x_axis_param plots instead of parameter comparison plots.
+        Must match length of bayesed_params. Useful for plotting parameters vs redshift, stellar mass, etc.
+    x_axis_label : list of str, optional
+        List of labels for the x-axis when using x_axis_param. If None, uses x_axis_param.
+        Must match length of bayesed_params. Can include LaTeX formatting (e.g., r'$z$', r'$\\log(M_*/M_\\odot)$')
+    show_unity_line : bool, default=True
+        Whether to show unity (1:1) line. In comparison mode, shows diagonal 1:1 line (y=x).
+        In x-axis mode, shows diagonal 1:1 line for comparison with true values.
+    x_axis_stats : str, default='both'
+        Statistics to show in x-axis mode. Options:
+        - 'both': Show both BayeSED vs x-axis and BAGPIPES vs x-axis statistics
+        - 'codes': Show only BayeSED vs BAGPIPES statistics (same as comparison mode)
+        - 'x_axis': Show only individual code vs x-axis statistics
+        Ignored in comparison mode.
     save : bool
         Whether to save the plot
     show : bool
@@ -1000,7 +1027,8 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         print(f"bayesed_params = ['param1', 'param2', ...]")
         print(f"bagpipes_params = ['param1', 'param2', ...]")
         print(f"labels = ['label1', 'label2', ...]  # optional")
-        print(f"plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels)")
+        print(f"colorbar_param = 'column_name'  # optional, for coloring points")
+        print(f"plot_parameter_scatter(results, bagpipes_file, bayesed_params, bagpipes_params, labels, colorbar_param)")
         return None
 
     # Check parameter lists have same length
@@ -1014,6 +1042,47 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     elif len(labels) != len(bayesed_params):
         print(f"Error: labels ({len(labels)}) must match length of parameter lists ({len(bayesed_params)})")
         return None
+
+    # Validate x_axis_param and x_axis_label if provided
+    use_x_axis = x_axis_param is not None
+    if use_x_axis:
+        if not isinstance(x_axis_param, list):
+            print(f"Error: x_axis_param must be a list, got {type(x_axis_param)}")
+            return None
+        if len(x_axis_param) != len(bayesed_params):
+            print(f"Error: x_axis_param ({len(x_axis_param)}) must match length of bayesed_params ({len(bayesed_params)})")
+            return None
+
+        # Set default x_axis_label if not provided
+        if x_axis_label is None:
+            x_axis_label = x_axis_param
+        elif len(x_axis_label) != len(bayesed_params):
+            print(f"Error: x_axis_label ({len(x_axis_label)}) must match length of bayesed_params ({len(bayesed_params)})")
+            return None
+
+        # Validate that all x_axis parameters exist in bayesed_table
+        missing_x_params = [param for param in x_axis_param if param not in bayesed_table.colnames]
+        if missing_x_params:
+            print(f"Error: x_axis parameters not found in BayeSED table: {missing_x_params}")
+            print(f"Available columns: {list(bayesed_table.colnames)[:10]}...")
+            return None
+
+        print(f"Using x-axis parameters: {x_axis_param}")
+        print(f"Plot mode: Parameter vs x-axis plots")
+    else:
+        print(f"Plot mode: Parameter comparison plots (BayeSED vs BAGPIPES)")
+
+    # Check if colorbar parameter exists
+    colorbar_vals = None
+    if colorbar_param is not None:
+        if colorbar_param not in bayesed_table.colnames:
+            print(f"Warning: Colorbar parameter '{colorbar_param}' not found in BayeSED table")
+            print(f"Available columns: {list(bayesed_table.colnames)[:10]}...")
+            colorbar_param = None
+        else:
+            print(f"Using colorbar parameter: {colorbar_param}")
+            if colorbar_label is None:
+                colorbar_label = colorbar_param
 
     # Find common objects between both tables
     bayesed_ids = set(bayesed_table['ID'])
@@ -1069,11 +1138,22 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
     # Track statistics for summary
     param_stats = {}
 
+    # Prepare colorbar data if requested
+    if colorbar_param is not None:
+        colorbar_vals = []
+        colorbar_ids = []
+
     for i, (bayesed_param, bagpipes_param, label) in enumerate(zip(bayesed_params, bagpipes_params, labels)):
         ax = axes[i]
         bayesed_vals = []
         bagpipes_vals = []
+        x_axis_vals = []  # For x-axis parameter values
         valid_ids = []
+        valid_colorbar_vals = []
+
+        # Get x-axis parameter for this subplot if using x-axis mode
+        current_x_param = x_axis_param[i] if use_x_axis else None
+        current_x_label = x_axis_label[i] if use_x_axis else None
 
         # Check if columns exist
         bayesed_available_cols = [col for col in bayesed_table.colnames if bayesed_param in col]
@@ -1120,9 +1200,29 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
 
                         # Check for valid values (not NaN or infinite)
                         if np.isfinite(bayesed_val) and np.isfinite(bagpipes_val):
+                            # Get x-axis value if using x-axis mode
+                            if use_x_axis:
+                                x_val = bayesed_table[bayesed_mask][current_x_param][0]
+                                if not np.isfinite(x_val):
+                                    continue  # Skip if x-axis value is invalid
+                                x_axis_vals.append(x_val)
+
                             bayesed_vals.append(bayesed_val)
                             bagpipes_vals.append(bagpipes_val)
                             valid_ids.append(obj_id)
+
+                            # Add colorbar value if requested
+                            if colorbar_param is not None:
+                                colorbar_val = bayesed_table[bayesed_mask][colorbar_param][0]
+                                if np.isfinite(colorbar_val):
+                                    valid_colorbar_vals.append(colorbar_val)
+                                else:
+                                    # If colorbar value is invalid, remove this point
+                                    bayesed_vals.pop()
+                                    bagpipes_vals.pop()
+                                    valid_ids.pop()
+                                    if use_x_axis:
+                                        x_axis_vals.pop()
 
             except Exception as e:
                 print(f"Warning: Error processing object {obj_id} for {label}: {e}")
@@ -1133,71 +1233,380 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
             bayesed_vals = np.array(bayesed_vals)
             bagpipes_vals = np.array(bagpipes_vals)
 
-            # Create scatter plot
-            ax.scatter(bayesed_vals, bagpipes_vals, alpha=0.7, s=50, edgecolors='black', linewidth=0.5)
+            # Convert x-axis and colorbar values to numpy arrays if available
+            if use_x_axis:
+                x_axis_vals = np.array(x_axis_vals)
+            if colorbar_param is not None and valid_colorbar_vals:
+                valid_colorbar_vals = np.array(valid_colorbar_vals)
+
+            # Determine plot mode and set up data
+            if use_x_axis:
+                # X-axis mode: plot parameters vs x-axis parameter
+                x_data_bayesed = x_axis_vals
+                y_data_bayesed = bayesed_vals
+                x_data_bagpipes = x_axis_vals  # Same x-axis for both
+                y_data_bagpipes = bagpipes_vals
+
+                # Calculate robust axis ranges
+                x_vals_combined = x_axis_vals
+                y_vals_combined = np.concatenate([bayesed_vals, bagpipes_vals])
+            else:
+                # Comparison mode: plot BayeSED vs BAGPIPES
+                x_data_bayesed = bayesed_vals
+                y_data_bayesed = bagpipes_vals
+                x_data_bagpipes = None  # Not used in comparison mode
+                y_data_bagpipes = None
+
+                # Calculate robust axis ranges
+                x_vals_combined = bayesed_vals
+                y_vals_combined = bagpipes_vals
+
+            # Create scatter plot with or without colorbar
+            if colorbar_param is not None and len(valid_colorbar_vals) > 0:
+                # Calculate robust colorbar range using percentiles to exclude extreme outliers
+                # Use tighter percentile range for better color contrast
+                colorbar_p_low, colorbar_p_high = 0.1, 99.0  # 0.1th to 99.0th percentile
+                colorbar_vmin = np.percentile(valid_colorbar_vals, colorbar_p_low)
+                colorbar_vmax = np.percentile(valid_colorbar_vals, colorbar_p_high)
+
+                # Ensure we have a valid range (avoid vmin == vmax)
+                if colorbar_vmax <= colorbar_vmin:
+                    colorbar_vmin = np.min(valid_colorbar_vals)
+                    colorbar_vmax = np.max(valid_colorbar_vals)
+                    if colorbar_vmax <= colorbar_vmin:
+                        # All values are the same, add small range
+                        colorbar_vmax = colorbar_vmin + 1e-6
+
+                # Create scatter plots based on mode
+                if use_x_axis:
+                    # X-axis mode: plot both BayeSED and BAGPIPES vs x-axis parameter
+                    scatter_bagpipes = ax.scatter(x_data_bagpipes, y_data_bagpipes, c=valid_colorbar_vals,
+                                                alpha=0.7, s=50, edgecolors='blue', linewidth=1.0,
+                                                cmap='viridis', vmin=colorbar_vmin, vmax=colorbar_vmax,
+                                                label='BAGPIPES', marker='s')
+                    scatter_bayesed = ax.scatter(x_data_bayesed, y_data_bayesed, c=valid_colorbar_vals,
+                                               alpha=0.7, s=50, edgecolors='red', linewidth=1.0,
+                                               cmap='viridis', vmin=colorbar_vmin, vmax=colorbar_vmax,
+                                               label='BayeSED3', marker='o')
+                    # Use the first scatter for colorbar
+                    scatter = scatter_bayesed
+                else:
+                    # Comparison mode: BayeSED vs BAGPIPES
+                    scatter = ax.scatter(x_data_bayesed, y_data_bayesed, c=valid_colorbar_vals,
+                                       alpha=0.7, s=50, edgecolors='black', linewidth=0.5,
+                                       cmap='viridis', vmin=colorbar_vmin, vmax=colorbar_vmax)
+
+                # Add colorbar to the subplot
+                cbar = plt.colorbar(scatter, ax=ax)
+                cbar.set_label(colorbar_label, fontsize=12)
+
+                # Count and report colorbar outliers
+                n_colorbar_outliers = np.sum((valid_colorbar_vals < colorbar_vmin) |
+                                           (valid_colorbar_vals > colorbar_vmax))
+                if n_colorbar_outliers > 0:
+                    outlier_fraction = n_colorbar_outliers / len(valid_colorbar_vals)
+                    print(f"  Colorbar outliers for {label}: {n_colorbar_outliers} ({100*outlier_fraction:.1f}%) outside [{colorbar_vmin:.3f}, {colorbar_vmax:.3f}]")
+            else:
+                # Create scatter plots without colorbar
+                if use_x_axis:
+                    # X-axis mode: plot both BayeSED and BAGPIPES vs x-axis parameter
+                    ax.scatter(x_data_bagpipes, y_data_bagpipes, alpha=0.7, s=50,
+                              edgecolors='blue', facecolors='blue', linewidth=1.0,
+                              label='BAGPIPES', marker='s')
+                    ax.scatter(x_data_bayesed, y_data_bayesed, alpha=0.7, s=50,
+                              edgecolors='red', facecolors='red', linewidth=1.0,
+                              label='BayeSED3', marker='o')
+                else:
+                    # Comparison mode: BayeSED vs BAGPIPES
+                    ax.scatter(x_data_bayesed, y_data_bayesed, alpha=0.7, s=50,
+                              edgecolors='black', linewidth=0.5)
 
             # Calculate robust axis ranges excluding extreme outliers
             # Use percentiles to exclude outliers (e.g., 2.5% and 97.5% for ~2-sigma range)
-            all_vals = np.concatenate([bayesed_vals, bagpipes_vals])
+            if use_x_axis:
+                # X-axis mode: separate ranges for x and y axes
+                x_vals_for_range = x_vals_combined
+                y_vals_for_range = y_vals_combined
 
-            # For SFR parameters, use tighter percentile range due to common extreme outliers
-            if 'SFR' in label or 'sfr' in label.lower():
-                p_low, p_high = 5, 95  # 5th to 95th percentile for SFR
+                # For SFR parameters, use tighter percentile range due to common extreme outliers
+                if 'SFR' in label or 'sfr' in label.lower():
+                    p_low, p_high = 5, 95  # 5th to 95th percentile for SFR
+                else:
+                    p_low, p_high = 2.5, 97.5  # 2.5th to 97.5th percentile for other parameters
+
+                # X-axis range
+                x_robust_min = np.percentile(x_vals_for_range, p_low)
+                x_robust_max = np.percentile(x_vals_for_range, p_high)
+                x_range_padding = (x_robust_max - x_robust_min) * 0.05
+                x_plot_min = x_robust_min - x_range_padding
+                x_plot_max = x_robust_max + x_range_padding
+
+                # Y-axis range
+                y_robust_min = np.percentile(y_vals_for_range, p_low)
+                y_robust_max = np.percentile(y_vals_for_range, p_high)
+                y_range_padding = (y_robust_max - y_robust_min) * 0.05
+                y_plot_min = y_robust_min - y_range_padding
+                y_plot_max = y_robust_max + y_range_padding
+
+                # Set axis limits
+                ax.set_xlim(x_plot_min, x_plot_max)
+                ax.set_ylim(y_plot_min, y_plot_max)
+
+                # Add unity line in x-axis mode if requested
+                if show_unity_line:
+                    # Show diagonal 1:1 line (y=x) for comparison with true values
+                    # This is useful when x-axis represents true values
+                    unity_min = max(x_plot_min, y_plot_min)
+                    unity_max = min(x_plot_max, y_plot_max)
+                    if unity_min < unity_max:  # Only show if there's overlap
+                        ax.plot([unity_min, unity_max], [unity_min, unity_max], 'k--',
+                               alpha=0.7, linewidth=2, label='', zorder=1)
+
+                # Set labels for x-axis mode
+                ax.set_xlabel(current_x_label)
+                ax.set_ylabel(f'{label}')
+                ax.legend()
+
             else:
-                p_low, p_high = 2.5, 97.5  # 2.5th to 97.5th percentile for other parameters
+                # Comparison mode: square plot with 1:1 line
+                all_vals = np.concatenate([x_vals_combined, y_vals_combined])
 
-            robust_min = np.percentile(all_vals, p_low)
-            robust_max = np.percentile(all_vals, p_high)
+                # For SFR parameters, use tighter percentile range due to common extreme outliers
+                if 'SFR' in label or 'sfr' in label.lower():
+                    p_low, p_high = 5, 95  # 5th to 95th percentile for SFR
+                else:
+                    p_low, p_high = 2.5, 97.5  # 2.5th to 97.5th percentile for other parameters
 
-            # Add some padding (5% of range)
-            range_padding = (robust_max - robust_min) * 0.05
-            plot_min = robust_min - range_padding
-            plot_max = robust_max + range_padding
+                robust_min = np.percentile(all_vals, p_low)
+                robust_max = np.percentile(all_vals, p_high)
 
-            # Set axis limits to robust range
-            ax.set_xlim(plot_min, plot_max)
-            ax.set_ylim(plot_min, plot_max)
+                # Add some padding (5% of range)
+                range_padding = (robust_max - robust_min) * 0.05
+                plot_min = robust_min - range_padding
+                plot_max = robust_max + range_padding
 
-            # Add 1:1 line using the robust range
-            ax.plot([plot_min, plot_max], [plot_min, plot_max], 'r--', alpha=0.8, label='1:1', linewidth=2)
+                # Set axis limits to robust range
+                ax.set_xlim(plot_min, plot_max)
+                ax.set_ylim(plot_min, plot_max)
+
+                # Add 1:1 line using the robust range if requested
+                if show_unity_line:
+                    ax.plot([plot_min, plot_max], [plot_min, plot_max], 'r--', alpha=0.8, label='', linewidth=2)
+
+                # Set labels for comparison mode
+                ax.set_xlabel(f'BayeSED3 {label}')
+                ax.set_ylabel(f'BAGPIPES {label}')
+                ax.legend()
 
             # Calculate statistics
-            correlation = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
-            bias = np.mean(bagpipes_vals - bayesed_vals)  # BAGPIPES - BayeSED3
-            rms = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
+            if use_x_axis:
+                # X-axis mode: calculate different statistics based on user preference
+                stats_dict = {}
+                outlier_details = {}  # Initialize outlier_details dictionary
 
-            # Count outliers (points outside the robust range)
-            n_outliers_x = np.sum((bayesed_vals < plot_min) | (bayesed_vals > plot_max))
-            n_outliers_y = np.sum((bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))
-            n_outliers = len(set(np.where((bayesed_vals < plot_min) | (bayesed_vals > plot_max) |
-                                        (bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))[0]))
+                if x_axis_stats in ['both', 'codes']:
+                    # BayeSED vs BAGPIPES comparison (same as comparison mode)
+                    codes_residuals = bagpipes_vals - bayesed_vals
+                    codes_median = np.median(codes_residuals)
+                    codes_mad = np.median(np.abs(codes_residuals - codes_median))
+                    codes_nmad = 1.4826 * codes_mad  # Convert MAD to equivalent standard deviation
+                    codes_outlier_mask = np.abs(codes_residuals - codes_median) > 3 * codes_nmad
+                    codes_outliers = np.sum(codes_outlier_mask)
+                    
+                    # Calculate robust statistics excluding outliers
+                    inlier_mask = ~codes_outlier_mask
+                    if np.sum(inlier_mask) > 2:  # Need at least 3 points for correlation
+                        correlation_codes = np.corrcoef(bayesed_vals[inlier_mask], bagpipes_vals[inlier_mask])[0, 1]
+                        bias_codes = np.mean(bagpipes_vals[inlier_mask] - bayesed_vals[inlier_mask])  # BAGPIPES - BayeSED3
+                        rms_codes = np.sqrt(np.mean((bagpipes_vals[inlier_mask] - bayesed_vals[inlier_mask])**2))
+                    else:
+                        # Fallback to all data if too few inliers
+                        correlation_codes = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
+                        bias_codes = np.mean(bagpipes_vals - bayesed_vals)
+                        rms_codes = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
+                    
+                    stats_dict['codes'] = {
+                        'correlation': correlation_codes,
+                        'bias': bias_codes,
+                        'rms': rms_codes,
+                        'label': 'BayeSED vs BAGPIPES'
+                    }
+                    outlier_details['codes'] = codes_outliers
 
-            # Store statistics
+                if x_axis_stats in ['both', 'x_axis']:
+                    # Individual codes vs x-axis parameter with robust statistics
+                    
+                    # BayeSED vs x-axis robust statistics
+                    bayesed_residuals = bayesed_vals - x_axis_vals
+                    bayesed_median = np.median(bayesed_residuals)
+                    bayesed_mad = np.median(np.abs(bayesed_residuals - bayesed_median))
+                    bayesed_nmad = 1.4826 * bayesed_mad  # Convert MAD to equivalent standard deviation
+                    bayesed_outlier_mask = np.abs(bayesed_residuals - bayesed_median) > 3 * bayesed_nmad
+                    bayesed_outliers = np.sum(bayesed_outlier_mask)
+                    
+                    bayesed_inlier_mask = ~bayesed_outlier_mask
+                    if np.sum(bayesed_inlier_mask) > 2:  # Need at least 3 points for correlation
+                        correlation_bayesed_x = np.corrcoef(x_axis_vals[bayesed_inlier_mask], bayesed_vals[bayesed_inlier_mask])[0, 1]
+                        bias_bayesed_x = np.mean(bayesed_vals[bayesed_inlier_mask] - x_axis_vals[bayesed_inlier_mask])  # BayeSED - x_axis
+                        rms_bayesed_x = np.sqrt(np.mean((bayesed_vals[bayesed_inlier_mask] - x_axis_vals[bayesed_inlier_mask])**2))
+                    else:
+                        # Fallback to all data if too few inliers
+                        correlation_bayesed_x = np.corrcoef(x_axis_vals, bayesed_vals)[0, 1]
+                        bias_bayesed_x = np.mean(bayesed_vals - x_axis_vals)
+                        rms_bayesed_x = np.sqrt(np.mean((bayesed_vals - x_axis_vals)**2))
+
+                    # BAGPIPES vs x-axis robust statistics
+                    bagpipes_residuals = bagpipes_vals - x_axis_vals
+                    bagpipes_median = np.median(bagpipes_residuals)
+                    bagpipes_mad = np.median(np.abs(bagpipes_residuals - bagpipes_median))
+                    bagpipes_nmad = 1.4826 * bagpipes_mad  # Convert MAD to equivalent standard deviation
+                    bagpipes_outlier_mask = np.abs(bagpipes_residuals - bagpipes_median) > 3 * bagpipes_nmad
+                    bagpipes_outliers = np.sum(bagpipes_outlier_mask)
+                    
+                    bagpipes_inlier_mask = ~bagpipes_outlier_mask
+                    if np.sum(bagpipes_inlier_mask) > 2:  # Need at least 3 points for correlation
+                        correlation_bagpipes_x = np.corrcoef(x_axis_vals[bagpipes_inlier_mask], bagpipes_vals[bagpipes_inlier_mask])[0, 1]
+                        bias_bagpipes_x = np.mean(bagpipes_vals[bagpipes_inlier_mask] - x_axis_vals[bagpipes_inlier_mask])  # BAGPIPES - x_axis
+                        rms_bagpipes_x = np.sqrt(np.mean((bagpipes_vals[bagpipes_inlier_mask] - x_axis_vals[bagpipes_inlier_mask])**2))
+                    else:
+                        # Fallback to all data if too few inliers
+                        correlation_bagpipes_x = np.corrcoef(x_axis_vals, bagpipes_vals)[0, 1]
+                        bias_bagpipes_x = np.mean(bagpipes_vals - x_axis_vals)
+                        rms_bagpipes_x = np.sqrt(np.mean((bagpipes_vals - x_axis_vals)**2))
+
+                    stats_dict['bayesed_x'] = {
+                        'correlation': correlation_bayesed_x,
+                        'bias': bias_bayesed_x,
+                        'rms': rms_bayesed_x,
+                        'label': f'BayeSED vs {current_x_label}'
+                    }
+                    stats_dict['bagpipes_x'] = {
+                        'correlation': correlation_bagpipes_x,
+                        'bias': bias_bagpipes_x,
+                        'rms': rms_bagpipes_x,
+                        'label': f'BAGPIPES vs {current_x_label}'
+                    }
+                    
+                    # Store outlier counts for x-axis statistics
+                    outlier_details['bayesed_x'] = bayesed_outliers
+                    outlier_details['bagpipes_x'] = bagpipes_outliers
+
+                # Count outliers (points outside the robust ranges)
+                n_outliers_x = np.sum((x_axis_vals < x_plot_min) | (x_axis_vals > x_plot_max))
+                n_outliers_y = np.sum((bayesed_vals < y_plot_min) | (bayesed_vals > y_plot_max) |
+                                     (bagpipes_vals < y_plot_min) | (bagpipes_vals > y_plot_max))
+                n_outliers = len(set(np.where((x_axis_vals < x_plot_min) | (x_axis_vals > x_plot_max) |
+                                            (bayesed_vals < y_plot_min) | (bayesed_vals > y_plot_max) |
+                                            (bagpipes_vals < y_plot_min) | (bagpipes_vals > y_plot_max))[0]))
+
+                # Calculate specific outliers for different statistics if requested
+                # Note: outlier_details already initialized above
+                if x_axis_stats in ['both', 'x_axis']:
+                    # Outliers for BayeSED vs x-axis (using NMAD-based 3-sigma criterion)
+                    bayesed_residuals = bayesed_vals - x_axis_vals
+                    bayesed_median = np.median(bayesed_residuals)
+                    bayesed_mad = np.median(np.abs(bayesed_residuals - bayesed_median))
+                    bayesed_nmad = 1.4826 * bayesed_mad  # Convert MAD to equivalent standard deviation
+                    bayesed_outliers = np.sum(np.abs(bayesed_residuals - bayesed_median) > 3 * bayesed_nmad)
+
+                    # Outliers for BAGPIPES vs x-axis (using NMAD-based 3-sigma criterion)
+                    bagpipes_residuals = bagpipes_vals - x_axis_vals
+                    bagpipes_median = np.median(bagpipes_residuals)
+                    bagpipes_mad = np.median(np.abs(bagpipes_residuals - bagpipes_median))
+                    bagpipes_nmad = 1.4826 * bagpipes_mad  # Convert MAD to equivalent standard deviation
+                    bagpipes_outliers = np.sum(np.abs(bagpipes_residuals - bagpipes_median) > 3 * bagpipes_nmad)
+
+                    outlier_details['bayesed_x'] = bayesed_outliers
+                    outlier_details['bagpipes_x'] = bagpipes_outliers
+
+                if x_axis_stats in ['both', 'codes']:
+                    # Outliers for BayeSED vs BAGPIPES (using NMAD-based 3-sigma criterion)
+                    codes_residuals = bagpipes_vals - bayesed_vals
+                    codes_median = np.median(codes_residuals)
+                    codes_mad = np.median(np.abs(codes_residuals - codes_median))
+                    codes_nmad = 1.4826 * codes_mad  # Convert MAD to equivalent standard deviation
+                    codes_outliers = np.sum(np.abs(codes_residuals - codes_median) > 3 * codes_nmad)
+                    outlier_details['codes'] = codes_outliers
+
+                # Use the first available statistics for the main param_stats (for backward compatibility)
+                if 'codes' in stats_dict:
+                    main_stats = stats_dict['codes']
+                elif 'bayesed_x' in stats_dict:
+                    main_stats = stats_dict['bayesed_x']
+                else:
+                    main_stats = {'correlation': np.nan, 'bias': np.nan, 'rms': np.nan}
+
+            else:
+                # Comparison mode: use robust statistics excluding outliers
+                codes_residuals = bagpipes_vals - bayesed_vals
+                codes_median = np.median(codes_residuals)
+                codes_mad = np.median(np.abs(codes_residuals - codes_median))
+                codes_nmad = 1.4826 * codes_mad  # Convert MAD to equivalent standard deviation
+                codes_outlier_mask = np.abs(codes_residuals - codes_median) > 3 * codes_nmad
+                
+                # Calculate robust statistics excluding outliers
+                inlier_mask = ~codes_outlier_mask
+                if np.sum(inlier_mask) > 2:  # Need at least 3 points for correlation
+                    correlation = np.corrcoef(bayesed_vals[inlier_mask], bagpipes_vals[inlier_mask])[0, 1]
+                    bias = np.mean(bagpipes_vals[inlier_mask] - bayesed_vals[inlier_mask])  # BAGPIPES - BayeSED3
+                    rms = np.sqrt(np.mean((bagpipes_vals[inlier_mask] - bayesed_vals[inlier_mask])**2))
+                else:
+                    # Fallback to all data if too few inliers
+                    correlation = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
+                    bias = np.mean(bagpipes_vals - bayesed_vals)
+                    rms = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
+
+                # Count outliers (points outside the robust range)
+                n_outliers_x = np.sum((bayesed_vals < plot_min) | (bayesed_vals > plot_max))
+                n_outliers_y = np.sum((bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))
+                n_outliers = len(set(np.where((bayesed_vals < plot_min) | (bayesed_vals > plot_max) |
+                                            (bagpipes_vals < plot_min) | (bagpipes_vals > plot_max))[0]))
+
+                main_stats = {'correlation': correlation, 'bias': bias, 'rms': rms}
+
+            # Store statistics for summary
             param_stats[label] = {
-                'correlation': correlation,
-                'bias': bias,
-                'rms': rms,
+                'correlation': main_stats['correlation'],
+                'bias': main_stats['bias'],
+                'rms': main_stats['rms'],
                 'n_objects': len(bayesed_vals),
                 'n_outliers': n_outliers,
-                'outlier_fraction': n_outliers / len(bayesed_vals) if len(bayesed_vals) > 0 else 0
+                'outlier_fraction': n_outliers / len(bayesed_vals) if len(bayesed_vals) > 0 else 0,
+                'plot_mode': 'x_axis' if use_x_axis else 'comparison'
             }
 
+            # Add detailed statistics and outliers for x-axis mode
+            if use_x_axis and 'stats_dict' in locals():
+                param_stats[label]['detailed_stats'] = stats_dict
+                if 'outlier_details' in locals():
+                    param_stats[label]['detailed_outliers'] = outlier_details
+
             # Add statistics text with outlier information
-            stats_text = f'r = {correlation:.3f}\nbias = {bias:.3f}\nRMS = {rms:.3f}\nN = {len(bayesed_vals)}'
-            if n_outliers > 0:
-                stats_text += f'\nOutliers: {n_outliers} ({100*n_outliers/len(bayesed_vals):.1f}%)'
+            if use_x_axis:
+                # Build statistics text based on selected statistics
+                stats_lines = []  # Remove object count from here
+
+                if 'codes' in stats_dict:
+                    outlier_text = f", 3σ out: {outlier_details.get('codes', 0)}" if 'outlier_details' in locals() and 'codes' in outlier_details else ""
+                    stats_lines.append(f"Codes: r={stats_dict['codes']['correlation']:.3f}, bias={stats_dict['codes']['bias']:.3f}{outlier_text}")
+                if 'bayesed_x' in stats_dict:
+                    outlier_text = f", 3σ out: {outlier_details.get('bayesed_x', 0)}" if 'outlier_details' in locals() and 'bayesed_x' in outlier_details else ""
+                    stats_lines.append(f"BayeSED: r={stats_dict['bayesed_x']['correlation']:.3f}, bias={stats_dict['bayesed_x']['bias']:.3f}{outlier_text}")
+                if 'bagpipes_x' in stats_dict:
+                    outlier_text = f", 3σ out: {outlier_details.get('bagpipes_x', 0)}" if 'outlier_details' in locals() and 'bagpipes_x' in outlier_details else ""
+                    stats_lines.append(f"BAGPIPES: r={stats_dict['bagpipes_x']['correlation']:.3f}, bias={stats_dict['bagpipes_x']['bias']:.3f}{outlier_text}")
+
+                stats_text = '\n'.join(stats_lines)
+            else:
+                stats_text = f'r = {main_stats["correlation"]:.3f}\nbias = {main_stats["bias"]:.3f}\nRMS = {main_stats["rms"]:.3f}'
 
             ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
                     verticalalignment='top', fontsize=10,
                     bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
-            # Set labels
-            ax.set_xlabel(f'BayeSED3 {label}')
-            ax.set_ylabel(f'BAGPIPES {label}')
             ax.grid(True, alpha=0.3)
-            ax.legend()
 
-            print(f"✓ {label}: {len(bayesed_vals)} objects, r={correlation:.3f}, bias={bias:.3f}")
+            print(f"✓ {label}: {len(bayesed_vals)} objects, r={main_stats['correlation']:.3f}, bias={main_stats['bias']:.3f}")
         else:
             print(f"✗ {label}: No valid data points found")
             ax.text(0.5, 0.5, f'No valid data\nfor {label}',
@@ -1210,14 +1619,42 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
         if i < len(axes):
             fig.delaxes(axes[i])
 
-    plt.suptitle(f'Parameter Comparison: BayeSED3 vs BAGPIPES ({len(common_ids)} objects)', fontsize=16)
+    # Title with catalog name and object count
+    if catalog_name:
+        title = f'{catalog_name} ({len(common_ids)} objects)'
+    else:
+        title = f'{len(common_ids)} objects'
+    plt.suptitle(title, fontsize=16)
     plt.tight_layout()
 
     # Print summary statistics
-    print(f"\n=== Parameter Comparison Summary ===")
+    print(f"\n=== Parameter Analysis Summary ===")
+    print(f"Plot mode: {'Parameter vs x-axis plots' if use_x_axis else 'Parameter comparison plots'}")
+    if use_x_axis:
+        print(f"X-axis statistics mode: {x_axis_stats}")
+
     for param_name, stats in param_stats.items():
-        outlier_info = f", Outliers: {stats['n_outliers']} ({100*stats['outlier_fraction']:.1f}%)" if stats.get('n_outliers', 0) > 0 else ""
-        print(f"{param_name:15s}: r={stats['correlation']:6.3f}, bias={stats['bias']:7.3f}, RMS={stats['rms']:6.3f}, N={stats['n_objects']:3d}{outlier_info}")
+        if use_x_axis and 'detailed_stats' in stats:
+            # Print detailed statistics for x-axis mode
+            print(f"\n{param_name} (N={stats['n_objects']}):")
+            detailed = stats['detailed_stats']
+            detailed_outliers = stats.get('detailed_outliers', {})
+
+            if 'codes' in detailed:
+                s = detailed['codes']
+                outlier_text = f", 3σ outliers (NMAD): {detailed_outliers.get('codes', 0)}" if 'codes' in detailed_outliers else ""
+                print(f"  BayeSED vs BAGPIPES: r={s['correlation']:6.3f}, bias={s['bias']:7.3f}, RMS={s['rms']:6.3f}{outlier_text}")
+            if 'bayesed_x' in detailed:
+                s = detailed['bayesed_x']
+                outlier_text = f", 3σ outliers (NMAD): {detailed_outliers.get('bayesed_x', 0)}" if 'bayesed_x' in detailed_outliers else ""
+                print(f"  BayeSED vs x-axis:   r={s['correlation']:6.3f}, bias={s['bias']:7.3f}, RMS={s['rms']:6.3f}{outlier_text}")
+            if 'bagpipes_x' in detailed:
+                s = detailed['bagpipes_x']
+                outlier_text = f", 3σ outliers (NMAD): {detailed_outliers.get('bagpipes_x', 0)}" if 'bagpipes_x' in detailed_outliers else ""
+                print(f"  BAGPIPES vs x-axis:  r={s['correlation']:6.3f}, bias={s['bias']:7.3f}, RMS={s['rms']:6.3f}{outlier_text}")
+        else:
+            # Print single line summary
+            print(f"{param_name:15s}: r={stats['correlation']:6.3f}, bias={stats['bias']:7.3f}, RMS={stats['rms']:6.3f}, N={stats['n_objects']:3d}")
 
     if save:
         plot_dir = os.path.join("pipes", "plots", "comparison")
@@ -1384,7 +1821,7 @@ Examples:
 
 
     # Run analysis
-    result = bayesed.run(params)
+    # result = bayesed.run(params)
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
@@ -1472,6 +1909,8 @@ Examples:
             bayesed_params=bayesed_params1,
             bagpipes_params=bagpipes_params1,
             labels=labels1,
+            # colorbar_param='SNR',
+            x_axis_param=true_value_params,
             save=True,
             show=True,
             catalog_name=cat_name
