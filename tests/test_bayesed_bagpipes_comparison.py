@@ -1802,7 +1802,7 @@ Examples:
     # RDF models the difference/scatter between observations and theoretical models
     params.rdf = RDFParams(
         id=-1,                   # Model ID (-1: apply to all models, 0,1,2...: specific model)
-        num_polynomials=0       # Number of polynomials (-1: default/disable, 0,1,2...: polynomial order)
+        num_polynomials=0       # Number of polynomials (-1: default/disable, 0: only use sigma_obs curve in input file, 1,2...: polynomial order)
     )
 
     # Set systematic error for model
@@ -1821,7 +1821,7 @@ Examples:
 
 
     # Run analysis
-    # result = bayesed.run(params)
+    result = bayesed.run(params)
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
@@ -1937,7 +1937,7 @@ Examples:
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
