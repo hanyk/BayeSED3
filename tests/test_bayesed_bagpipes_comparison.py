@@ -707,7 +707,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         print(f"Using GetDist range_confidence = {range_confidence} ({(1-range_confidence)*100:.1f}% confidence ranges)")
 
         # Get BayeSED3 GetDist samples directly (already a MCSamples object)
-        bayesed_getdist_samples = bayesed_results.get_getdist_samples(object_id=object_id)
+        bayesed_getdist_samples = bayesed_results.get_getdist_samples(object_id=object_id,settings=analysis_settings)
 
         # Create BAGPIPES MCSamples object
         bagpipes_samples_array = np.column_stack(bagpipes_data)

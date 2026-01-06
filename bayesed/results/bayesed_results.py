@@ -1040,7 +1040,8 @@ class BayeSEDResults:
 
 
 
-    def get_posterior_samples(self, object_id: Optional[str] = None) -> Any:
+    def get_posterior_samples(self, object_id: Optional[str] = None, 
+                             settings: Optional[Dict[str, Any]] = None) -> Any:
         """
         Get posterior samples by loading GetDist samples on-demand.
 
@@ -1048,6 +1049,9 @@ class BayeSEDResults:
         ----------
         object_id : str, optional
             Object ID to get samples for
+        settings : dict, optional
+            Settings dictionary to pass to getdist.loadMCSamples.
+            Default: {'range_confidence': 0.001, 'min_weight_ratio': 1e-99}
 
         Returns
         -------
@@ -1081,7 +1085,12 @@ class BayeSEDResults:
         try:
             # Try to use GetDist - pass the full base name including _sample_par
             import getdist
-            samples = getdist.loadMCSamples(base_name)
+            
+            # Set default settings if none provided
+            if settings is None:
+                settings = {'range_confidence': 0.001, 'min_weight_ratio': 1e-99}
+            
+            samples = getdist.loadMCSamples(base_name, settings=settings)
             logger.info(f"Loaded GetDist samples for {object_id}: {samples.numrows} samples, {samples.n} parameters")
             return samples
 
@@ -1175,7 +1184,8 @@ class BayeSEDResults:
         except ImportError:
             raise ImportError("astropy is required for FITS file loading. Install with: pip install astropy")
 
-    def get_getdist_samples(self, object_id: Optional[str] = None) -> Any:
+    def get_getdist_samples(self, object_id: Optional[str] = None, 
+                           settings: Optional[Dict[str, Any]] = None) -> Any:
         """
         Get GetDist samples with parameter management.
 
@@ -1183,6 +1193,9 @@ class BayeSEDResults:
         ----------
         object_id : str, optional
             Object ID to get samples for
+        settings : dict, optional
+            Settings dictionary to pass to getdist.loadMCSamples.
+            Default: {'range_confidence': 0.001, 'min_weight_ratio': 1e-99}
 
         Returns
         -------
@@ -1203,7 +1216,9 @@ class BayeSEDResults:
                     raise ValueError("No objects available for GetDist samples")
 
         # Check cache first to avoid duplicate loading
-        cache_key = f"{object_id}_{self.model_config}"
+        # Include settings in cache key to handle different settings
+        settings_key = str(sorted(settings.items())) if settings else "default"
+        cache_key = f"{object_id}_{self.model_config}_{settings_key}"
         if cache_key in self._getdist_samples_cache:
             return self._getdist_samples_cache[cache_key]
 
@@ -1231,7 +1246,11 @@ class BayeSEDResults:
             import getdist
             from getdist import MCSamples
 
-            samples = getdist.loadMCSamples(base_name)
+            # Set default settings if none provided
+            if settings is None:
+                settings = {'range_confidence': 0.001, 'min_weight_ratio': 1e-99}
+
+            samples = getdist.loadMCSamples(base_name, settings=settings)
 
             # Apply parameter labeling if custom labels are set
             if hasattr(self, '_custom_labels') and self._custom_labels:
