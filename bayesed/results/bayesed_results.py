@@ -238,20 +238,40 @@ class BayeSEDResults:
                         f"This indicates duplicate files - please remove duplicates."
                     )
                 else:
-                    # No exact matches - try partial matching
+                    # No exact matches - try partial matching or regex matching
                     partial_matches = []
+                    
+                    # Check if model_config_str looks like a regex pattern
+                    is_regex_pattern = ('(?=' in model_config_str and '.*' in model_config_str)
+                    
                     for f in catalog_files:
                         filename = f.stem
                         if filename.startswith(self.catalog_name + '_'):
                             config_name = filename[len(self.catalog_name) + 1:]
-                            if model_config_str in config_name:
-                                partial_matches.append((config_name, f))
+                            
+                            if is_regex_pattern:
+                                # Use regex matching
+                                import re
+                                try:
+                                    if re.search(model_config_str, config_name):
+                                        partial_matches.append((config_name, f))
+                                except re.error:
+                                    # If regex fails, fall back to simple string matching
+                                    if model_config_str in config_name:
+                                        partial_matches.append((config_name, f))
+                            else:
+                                # Use simple string matching
+                                if model_config_str in config_name:
+                                    partial_matches.append((config_name, f))
                     
                     if len(partial_matches) == 1:
                         # Found exactly one partial match
                         config_name, target_file = partial_matches[0]
                         self.model_config = config_name
-                        logger.info(f"Using partial match for '{model_config_str}': '{config_name}'")
+                        if is_regex_pattern:
+                            logger.info(f"Using regex match for '{model_config_str}': '{config_name}'")
+                        else:
+                            logger.info(f"Using partial match for '{model_config_str}': '{config_name}'")
                     elif len(partial_matches) > 1:
                         # Multiple partial matches - require more specific selection
                         config_list = [match[0] for match in partial_matches[:3]]

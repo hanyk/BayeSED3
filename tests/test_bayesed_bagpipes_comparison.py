@@ -1,4 +1,4 @@
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams, MultiNestParams, SNRmin2Params
+from bayesed import SEDInference, BayeSEDParams, BayeSEDResults, ZParams, RDFParams, SysErrParams, MultiNestParams, SNRmin2Params
 from astropy.table import Table, join, hstack, vstack
 import bagpipes as pipes
 import numpy as np
@@ -1424,7 +1424,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                     codes_nmad = 1.4826 * codes_mad  # Convert MAD to equivalent standard deviation
                     codes_outlier_mask = np.abs(codes_residuals - codes_median) > 3 * codes_nmad
                     codes_outliers = np.sum(codes_outlier_mask)
-                    
+
                     # Calculate robust statistics excluding outliers
                     inlier_mask = ~codes_outlier_mask
                     if np.sum(inlier_mask) > 2:  # Need at least 3 points for correlation
@@ -1436,7 +1436,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                         correlation_codes = np.corrcoef(bayesed_vals, bagpipes_vals)[0, 1]
                         bias_codes = np.mean(bagpipes_vals - bayesed_vals)
                         rms_codes = np.sqrt(np.mean((bagpipes_vals - bayesed_vals)**2))
-                    
+
                     stats_dict['codes'] = {
                         'correlation': correlation_codes,
                         'bias': bias_codes,
@@ -1447,7 +1447,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
 
                 if x_axis_stats in ['both', 'x_axis']:
                     # Individual codes vs x-axis parameter with robust statistics
-                    
+
                     # BayeSED vs x-axis robust statistics
                     bayesed_residuals = bayesed_vals - x_axis_vals
                     bayesed_median = np.median(bayesed_residuals)
@@ -1455,7 +1455,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                     bayesed_nmad = 1.4826 * bayesed_mad  # Convert MAD to equivalent standard deviation
                     bayesed_outlier_mask = np.abs(bayesed_residuals - bayesed_median) > 3 * bayesed_nmad
                     bayesed_outliers = np.sum(bayesed_outlier_mask)
-                    
+
                     bayesed_inlier_mask = ~bayesed_outlier_mask
                     if np.sum(bayesed_inlier_mask) > 2:  # Need at least 3 points for correlation
                         correlation_bayesed_x = np.corrcoef(x_axis_vals[bayesed_inlier_mask], bayesed_vals[bayesed_inlier_mask])[0, 1]
@@ -1474,7 +1474,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                     bagpipes_nmad = 1.4826 * bagpipes_mad  # Convert MAD to equivalent standard deviation
                     bagpipes_outlier_mask = np.abs(bagpipes_residuals - bagpipes_median) > 3 * bagpipes_nmad
                     bagpipes_outliers = np.sum(bagpipes_outlier_mask)
-                    
+
                     bagpipes_inlier_mask = ~bagpipes_outlier_mask
                     if np.sum(bagpipes_inlier_mask) > 2:  # Need at least 3 points for correlation
                         correlation_bagpipes_x = np.corrcoef(x_axis_vals[bagpipes_inlier_mask], bagpipes_vals[bagpipes_inlier_mask])[0, 1]
@@ -1498,7 +1498,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                         'rms': rms_bagpipes_x,
                         'label': f'BAGPIPES vs {current_x_label}'
                     }
-                    
+
                     # Store outlier counts for x-axis statistics
                     outlier_details['bayesed_x'] = bayesed_outliers
                     outlier_details['bagpipes_x'] = bagpipes_outliers
@@ -1555,7 +1555,7 @@ def plot_parameter_scatter(bayesed_results, bagpipes_cat_file, bayesed_params, b
                 codes_mad = np.median(np.abs(codes_residuals - codes_median))
                 codes_nmad = 1.4826 * codes_mad  # Convert MAD to equivalent standard deviation
                 codes_outlier_mask = np.abs(codes_residuals - codes_median) > 3 * codes_nmad
-                
+
                 # Calculate robust statistics excluding outliers
                 inlier_mask = ~codes_outlier_mask
                 if np.sum(inlier_mask) > 2:  # Need at least 3 points for correlation
@@ -1783,7 +1783,7 @@ Examples:
         print("Warning: No selected filters file found. Looking for: filters_selected_csst.txt, filters_selected.txt")
 
     # Initialize interface
-    bayesed = BayeSEDInterface(mpi_mode='1')
+    bayesed = SEDInference()
 
     # Simple galaxy fitting with no_photometry_fit=True (fit spectra only)
     ssp='bc2003_hr_stelib_chab_neb_300r'
@@ -1833,14 +1833,13 @@ Examples:
 
 
     # Run analysis
-    result = bayesed.run(params)
+    results = bayesed.run(params)
+    results.print_summary()
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
     cat_name = BayeSEDDataLoader.extract_catalog_name(input_file)
 
-    results = BayeSEDResults(output_dir, catalog_name=cat_name,model_config=ssp)
-    results.print_summary()
 
     # Get available objects for plotting
     available_objects = results.list_objects()

@@ -10,6 +10,7 @@ __version__ = "3.0.0"
 from .core import (
     BayeSEDParams,
     BayeSEDInterface,
+    BayeSEDExecution,
     BayeSEDValidationError,
     BayeSEDExecutionError,
 )
@@ -101,7 +102,8 @@ __all__ = [
     # Core classes
     'BayeSEDParams',
     'BayeSEDInterface',
-    'BayeSEDResults',  # Enhanced version from results module
+    'BayeSEDExecution',  # Execution metadata from run()
+    'BayeSEDResults',    # Scientific results from load_results()
     'BayeSEDValidationError',
     'BayeSEDExecutionError',
 

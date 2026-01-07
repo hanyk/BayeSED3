@@ -325,12 +325,12 @@ class SEDInference:
         
         # Execute fit - create interface with MPI settings
         interface = BayeSEDInterface(mpi_mode=mpi_mode or '1', np=np, Ntest=Ntest)
-        interface.run(params, validate=validate, auto_select_mpi_mode=auto_select_mpi_mode)
+        execution = interface.run(params, validate=validate, auto_select_mpi_mode=auto_select_mpi_mode)
         
-        # Load and return results with proper catalog name
-        return self.load_results(params.outdir, params)
+        # Load and return results with extracted model configs
+        return self.load_results(params.outdir, params, execution.model_configs)
     
-    def load_results(self, output_dir: str, params: 'BayeSEDParams' = None):
+    def load_results(self, output_dir: str, params: 'BayeSEDParams' = None, model_configs: list = None):
         """
         Load results from output directory.
         
@@ -342,6 +342,10 @@ class SEDInference:
             BayeSEDParams object to extract catalog name from input file.
             If provided, catalog name will be extracted from params.input_file
             and passed to BayeSEDResults for more reliable initialization.
+        model_configs : list of str, optional
+            List of model configuration names extracted from execution output.
+            For multiple configs, they will be combined with AND logic to match
+            HDF5 files that contain all components.
         
         Returns
         -------
@@ -366,5 +370,23 @@ class SEDInference:
                     f"BayeSEDResults will attempt auto-detection."
                 )
         
-        return BayeSEDResults(output_dir, catalog_name=catalog_name)
+        # Combine model configs for matching
+        model_config_pattern = None
+        if model_configs and len(model_configs) > 0:
+            if len(model_configs) == 1:
+                # Single model config - use as is
+                model_config_pattern = model_configs[0]
+            else:
+                # Multiple model configs - combine with AND logic using regex
+                # Create a pattern that requires all components to be present
+                # Example: for configs ['csp_sfh201_bc2003', 'agn_disk_bbb'], 
+                # create pattern that matches files containing both
+                import re
+                # Escape special regex characters in each config
+                escaped_configs = [re.escape(config) for config in model_configs]
+                # Create positive lookahead pattern for each config (AND logic)
+                lookaheads = [f"(?=.*{config})" for config in escaped_configs]
+                model_config_pattern = "".join(lookaheads) + ".*"
+        
+        return BayeSEDResults(output_dir, catalog_name=catalog_name, model_config=model_config_pattern)
 

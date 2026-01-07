@@ -44,6 +44,34 @@ from .utils import (
 # Import plotting function
 from .plotting import plot_bestfit
 
+@dataclass
+class BayeSEDExecution:
+    """
+    Execution result object returned by BayeSEDInterface.run containing both process information
+    and extracted model configuration details from the execution output.
+    
+    This class represents the execution metadata and parsed configuration information,
+    not the scientific results (which are accessed via BayeSEDResults).
+    
+    Attributes
+    ----------
+    process : subprocess.Popen
+        The completed subprocess object
+    model_configs : list of str
+        List of extracted model configuration names (without [*,*] suffix)
+    free_parameters : list of dict
+        List of free parameters with their properties (id, name, min, max, model_config)
+    derived_parameters : list of dict
+        List of derived parameters with their properties (id, name, model_config)
+    output_text : str
+        Complete captured output text
+    """
+    process: subprocess.Popen
+    model_configs: List[str] = field(default_factory=list)
+    free_parameters: List[dict] = field(default_factory=list)
+    derived_parameters: List[dict] = field(default_factory=list)
+    output_text: str = ""
+
 
 
 class IDConstants:
@@ -2021,6 +2049,95 @@ class BayeSEDInterface:
                 raise  # Re-raise validation errors
             print(f"Warning: Could not validate CPU constraint: {e}")
 
+    def _parse_model_info(self, output_text):
+        """
+        Parse model configuration and parameter information from BayeSED output.
+        
+        Handles multiple model components, each with their own parameter sections.
+        
+        Parameters
+        ----------
+        output_text : str
+            Complete output text from BayeSED execution
+            
+        Returns
+        -------
+        tuple
+            (model_configs, free_parameters, derived_parameters)
+        """
+        import re
+        
+        model_configs = []
+        free_parameters = []
+        derived_parameters = []
+        
+        lines = output_text.split('\n')
+        
+        current_model_config = None
+        in_free_params = False
+        in_derived_params = False
+        
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            # Look for model configuration line
+            match = re.search(r'Full list of inputted and derived parameters for model (.+?)\[[\d,]+\]', line)
+            if match:
+                current_model_config = match.group(1)
+                model_configs.append(current_model_config)
+                in_free_params = False
+                in_derived_params = False
+                continue
+            
+            # Start of free parameters section
+            if line_stripped.startswith('id: name min max'):
+                in_free_params = True
+                in_derived_params = False
+                continue
+            
+            # Start of derived parameters section  
+            if line_stripped.startswith('id: name') and not line_stripped.startswith('id: name min max'):
+                in_free_params = False
+                in_derived_params = True
+                continue
+                
+            # End of parameters section (dashes or empty line or new model section)
+            if (line_stripped.startswith('-----') or 
+                line_stripped == '' or 
+                'Full list of inputted and derived parameters for model' in line):
+                if line_stripped.startswith('-----'):
+                    in_free_params = False
+                    in_derived_params = False
+                continue
+            
+            # Parse free parameters
+            if in_free_params and line_stripped and not line_stripped.startswith('-----'):
+                # Format: "0: log(age/yr)[0,0] 8 10.1284"
+                match = re.match(r'^(\d+):\s+(.+?)\s+([\d.-]+)\s+([\d.-]+)$', line_stripped)
+                if match:
+                    param_id, name, min_val, max_val = match.groups()
+                    free_parameters.append({
+                        'id': int(param_id),
+                        'name': name,
+                        'min': float(min_val),
+                        'max': float(max_val),
+                        'model_config': current_model_config
+                    })
+            
+            # Parse derived parameters
+            if in_derived_params and line_stripped and not line_stripped.startswith('-----'):
+                # Format: "0: log(scale)[0,0]"
+                match = re.match(r'^(\d+):\s+(.+)$', line_stripped)
+                if match:
+                    param_id, name = match.groups()
+                    derived_parameters.append({
+                        'id': int(param_id),
+                        'name': name,
+                        'model_config': current_model_config
+                    })
+        
+        return model_configs, free_parameters, derived_parameters
+
     def run(self, params, validate=True, auto_select_mpi_mode=None):
         """
         Run BayeSED analysis.
@@ -2037,8 +2154,13 @@ class BayeSEDInterface:
 
         Returns
         -------
-        subprocess.CompletedProcess
-            Result of the subprocess execution
+        BayeSEDExecution
+            Execution object containing:
+            - process: subprocess.Popen object
+            - model_configs: list of extracted model configuration names
+            - free_parameters: list of free parameters with id, name, min, max, model_config
+            - derived_parameters: list of derived parameters with id, name, model_config
+            - output_text: complete captured output
         """
         if isinstance(params, list):
             args = params
@@ -2241,7 +2363,18 @@ class BayeSEDInterface:
                 print("\nTo load results, use:")
                 print(f"  results = bayesed.load_results('{params.outdir}')")
                 print("=" * 70 + "\n")
-                return self.process
+                
+                # Parse model information from output
+                model_configs, free_params, derived_params = self._parse_model_info(output_text)
+                
+                # Return enhanced execution object
+                return BayeSEDExecution(
+                    process=self.process,
+                    model_configs=model_configs,
+                    free_parameters=free_params,
+                    derived_parameters=derived_params,
+                    output_text=output_text
+                )
             else:
                 # Raise a more informative error
                 error_msg = self._parse_error_message(output_text, self.process.returncode)
