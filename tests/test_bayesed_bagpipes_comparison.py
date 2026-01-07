@@ -685,6 +685,18 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                 # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals)
                 print(f"  Applied log10 to BAGPIPES SFR for consistency with BayeSED3")
+            if 'log(Z/Zsun)' in bayesed_param and 'metallicity' in bagpipes_param:
+                # BayeSED3 SFR is already in log scale, BAGPIPES metallicity needs log conversion
+                bagpipes_vals = np.log10(bagpipes_vals)
+                print(f"  Applied log10 to BAGPIPES metallicity for consistency with BayeSED3")
+            if 'log(age/yr)' in bayesed_param and 'exponential:age' in bagpipes_param:
+                # BayeSED3 SFR is already in log scale, BAGPIPES age needs log conversion
+                bagpipes_vals = np.log10(bagpipes_vals*1e9)
+                print(f"  Applied log10 to BAGPIPES age for consistency with BayeSED3")
+            if 'log(tau/yr)' in bayesed_param and 'exponential:tau' in bagpipes_param:
+                # BayeSED3 SFR is already in log scale, BAGPIPES tau needs log conversion
+                bagpipes_vals = np.log10(bagpipes_vals*1e9)
+                print(f"  Applied log10 to BAGPIPES tau for consistency with BayeSED3")
 
             bayesed_data.append(bayesed_vals)
             bagpipes_data.append(bagpipes_vals)
@@ -760,11 +772,11 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         # Use BayeSED's plotting style for better comparison visibility
         g.settings.figure_legend_frame = True
         g.settings.figure_legend_loc = 'upper right'
-        g.settings.legend_fontsize = 18
-        g.settings.axes_fontsize = 18
-        g.settings.lab_fontsize = 18
+        g.settings.legend_fontsize = 22
+        g.settings.axes_fontsize = 22
+        g.settings.lab_fontsize = 24
         g.settings.tight_layout = True
-        g.settings.axes_labelsize = 20
+        g.settings.axes_labelsize = 24
 
         # Use BayeSED's plotting approach with samples list
         samples_list = [bayesed_filtered_mcsamples, bagpipes_mcsamples]
@@ -1786,14 +1798,14 @@ Examples:
         dal_law='calzetti',
         ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
         ssp_i1=1,                 #enable nebular emission
-        sfh_itype_ceh=1,          #Chemical evolution enabled (metallicity evolves with time)
+        sfh_itype_ceh=1,          #Chemical evolution enabled (0: constant metallicity, 1: metallicity evolves with time)
         no_photometry_fit=True,   # Skip photometry fitting
         no_spectra_fit=False      # Fit spectra (default)
     )
 
     # Set redshift prior to match BAGPIPES range (0.0 to 2.0)
     params.z = ZParams(
-        iprior_type=3,
+        iprior_type=1,
         min=0.0,
         max=2.0,
     )
@@ -1855,7 +1867,7 @@ Examples:
     exp["tau_prior"] = "log_10"
     exp["massformed"] = (5., 12.) # log_10(mass formed)
     exp["metallicity"] = (0.005, 5.0) # Zsun
-    # exp["metallicity_prior"] = "log_10"
+    exp["metallicity_prior"] = "log_10"
 
     dust = {}
     dust["type"] = "Calzetti"
@@ -1872,10 +1884,10 @@ Examples:
     base_fit_instructions["veldisp"] = 300  #km/s
 
     noise = {}
-    # noise["type"] = "white_scaled"
-    # noise["scaling"] = (1., 1.5)
-    # noise["scaling_prior"] = "log_10"
-    # base_fit_instructions["noise"] = noise
+    noise["type"] = "white_scaled"
+    noise["scaling"] = (1., 1.5)
+    noise["scaling_prior"] = "log_10"
+    base_fit_instructions["noise"] = noise
 
 
     resolution_curve = data_loader.get_resolution_curve(IDs[0])
@@ -1886,9 +1898,19 @@ Examples:
     # plt.ylabel("Spectral resolving power")
     # plt.show()
 
-    bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
-    bagpipes_params = ['redshift', 'stellar_mass', 'sfr']
-    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+    bayesed_params = ['z', 'log(Mstar)[0,0]', 'log(age/yr)[0,0]', 'log(Z/Zsun)[0,0]', 'log(tau/yr)[0,0]','Av_2[0,0]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,0]']
+    bagpipes_params = ['redshift', 'stellar_mass','exponential:age','exponential:metallicity','exponential:tau','dust:Av', 'sfr']
+    true_value_params = ['z_{True}', 'log(Mstar)[0,1]_{True}', 'log(age/yr)[0,1]_{True}', 'log(Z/Zsun)[0,1]_{True}', 'log(tau/yr)[0,1]_{True}','Av_2[0,1]_{True}', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]_{True}']
+    labels1 = [r'$z$', r'$\log(\mathrm{M_{\star}}/M_{\odot})$', r'$\log(age/\mathrm{yr})$', r'$\log(Z/\mathrm{Z_{\odot}})$', r'$\log(\tau/\mathrm{yr})$', r'$A_\mathrm{V}$', r'$\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})$']
+    labels2 = [r'z', r'\log(\mathrm{M_{\star}}/M_{\odot})', r'\log(age/\mathrm{yr})', r'\log(Z/\mathrm{Z_{\odot}})', r'\log(\tau/\mathrm{yr})', r'A_\mathrm{V}', r'\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
+    selected=[0,1,2,3,4,5]
+    bayesed_params = list(map(lambda x: bayesed_params[x],selected))
+    bagpipes_params = list(map(lambda x: bagpipes_params[x],selected))
+    true_value_params = list(map(lambda x: true_value_params[x],selected))
+    labels1 = list(map(lambda x: labels1[x],selected))
+    labels2 = list(map(lambda x: labels2[x],selected))
+
+
     if bagpipes_fit_cat:
         fit_cat = pipes.fit_catalogue(IDs, fit_instructions, data_loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=True)
         fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
@@ -1897,7 +1919,6 @@ Examples:
         # Define comparison parameters (used by both plot_parameter_scatter and plot_posterior_corner_comparison)
         bayesed_params1 = [ i+"_{median}" for i in bayesed_params ]
         bagpipes_params1 = [ i+"_50" for i in bagpipes_params ]
-        labels1 = [r'$z$', r'$\log(M_{\star}\, /\, \mathrm{M}_{\odot})$', r'$\log(\mathrm{SFR}\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})$']
 
         # # Create parameter scatter comparison plot using all objects
         print(f"\n=== Creating Parameter Scatter Comparison Plot ===")
@@ -1916,7 +1937,6 @@ Examples:
             catalog_name=cat_name
         )
     else:
-        labels = [r'z', r'\log(M_{\star}\, /\, \mathrm{M}_{\odot})', r'\log(SFR\, /\, \mathrm{M}_{\odot}\, \mathrm{yr}^{-1})']
         for ID in IDs:
         # for ID in []:
             # Get object-specific resolution curve
@@ -1941,9 +1961,9 @@ Examples:
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
-            obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels, verbose=True)
+            obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels2, verbose=True)
 
-            plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels, obj_true_values,range_confidence=0.0,min_weight_ratio=0.0)
+            plot_posterior_corner_comparison(results, fit, ID, bayesed_params, bagpipes_params, labels2, obj_true_values,range_confidence=0.01,min_weight_ratio=0.0)
 
 
 

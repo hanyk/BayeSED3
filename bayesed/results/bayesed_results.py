@@ -2701,7 +2701,7 @@ class BayeSEDResults:
             derived_params = self.get_derived_parameters()
 
             print("Parameter Summary:")
-            print(f"  Total Parameters: {len(all_params)}")
+            print(f"  HDF5 Columns: {len(all_params)}")
             print(f"  Free Parameters: {len(free_params)}")
             print(f"  Derived Parameters: {len(derived_params)}")
             print()
