@@ -327,10 +327,10 @@ class SEDInference:
         interface = BayeSEDInterface(mpi_mode=mpi_mode or '1', np=np, Ntest=Ntest)
         interface.run(params, validate=validate, auto_select_mpi_mode=auto_select_mpi_mode)
         
-        # Load and return results
-        return self.load_results(params.outdir)
+        # Load and return results with proper catalog name
+        return self.load_results(params.outdir, params)
     
-    def load_results(self, output_dir: str):
+    def load_results(self, output_dir: str, params: 'BayeSEDParams' = None):
         """
         Load results from output directory.
         
@@ -338,6 +338,10 @@ class SEDInference:
         ----------
         output_dir : str
             Output directory path
+        params : BayeSEDParams, optional
+            BayeSEDParams object to extract catalog name from input file.
+            If provided, catalog name will be extracted from params.input_file
+            and passed to BayeSEDResults for more reliable initialization.
         
         Returns
         -------
@@ -346,5 +350,21 @@ class SEDInference:
         """
         # Import here to avoid circular dependency
         from .results import BayeSEDResults
-        return BayeSEDResults(output_dir)
+        
+        catalog_name = None
+        if params and params.input_file:
+            try:
+                # Extract catalog name from input file for more reliable results loading
+                from .utils import extract_catalog_name
+                catalog_name = extract_catalog_name(params.input_file)
+            except Exception as e:
+                # If extraction fails, let BayeSEDResults auto-detect
+                # This provides a fallback while still attempting the more reliable method
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Could not extract catalog name from {params.input_file}: {e}. "
+                    f"BayeSEDResults will attempt auto-detection."
+                )
+        
+        return BayeSEDResults(output_dir, catalog_name=catalog_name)
 

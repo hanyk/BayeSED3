@@ -193,6 +193,62 @@ def _to_array(data):
     return np.asarray(data)
 
 
+def extract_catalog_name(input_file):
+    """
+    Extract catalog name from the first line of BayeSED input file.
+
+    This function reads only the first line of the input file to efficiently
+    extract the catalog name from the header comment.
+
+    Parameters
+    ----------
+    input_file : str
+        Path to the BayeSED input file
+
+    Returns
+    -------
+    str
+        Catalog name extracted from the first comment line
+
+    Raises
+    ------
+    FileNotFoundError
+        If the input file does not exist
+    ValueError
+        If the file format is not as expected or catalog name cannot be extracted
+
+    Examples
+    --------
+    >>> catalog_name = extract_catalog_name('observation/test/gal.txt')
+    >>> print(catalog_name)  # 'gal'
+    """
+    try:
+        with open(input_file, 'r') as f:
+            first_line = f.readline().strip()
+
+        # Check if it's a comment line starting with #
+        if not first_line.startswith('#'):
+            raise ValueError(f"Expected first line to be a comment (starting with #), got: {first_line}")
+
+        # Parse the header line to extract catalog name
+        # Expected format: # cat_name Nphot Nother Nspec
+        parts = first_line[1:].strip().split()  # Remove # and split
+        
+        if len(parts) < 4:
+            raise ValueError(f"Header line should have at least 4 parts (cat_name Nphot Nother Nspec), got: {parts}")
+        
+        catalog_name = parts[0]
+        
+        if not catalog_name:
+            raise ValueError("Catalog name is empty in header line")
+            
+        return catalog_name
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+    except Exception as e:
+        raise ValueError(f"Error reading catalog name from {input_file}: {e}")
+
 
 def create_input_catalog(
 
