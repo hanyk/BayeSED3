@@ -1905,11 +1905,11 @@ Examples:
 
 
     # Run analysis
-    results = bayesed.run(params,np=1)
+    results = bayesed.run(params,np=10)
     results.print_summary()
 
     params.sfh[0].itype_ceh = 1
-    results1 = bayesed.run(params,np=1)
+    results1 = bayesed.run(params,np=10)
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
@@ -1988,8 +1988,8 @@ Examples:
 
     if bagpipes_fit_cat:
         fit_cat = pipes.fit_catalogue(IDs, fit_instructions, data_loader.load_spectrum_only, photometry_exists=False, run=cat_name, make_plots=True)
-        fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=20, n_live=400)
-        # fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=True, n_live=400) #multiple objects are fitted at once, each using one core
+        fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=False, pool=10)
+        # fit_cat.fit(verbose=True, sampler='nautilus', mpi_serial=True) #multiple objects are fitted at once, each using one core
 
         # Define comparison parameters (used by both plot_parameter_scatter and plot_posterior_corner_comparison)
         bayesed_params1 = [ i+"_{median}" for i in bayesed_params ]
@@ -2027,8 +2027,8 @@ Examples:
             # Fit individual galaxy with timing
             fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
             t0 = time.time()
-            # fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
-            fit.fit(verbose=True, sampler='multinest', n_live=40)
+            fit.fit(verbose=True, sampler='nautilus', pool=10)
+            # fit.fit(verbose=True, sampler='multinest')
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
