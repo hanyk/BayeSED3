@@ -594,7 +594,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
     true_values = [10.5, -1.2, 0.3]  # True parameter values to mark
     plot_posterior_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params,
                           labels, true_values, range_confidence=0)  # Use full data range
-    
+
     # Multiple BayeSED results comparison with custom labels
     bayesed_results_list = [results1, results2, results3]
     bayesed_labels = ['BayeSED3 (Model A)', 'BayeSED3 (Model B)', 'BayeSED3 (Model C)']
@@ -632,7 +632,8 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             print(f"Using default BayeSED3 labels: {bayesed_labels}")
 
         # Get BayeSED3 posterior samples from the first results object to check parameters
-        first_bayesed_samples = bayesed_results_list[0].get_posterior_samples(object_id=object_id)
+        analysis_settings = configure_getdist_settings(range_confidence=range_confidence,min_weight_ratio=min_weight_ratio,contours=contours)
+        first_bayesed_samples = bayesed_results_list[0].get_posterior_samples(object_id=object_id,settings=analysis_settings)
 
         # Get available parameters from both codes
         if hasattr(first_bayesed_samples, 'samples'):
@@ -733,9 +734,9 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             # Extract BayeSED3 data from all results objects
             bayesed_param_data = []
             for j, bayesed_result in enumerate(bayesed_results_list):
-                bayesed_samples = bayesed_result.get_posterior_samples(object_id=object_id)
+                bayesed_samples = bayesed_result.get_posterior_samples(object_id=object_id,settings=analysis_settings)
                 sample_array = bayesed_samples.samples
-                
+
                 # Get parameter names for this results object (parameters may be in different order)
                 if hasattr(bayesed_samples, 'paramNames'):
                     if hasattr(bayesed_samples.paramNames, 'names'):
@@ -744,7 +745,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                         param_names = [p.name for p in bayesed_samples.paramNames]
                 else:
                     param_names = bayesed_param_names  # Use the first one as fallback
-                
+
                 bayesed_idx = param_names.index(bayesed_param)
                 bayesed_vals = sample_array[:, bayesed_idx]
                 bayesed_param_data.append(bayesed_vals)
@@ -766,7 +767,6 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         print(f"\nCreating GetDist corner plot with {len(final_labels)} parameters: {final_labels}")
 
         # Configure GetDist analysis settings
-        analysis_settings = configure_getdist_settings(range_confidence=range_confidence,min_weight_ratio=min_weight_ratio,contours=contours)
         print(f"Using GetDist range_confidence = {range_confidence} ({(1-range_confidence)*100:.1f}% confidence ranges)")
 
         # Create BAGPIPES MCSamples object
@@ -787,23 +787,23 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         # Create BayeSED3 MCSamples objects for each results object
         bayesed_mcsamples_list = []
         samples_list = []
-        
+
         # Define line styles for reference
         bayesed_line_styles = ['-', '--', '-.', ':']  # solid, dashed, dash-dot, dotted
         line_style_names = ['solid', 'dashed', 'dash-dot', 'dotted']
-        
+
         for j, bayesed_result in enumerate(bayesed_results_list):
             # Extract samples for this BayeSED results object
             bayesed_samples_for_this_result = []
             for param_data in bayesed_data_list:
                 bayesed_samples_for_this_result.append(param_data[j])
-            
+
             bayesed_samples_array = np.column_stack(bayesed_samples_for_this_result)
             print(f"BayeSED3 results {j+1} samples shape: {bayesed_samples_array.shape}")
-            
+
             # Create name tag for this BayeSED results object using custom or default labels
             base_name_tag = bayesed_labels[j]
-            
+
             # Add line style indicator to the name tag if we have multiple BayeSED results
             if len(bayesed_results_list) > 1:
                 line_style_idx = j % len(bayesed_line_styles)
@@ -811,13 +811,13 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                 name_tag = f"{base_name_tag}, {line_style_name}"
             else:
                 name_tag = base_name_tag
-            
+
             bayesed_mcsamples = MCSamples(samples=bayesed_samples_array,
                                         names=clean_names,
                                         labels=final_labels,
                                         name_tag=name_tag,
                                         settings=analysis_settings)
-            
+
             bayesed_mcsamples_list.append(bayesed_mcsamples)
             samples_list.append(bayesed_mcsamples)
 
@@ -838,7 +838,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
 
         # Set plotting options for better comparison visibility
         n_bayesed = len(bayesed_results_list)
-        
+
         # Define colors and line styles for multiple BayeSED results and BAGPIPES
         if n_bayesed == 1:
             contour_colors = ['#F24236', 'dodgerblue']  # BayeSED3 red, BAGPIPES dodgerblue
@@ -847,10 +847,10 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             # Use same red color but different line styles for multiple BayeSED results
             bayesed_colors = ['#F24236'] * n_bayesed  # Same red for all BayeSED results
             bayesed_line_styles = ['-', '--', '-.', ':']  # solid, dashed, dash-dot, dotted
-            
+
             # Cycle through line styles if we have more BayeSED results than styles
             bayesed_ls = [bayesed_line_styles[i % len(bayesed_line_styles)] for i in range(n_bayesed)]
-            
+
             contour_colors = bayesed_colors + ['dodgerblue']  # BAGPIPES dodgerblue at the end
             contour_ls = bayesed_ls + ['-']  # BAGPIPES gets solid line
 
@@ -1875,11 +1875,11 @@ Examples:
         no_spectra_fit=False      # Fit spectra (default)
     )
 
-    # Set redshift prior to match BAGPIPES range (0.0 to 2.0)
+    # Set redshift prior
     params.z = ZParams(
         iprior_type=1,
         min=0.0,
-        max=2.0,
+        max=1.25,
     )
 
     # Set RDF parameters for modeling sigma_diff between observed spectra and model
@@ -1890,11 +1890,11 @@ Examples:
     )
 
     # Set systematic error for model
-    params.sys_err_mod = SysErrParams(
-        iprior_type=3,    # Prior type (1=uniform, 3=linear-decreasing)
-        min=0.01,         # Minimum fractional systematic error
-        max=0.05,          # Maximum fractional systematic error
-    )
+    # params.sys_err_mod = SysErrParams(
+        # iprior_type=3,    # Prior type (1=uniform, 3=linear-decreasing)
+        # min=0.01,         # Minimum fractional systematic error
+        # max=0.09,          # Maximum fractional systematic error
+    # )
     params.multinest = MultiNestParams(
         nlive=40,          # Good balance of speed/accuracy
         efr=0.1,            # Moderate efficiency
@@ -1905,11 +1905,11 @@ Examples:
 
 
     # Run analysis
-    results = bayesed.run(params)
+    results = bayesed.run(params,np=1)
     results.print_summary()
 
     params.sfh[0].itype_ceh = 1
-    results1 = bayesed.run(params)
+    results1 = bayesed.run(params,np=1)
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
@@ -1952,17 +1952,17 @@ Examples:
     nebular["logU"] = -2.3
 
     base_fit_instructions = {}
-    base_fit_instructions["redshift"] = (0., 2.)
+    base_fit_instructions["redshift"] = (0., 1.25)
     base_fit_instructions["exponential"] = exp
     base_fit_instructions["dust"] = dust
     base_fit_instructions["nebular"] = nebular
     base_fit_instructions["veldisp"] = 300  #km/s
 
     noise = {}
-    noise["type"] = "white_scaled"
-    noise["scaling"] = (1., 1.2)
+    # noise["type"] = "white_scaled"
+    # noise["scaling"] = (1., 1.2)
     # noise["scaling_prior"] = "log_10"
-    base_fit_instructions["noise"] = noise
+    # base_fit_instructions["noise"] = noise
 
 
     resolution_curve = data_loader.get_resolution_curve(IDs[0])
@@ -2027,8 +2027,8 @@ Examples:
             # Fit individual galaxy with timing
             fit = pipes.fit(galaxy, fit_instructions, run=f"{cat_name}_{ID}")
             t0 = time.time()
-            fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
-            #fit.fit(verbose=True, sampler='multinest', n_live=40, pool=20)
+            # fit.fit(verbose=True, sampler='nautilus', n_live=400, pool=20)
+            fit.fit(verbose=True, sampler='multinest', n_live=40)
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
@@ -2038,7 +2038,7 @@ Examples:
             print(f"\nGenerating corner comparison plot for object {ID}...")
             obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels2, verbose=True)
 
-            plot_posterior_corner_comparison([results1,results], fit, ID, bayesed_params, bagpipes_params, labels2, obj_true_values,range_confidence=0.01,min_weight_ratio=0.0,bayesed_labels=['BayeSED3(CEH=1)', 'BayeSED3(CEH=0)'])
+            plot_posterior_corner_comparison([results1,results], fit, ID, bayesed_params, bagpipes_params, labels2, obj_true_values,range_confidence=0.0,min_weight_ratio=0.0,bayesed_labels=['BayeSED3(CEH=1)', 'BayeSED3(CEH=0)'])
 
 
 
