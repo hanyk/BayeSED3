@@ -379,12 +379,29 @@ class BayeSEDDataLoader:
 # # Or for batch processing:
 # results = loader.preload_objects(object_list)
 
-def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=True, runtime_s=None):
+def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, show=True, runtime_s=None, suffix=None):
     """Plot spectrum posterior with residuals as a tight stacked subplot.
 
     The top panel shows the observed spectrum and model posterior (median and 1σ).
     The bottom panel shows residuals (data − model) / error, sharing the x-axis
     with no vertical spacing between panels.
+    
+    Parameters:
+    -----------
+    fit : bagpipes.fit
+        BAGPIPES fit object
+    ID : str
+        Object ID
+    run_name : str, optional
+        Run name (not currently used)
+    save : bool, default=True
+        Whether to save the plot
+    show : bool, default=True
+        Whether to display the plot
+    runtime_s : float, optional
+        Runtime in seconds to display in title
+    suffix : str, optional
+        Suffix to add to the output filename (before .png extension)
     """
 
     # Match font sizes with plot_bestfit.py
@@ -413,7 +430,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
     ymax = 1.05 * np.max(spectrum[:, 1])
     y_scale = float(int(np.log10(ymax)) - 1)
 
-    wavs = spectrum[:, 0]
+    wavs = spectrum[:, 0] / 1e4  # Convert from Angstroms to micrometers
     obs_flux = spectrum[:, 1] * 10 ** (-y_scale)
     obs_err = spectrum[:, 2] * 10 ** (-y_scale)
 
@@ -426,7 +443,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
         full_wavs = fit.posterior.model_galaxy.wavelengths
         full_spec_samples = fit.posterior.samples["spectrum_full"]  # (Nsamples, Nfull)
         spec_post = np.array([
-            np.interp(spectrum[:, 0], full_wavs, s) for s in full_spec_samples
+            np.interp(spectrum[:, 0] / 1e4, full_wavs / 1e4, s) for s in full_spec_samples
         ])
     else:
         raise KeyError("Posterior samples do not contain 'spectrum' or 'spectrum_full'.")
@@ -476,7 +493,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
     # title = f"ID={fit.galaxy.ID}, z={redshift:.3f}, SNR={snr:.2f}, $\\chi^2_\\nu$={chi2_red:.2f}"
     # Append runtime if provided
     runtime_txt = f", runtime={runtime_s:.1f}s" if isinstance(runtime_s, (int, float)) else ""
-    title = f"ID={fit.galaxy.ID}, z={redshift:.3f}, $\\chi^2_\\nu$={chi2_red:.2f}{runtime_txt}"
+    title = f"ID={fit.galaxy.ID}, z_median={redshift:.3f}, $\\chi^2_\\nu$={chi2_red:.2f}{runtime_txt}"
     ax_main.set_title(title)
     # Annotate code used at the center of the top subplot
     ax_main.text(0.5, 0.5, "BAGPIPES", transform=ax_main.transAxes,
@@ -489,7 +506,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
     ax_resid.axhline(0.0, color="gray", lw=1.0, zorder=1)
     ax_resid.plot(wavs, resid, color="dodgerblue", lw=0.9, alpha=0.9, zorder=2)
     ax_resid.set_ylabel("(obs-mod)/err")
-    ax_resid.set_xlabel(r"$\lambda / \mathrm{\AA}$")
+    ax_resid.set_xlabel(r"$\lambda / \mathrm{\mu m}$")
     ax_resid.set_xlim(wavs[0], wavs[-1])
     # ax_resid.set_ylim(-5, 5)
 
@@ -500,7 +517,15 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
         # Save alongside bagpipes convention
         plot_dir = os.path.join("pipes", "plots", fit.run)
         os.makedirs(plot_dir, exist_ok=True)
-        out_path = os.path.join(plot_dir, f"{fit.galaxy.ID}_fit_with_residuals.png")
+        
+        # Build filename with optional suffix
+        base_filename = f"{fit.galaxy.ID}_fit_with_residuals"
+        if suffix:
+            filename = f"{base_filename}_{suffix}.png"
+        else:
+            filename = f"{base_filename}.png"
+        
+        out_path = os.path.join(plot_dir, filename)
         plt.savefig(out_path, bbox_inches="tight", dpi=400)
 
     if show:
@@ -549,7 +574,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                                 bayesed_params=None, bagpipes_params=None,
                                 labels=None, true_values=None, save=True, show=True,
                                 range_confidence=0,min_weight_ratio=0, contours=None, smooth_scale_1D=-1, smooth_scale_2D=-1,
-                                bayesed_labels=None):
+                                bayesed_labels=None, suffix=None):
     """Create corner plots comparing BayeSED3 and BAGPIPES posterior samples using GetDist.
 
     Parameters:
@@ -561,8 +586,10 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         BAGPIPES fit object
     object_id : str
         Object ID for comparison
-    bayesed_params : list of str, optional
-        List of BayeSED3 parameter names to plot.
+    bayesed_params : list of str or list of lists of str, optional
+        BayeSED3 parameter names to plot. Can be:
+        - Single list: same parameters used for all BayeSED results
+        - List of lists: different parameters for each BayeSED result (must match length of bayesed_results)
         If None, will print available parameters and return.
     bagpipes_params : list of str, optional
         List of BAGPIPES parameter names to plot (must match length of bayesed_params).
@@ -581,13 +608,15 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         Custom labels for different BayeSED3 results when multiple results are provided.
         Must match the length of bayesed_results if bayesed_results is a list.
         If None, uses default labels like 'BayeSED3' (single) or 'BayeSED3_1', 'BayeSED3_2', etc. (multiple).
+    suffix : str, optional
+        Suffix to add to the output filename (before .png extension)
 
     Example:
     --------
     # First run to see available parameters
     plot_posterior_corner_comparison(results, fit, object_id)
 
-    # Then specify parameters to compare with custom range confidence
+    # Same parameters for all results (original behavior)
     bayesed_params = ['log(Mstar)', 'log(SFR_{10Myr}/[M_{sun}/yr])', 'Av_2']
     bagpipes_params = ['stellar_mass', 'sfr', 'Av']
     labels = ['log(M*)', 'log(SFR)', 'Av']  # Note: SFR will be log-scaled for both
@@ -595,7 +624,11 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
     plot_posterior_corner_comparison(results, fit, object_id, bayesed_params, bagpipes_params,
                           labels, true_values, range_confidence=0)  # Use full data range
 
-    # Multiple BayeSED results comparison with custom labels
+    # Different parameters for each result (new behavior)
+    bayesed_params = [
+        ['log(Mstar)[0,0]', 'log(SFR_{10Myr}/[M_{sun}/yr][0,0])', 'Av_2[0,0]'],  # Result 1 params
+        ['log(Mstar)[1,0]', 'log(SFR_{10Myr}/[M_{sun}/yr])[1,0]', 'Av_2[1,0]']  # Result 2 params
+    ]
     bayesed_results_list = [results1, results2, results3]
     bayesed_labels = ['BayeSED3 (Model A)', 'BayeSED3 (Model B)', 'BayeSED3 (Model C)']
     plot_posterior_corner_comparison(bayesed_results_list, fit, object_id, bayesed_params, bagpipes_params,
@@ -676,21 +709,39 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             print(f"plot_posterior_corner_comparison(results, fit, '{object_id}', bayesed_params, bagpipes_params, labels)")
             return None
 
-        # Check parameter lists have same length
-        if len(bayesed_params) != len(bagpipes_params):
-            print(f"Error: bayesed_params ({len(bayesed_params)}) and bagpipes_params ({len(bagpipes_params)}) must have same length")
+        # Handle different parameter formats
+        # Check if bayesed_params is a list of lists (different params for each result)
+        if isinstance(bayesed_params[0], list):
+            # List of lists - different parameters for each result
+            if len(bayesed_params) != len(bayesed_results_list):
+                print(f"Error: When using list of lists, bayesed_params ({len(bayesed_params)}) must match number of results ({len(bayesed_results_list)})")
+                return None
+            
+            # Use the first result's parameters for determining plot structure
+            reference_params = bayesed_params[0]
+            bayesed_params_per_result = bayesed_params
+            print(f"Using different parameters for each result. Reference (first result): {reference_params}")
+        else:
+            # Single list - same parameters for all results
+            reference_params = bayesed_params
+            bayesed_params_per_result = [bayesed_params] * len(bayesed_results_list)
+            print(f"Using same parameters for all results: {reference_params}")
+
+        # Check parameter lists have same length (using reference params)
+        if len(reference_params) != len(bagpipes_params):
+            print(f"Error: reference bayesed_params ({len(reference_params)}) and bagpipes_params ({len(bagpipes_params)}) must have same length")
             return None
 
-        # Check true_values length if provided
-        if true_values is not None and len(true_values) != len(bayesed_params):
-            print(f"Error: true_values ({len(true_values)}) must match length of parameter lists ({len(bayesed_params)})")
+        # Check true_values length if provided (using reference params)
+        if true_values is not None and len(true_values) != len(reference_params):
+            print(f"Error: true_values ({len(true_values)}) must match length of reference parameter lists ({len(reference_params)})")
             return None
 
-        # Use bayesed_params as labels if not provided
+        # Use reference_params as labels if not provided
         if labels is None:
-            labels = bayesed_params
-        elif len(labels) != len(bayesed_params):
-            print(f"Error: labels ({len(labels)}) must match length of parameter lists ({len(bayesed_params)})")
+            labels = reference_params
+        elif len(labels) != len(reference_params):
+            print(f"Error: labels ({len(labels)}) must match length of reference parameter lists ({len(reference_params)})")
             return None
 
         # Collect specified parameters
@@ -699,12 +750,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         final_labels = []
         final_true_values = []  # Keep for GetDist markers
 
-        for i, (bayesed_param, bagpipes_param, label) in enumerate(zip(bayesed_params, bagpipes_params, labels)):
-            # Check BayeSED3 parameter
-            if bayesed_param not in bayesed_param_names:
-                print(f"Warning: BayeSED3 parameter '{bayesed_param}' not found, skipping")
-                continue
-
+        for i, (reference_param, bagpipes_param, label) in enumerate(zip(reference_params, bagpipes_params, labels)):
             # Check BAGPIPES parameter
             if bagpipes_param not in bagpipes_param_names:
                 print(f"Warning: BAGPIPES parameter '{bagpipes_param}' not found, skipping")
@@ -714,26 +760,31 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
             bagpipes_vals = bagpipes_fit.posterior.samples[bagpipes_param]
 
             # Handle SFR scaling consistency: BayeSED3 SFR is already log, BAGPIPES SFR needs log conversion
-            if 'SFR' in bayesed_param and 'sfr' in bagpipes_param:
+            if 'SFR' in reference_param and 'sfr' in bagpipes_param:
                 # BayeSED3 SFR is already in log scale, BAGPIPES SFR needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals)
                 print(f"  Applied log10 to BAGPIPES SFR for consistency with BayeSED3")
-            if 'log(Z/Zsun)' in bayesed_param and 'metallicity' in bagpipes_param:
+            if 'log(Z/Zsun)' in reference_param and 'metallicity' in bagpipes_param:
                 # BayeSED3 SFR is already in log scale, BAGPIPES metallicity needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals)
                 print(f"  Applied log10 to BAGPIPES metallicity for consistency with BayeSED3")
-            if 'log(age/yr)' in bayesed_param and 'exponential:age' in bagpipes_param:
+            if 'log(age/yr)' in reference_param and 'exponential:age' in bagpipes_param:
                 # BayeSED3 SFR is already in log scale, BAGPIPES age needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals*1e9)
                 print(f"  Applied log10 to BAGPIPES age for consistency with BayeSED3")
-            if 'log(tau/yr)' in bayesed_param and 'exponential:tau' in bagpipes_param:
+            if 'log(tau/yr)' in reference_param and 'exponential:tau' in bagpipes_param:
                 # BayeSED3 SFR is already in log scale, BAGPIPES tau needs log conversion
                 bagpipes_vals = np.log10(bagpipes_vals*1e9)
                 print(f"  Applied log10 to BAGPIPES tau for consistency with BayeSED3")
 
-            # Extract BayeSED3 data from all results objects
+            # Extract BayeSED3 data from all results objects using their specific parameters
             bayesed_param_data = []
+            valid_param = True
+            
             for j, bayesed_result in enumerate(bayesed_results_list):
+                # Get the specific parameter for this result
+                bayesed_param = bayesed_params_per_result[j][i]
+                
                 bayesed_samples = bayesed_result.get_posterior_samples(object_id=object_id,settings=analysis_settings)
                 sample_array = bayesed_samples.samples
 
@@ -746,19 +797,31 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
                 else:
                     param_names = bayesed_param_names  # Use the first one as fallback
 
+                # Check if this specific parameter exists for this result
+                if bayesed_param not in param_names:
+                    print(f"Warning: BayeSED3 parameter '{bayesed_param}' not found in result {j+1}, skipping this parameter for all results")
+                    valid_param = False
+                    break
+
                 bayesed_idx = param_names.index(bayesed_param)
                 bayesed_vals = sample_array[:, bayesed_idx]
                 bayesed_param_data.append(bayesed_vals)
 
-            bayesed_data_list.append(bayesed_param_data)
-            bagpipes_data.append(bagpipes_vals)
-            final_labels.append(label)
+            # Only add this parameter if it's valid for all results
+            if valid_param:
+                bayesed_data_list.append(bayesed_param_data)
+                bagpipes_data.append(bagpipes_vals)
+                final_labels.append(label)
 
-            # Add corresponding true value if provided
-            if true_values is not None:
-                final_true_values.append(true_values[i])
+                # Add corresponding true value if provided
+                if true_values is not None:
+                    final_true_values.append(true_values[i])
 
-            print(f"✓ Loaded: {bayesed_param} vs {bagpipes_param} -> {label}")
+                # Print which parameters were loaded for each result
+                param_info = []
+                for j in range(len(bayesed_results_list)):
+                    param_info.append(bayesed_params_per_result[j][i])
+                print(f"✓ Loaded: {param_info} vs {bagpipes_param} -> {label}")
 
         if not bayesed_data_list or not bagpipes_data:
             print("No valid parameters found for comparison")
@@ -790,7 +853,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
 
         # Define line styles for reference
         bayesed_line_styles = ['-', '--', '-.', ':']  # solid, dashed, dash-dot, dotted
-        line_style_names = ['solid', 'dashed', 'dash-dot', 'dotted']
+        line_style_names = ['solid', 'dashed', 'dotted', 'dash-dot']
 
         for j, bayesed_result in enumerate(bayesed_results_list):
             # Extract samples for this BayeSED results object
@@ -846,7 +909,7 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         else:
             # Use same red color but different line styles for multiple BayeSED results
             bayesed_colors = ['#F24236'] * n_bayesed  # Same red for all BayeSED results
-            bayesed_line_styles = ['-', '--', '-.', ':']  # solid, dashed, dash-dot, dotted
+            bayesed_line_styles = ['-', '--', ':', '-.']  # solid, dashed, dotted, dash-dot
 
             # Cycle through line styles if we have more BayeSED results than styles
             bayesed_ls = [bayesed_line_styles[i % len(bayesed_line_styles)] for i in range(n_bayesed)]
@@ -890,7 +953,15 @@ def plot_posterior_corner_comparison(bayesed_results, bagpipes_fit, object_id,
         if save:
             plot_dir = os.path.join("pipes", "plots", "comparison")
             os.makedirs(plot_dir, exist_ok=True)
-            out_path = os.path.join(plot_dir, f"{object_id}_corner_comparison_getdist.png")
+            
+            # Build filename with optional suffix
+            base_filename = f"{object_id}_corner_comparison_getdist"
+            if suffix:
+                filename = f"{base_filename}_{suffix}.png"
+            else:
+                filename = f"{base_filename}.png"
+            
+            out_path = os.path.join(plot_dir, filename)
             plt.savefig(out_path, bbox_inches="tight", dpi=400, facecolor='white')
             print(f"Saved GetDist corner comparison: {out_path}")
 
@@ -1870,7 +1941,7 @@ Examples:
         dal_law='calzetti',
         ssp_iscalable=0,          # Use MultiNest sampling for normalization (more robust for low-SNR data)
         ssp_i1=1,                 #enable nebular emission
-        sfh_itype_ceh=0,          #Chemical evolution enabled (0: constant metallicity, 1: metallicity evolves with time)
+        sfh_itype_ceh=1,          #Chemical evolution enabled (0: constant metallicity, 1: metallicity evolves with time)
         no_photometry_fit=True,   # Skip photometry fitting
         no_spectra_fit=False      # Fit spectra (default)
     )
@@ -1904,12 +1975,23 @@ Examples:
     # params.unweighted_samples = True
 
 
-    # Run analysis
+    # Run analysis without nnlm
     results = bayesed.run(params,np=10)
     results.print_summary()
 
-    params.sfh[0].itype_ceh = 1
-    results1 = bayesed.run(params,np=10)
+    params0 = params.copy()
+    params0.sfh[0].itype_ceh = 0 # turn off chemical evolution
+    params0.outdir+="0"
+    results0 = bayesed.run(params0,np=10)
+
+    # Run analysis with nnlm
+    params1 = params.copy()
+    params1.ssp[0].id=1
+    params1.ssp[0].iscalable=1
+    params1.sfh[0].id=1
+    params1.dal[0].id=1
+    params1.outdir+="1"
+    results1 = bayesed.run(params1,np=10)
 
     # Load and analyze results
     # Extract catalog name from input file (efficient - only reads first line)
@@ -1923,7 +2005,7 @@ Examples:
         for obj_id in available_objects[:2]:  # Plot first 2 objects
             try:
                 results.plot_bestfit(obj_id)
-                results1.plot_bestfit(obj_id)
+                results0.plot_bestfit(obj_id)
             except Exception as e:
                 print(f"Could not plot bestfit for {obj_id}: {e}")
 
@@ -2032,13 +2114,14 @@ Examples:
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
             obj_true_values = extract_true_values(results_bayesed, ID, true_value_params, labels2, verbose=True)
 
-            plot_posterior_corner_comparison([results1,results], fit, ID, bayesed_params, bagpipes_params, labels2, obj_true_values,range_confidence=0.0,min_weight_ratio=0.0,bayesed_labels=['BayeSED3(CEH=1)', 'BayeSED3(CEH=0)'])
+            bayesed_params2 = ['z', 'log(Mstar)[1,1]', 'log(age/yr)[1,1]', 'log(Z/Zsun)[1,1]', 'log(tau/yr)[1,1]','Av_2[1,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[1,1]']
+            plot_posterior_corner_comparison([results,results0,results1], fit, ID, [bayesed_params,bayesed_params,bayesed_params2], bagpipes_params, labels2, obj_true_values,range_confidence=0.0,min_weight_ratio=0.0,bayesed_labels=['BayeSED3(CEH=1,-NNLM)', 'BayeSED3(CEH=0,-NNLM)', 'BayeSED3(CEH=1,+NNLM)'])
 
 
 

@@ -1423,6 +1423,52 @@ class BayeSEDParams:
             'igroups': sorted(used_igroups)
         }
 
+    def copy(self, **kwargs):
+        """
+        Create an independent copy with optional modifications.
+        
+        This is the ONLY copy method you need! It creates a completely 
+        independent copy where changes won't affect the original.
+        
+        Parameters
+        ----------
+        **kwargs
+            Parameters to change in the copy.
+            Example: copy(outdir='new_output', verbose=1)
+        
+        Returns
+        -------
+        BayeSEDParams
+            New independent BayeSEDParams instance
+            
+        Examples
+        --------
+        >>> # Simple copy
+        >>> params2 = params.copy()
+        >>>
+        >>> # Copy with changes  
+        >>> test_params = params.copy(outdir='test_run', verbose=2)
+        >>>
+        >>> # Copy for new dataset
+        >>> new_params = params.copy(
+        ...     input_file='observation/new_data.txt',
+        ...     outdir='new_analysis'
+        ... )
+        """
+        import copy
+        
+        # Create completely independent copy
+        new_params = copy.deepcopy(self)
+        
+        # Apply modifications
+        for key, value in kwargs.items():
+            if hasattr(new_params, key):
+                setattr(new_params, key, value)
+            else:
+                raise ValueError(f"Invalid parameter: {key}")
+        
+        return new_params
+
 
 class BayeSEDValidationError(Exception):
     """Exception raised when BayeSED parameter validation fails."""
