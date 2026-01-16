@@ -272,6 +272,47 @@ bayesed.run(params)
 
 ## Advanced Features
 
+### Prior Management
+
+BayeSED3 provides a powerful API for managing parameter priors programmatically without manually editing `.iprior` files.
+
+**Basic Usage:**
+
+```python
+from bayesed import SEDInference, BayeSEDParams
+
+# Initialize and load priors
+params = BayeSEDParams.galaxy(input_file='observation/test/gal.txt', outdir='output')
+inference = SEDInference()
+inference.priors_init(params)
+
+# View and modify priors
+inference.print_priors()
+inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60)
+
+# List all available prior types
+inference.list_prior_types()  # Shows: Uniform, Gaussian, Gamma, Beta, Student's t, Weibull, etc.
+
+# Use different prior types (Uniform, Gaussian, Gamma, Beta, etc.)
+inference.set_prior('log(M_*/Msun)', prior_type='Gaussian', 
+                   min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0])
+
+# Regex patterns (with confirmation)
+inference.set_prior('^Av_.*', prior_type='Gaussian', hyperparameters=[1.0, 0.3])
+
+# Partial matching
+inference.set_prior('age', min_val=8.0, max_val=10.0)  # Matches 'log(age/yr)', etc.
+
+# Query without modifying
+inference.set_prior('age')  # Shows all parameters containing 'age'
+
+# Reset a single parameter to its default prior
+inference.set_prior('log(age/yr)', reset_to_default=True)
+
+# Reset multiple parameters using patterns
+inference.set_prior('Av_.*', reset_to_default=True)  # Reset all Av parameters
+```
+
 ### Working with Data Arrays
 
 ```python
