@@ -2114,7 +2114,7 @@ Examples:
             runtime_s = time.time() - t0
 
             # Generate spectrum plots
-            # plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
+            plot_spectrum_posterior_with_residuals(fit, ID, cat_name, runtime_s=runtime_s)
 
             # Generate corner comparison plots using GetDist
             print(f"\nGenerating corner comparison plot for object {ID}...")
