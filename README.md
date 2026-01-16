@@ -294,7 +294,7 @@ inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60)
 inference.list_prior_types()  # Shows: Uniform, Gaussian, Gamma, Beta, Student's t, Weibull, etc.
 
 # Use different prior types (Uniform, Gaussian, Gamma, Beta, etc.)
-inference.set_prior('log(M_*/Msun)', prior_type='Gaussian', 
+inference.set_prior('log(age/yr)', prior_type='Gaussian', 
                    min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0])
 
 # Regex patterns (with confirmation)

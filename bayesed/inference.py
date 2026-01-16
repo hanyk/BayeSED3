@@ -956,7 +956,23 @@ class SEDInference:
         bayesed.set_prior('f')  # Show info about parameter 'f'
         
         # Mode 1: Simple case - parameter name is unique across all files
+        # Shows preview and requires confirmation (unless confirm=False)
         bayesed.set_prior('log(age/yr)', min_val=8.0, max_val=10.0)
+        # Output:
+        # ================================================================================
+        # Exact match: Modifying 1 parameter:
+        # ================================================================================
+        # 
+        # File: csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0100.iprior
+        # --------------------------------------------------------------------------------
+        # Name         Type     IsAge  Min        Max        Nbin  Modified  Hyperparameters
+        # --------------------------------------------------------------------------------
+        # log(age/yr)  Uniform  1      8.0        10.0       40    Preview   -
+        # 
+        # Note: 'Preview' shows how parameters will look after modifications are applied.
+        #       No changes have been made yet - confirmation required.
+        # 
+        # Apply these modifications to 1 parameter(s)? [y/N]: y
         
         # Mode 2: Ambiguous parameter - must specify file
         # This will raise: "Parameter 'f' exists in multiple files: BLR.iprior, FeII.iprior, AGN.iprior. 
@@ -988,9 +1004,10 @@ class SEDInference:
         # Pattern Matching Examples
         # --------------------------
         
-        # Exact match (no confirmation needed)
+        # Exact match (requires confirmation by default)
         bayesed.set_prior('log(age/yr)', min_val=8.0, max_val=10.0)
-        # Matches only 'log(age/yr)' exactly
+        # Shows preview table with 'Preview' in Modified column
+        # Asks: "Apply these modifications to 1 parameter(s)? [y/N]:"
         
         # Regex match (requires confirmation for multiple matches)
         bayesed.set_prior('log.*', nbin=60)
@@ -1001,12 +1018,15 @@ class SEDInference:
         # ================================================================================
         # 
         # File: csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0100.iprior
-        #   - log(age/yr)
-        #   - log(tau/yr)
-        #   - log(Z/Zsun)
+        # --------------------------------------------------------------------------------
+        # Name         Type     IsAge  Min        Max        Nbin  Modified  Hyperparameters
+        # --------------------------------------------------------------------------------
+        # log(age/yr)  Uniform  1      8.0        10.1284    60    Preview   -
+        # log(tau/yr)  Uniform  1      8.0        10.1284    60    Preview   -
+        # log(Z/Zsun)  Uniform  0      -2.0       0.5        60    Preview   -
         # 
-        # Modifications to apply:
-        #   nbin: 60
+        # Note: 'Preview' shows how parameters will look after modifications are applied.
+        #       No changes have been made yet - confirmation required.
         # 
         # Apply these modifications to 3 parameter(s)? [y/N]: y
         
@@ -1034,12 +1054,17 @@ class SEDInference:
         # Query by exact parameter name
         bayesed.set_prior('log(age/yr)')
         # Output:
-        # Parameter 'log(age/yr)' (in csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0100.iprior):
-        #   Type: Uniform
-        #   IsAge: 1
-        #   Range: [8.0, 10.1284]
-        #   Nbin: 40
-        #   Modified: No
+        # Pattern 'log(age/yr)' matched 1 parameter(s) using exact matching:
+        # ================================================================================
+        # 
+        # File: csp_sfh200_bc2003_hr_stelib_chab_neb_2000r_i0100.iprior
+        # --------------------------------------------------------------------------------
+        # Name         Type     IsAge  Min        Max        Nbin  Modified  Hyperparameters
+        # --------------------------------------------------------------------------------
+        # log(age/yr)  Uniform  1      8.0        10.1284    40    No        -
+        # 
+        # Legend: * = modified from default, # = just modified, *# = both
+        # ================================================================================
         
         # Query by partial match - finds parameters containing 'age'
         bayesed.set_prior('age')
@@ -1203,6 +1228,11 @@ class SEDInference:
             print(f"\n{'='*80}")
             if match_type == 'bulk':
                 print(f"Bulk modification: {len(matches)} parameter(s) in file:")
+            elif match_type == 'exact':
+                if len(matches) == 1:
+                    print(f"Exact match: Modifying 1 parameter:")
+                else:
+                    print(f"Exact match: Modifying {len(matches)} parameter(s):")
             else:
                 print(f"Pattern matched {len(matches)} parameter(s) using {match_type} matching:")
             print(f"{'='*80}")
@@ -1237,20 +1267,33 @@ class SEDInference:
                             setattr(preview, key, value)
                     preview_priors[param_name] = preview
                 
-                # Determine column widths
+                # Determine column widths dynamically
                 max_name_len = max(len(name) for name in preview_priors.keys()) if preview_priors else 10
                 max_type_len = max(len(p.get_type_name()) for p in preview_priors.values()) if preview_priors else 10
-                max_name_len = max(max_name_len, 10)
-                max_type_len = max(max_type_len, 10)
+                max_name_len = max(max_name_len, len("Name"))
+                max_type_len = max(max_type_len, len("Type"))
                 
-                # Check if any priors have hyperparameters (in preview)
-                has_hyperparams = any(p.hyperparameters for p in preview_priors.values())
+                # Calculate dynamic widths for numeric columns
+                max_isage_len = max(len(str(p.is_age)) for p in preview_priors.values()) if preview_priors else 1
+                max_isage_len = max(max_isage_len, len("IsAge"))
                 
-                # Build header
-                if has_hyperparams:
-                    header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<6}  {'Min':<12}  {'Max':<12}  {'Nbin':<6}  Hyperparameters"
-                else:
-                    header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<6}  {'Min':<12}  {'Max':<12}  {'Nbin':<6}"
+                max_min_len = max(len(f"{p.min_val:.6g}") for p in preview_priors.values()) if preview_priors else 3
+                max_min_len = max(max_min_len, len("Min"))
+                
+                max_max_len = max(len(f"{p.max_val:.6g}") for p in preview_priors.values()) if preview_priors else 3
+                max_max_len = max(max_max_len, len("Max"))
+                
+                max_nbin_len = max(len(str(p.nbin)) for p in preview_priors.values()) if preview_priors else 4
+                max_nbin_len = max(max_nbin_len, len("Nbin"))
+                
+                max_modified_len = len("Preview")  # All will show "Preview"
+                max_modified_len = max(max_modified_len, len("Modified"))
+                
+                # Always show hyperparameters column for consistency with print_priors
+                has_hyperparams = True
+                
+                # Build header (consistent with print_priors format)
+                header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<{max_isage_len}}  {'Min':<{max_min_len}}  {'Max':<{max_max_len}}  {'Nbin':<{max_nbin_len}}  {'Modified':<{max_modified_len}}  Hyperparameters"
                 
                 print(header)
                 print("-" * len(header))
@@ -1259,21 +1302,23 @@ class SEDInference:
                 for param_name in sorted(preview_priors.keys()):
                     preview = preview_priors[param_name]
                     
-                    # Format values
-                    min_str = f"{preview.min_val:<12.6g}"[:12]
-                    max_str = f"{preview.max_val:<12.6g}"[:12]
+                    # Format values (consistent with print_priors)
+                    min_str = f"{preview.min_val:.6g}"
+                    max_str = f"{preview.max_val:.6g}"
+                    
+                    # Show "Preview" in Modified column to indicate this is a preview
+                    mod_marker = "Preview"
                     
                     # Build row
-                    row = f"{param_name:<{max_name_len}}  {preview.get_type_name():<{max_type_len}}  {preview.is_age:<6}  {min_str:<12}  {max_str:<12}  {preview.nbin:<6}"
+                    row = f"{param_name:<{max_name_len}}  {preview.get_type_name():<{max_type_len}}  {preview.is_age:<{max_isage_len}}  {min_str:<{max_min_len}}  {max_str:<{max_max_len}}  {preview.nbin:<{max_nbin_len}}  {mod_marker:<{max_modified_len}}"
                     
-                    # Add hyperparameters if present
-                    if has_hyperparams:
-                        if preview.hyperparameters:
-                            names = preview.get_hyperparameter_names()
-                            hyper_str = ", ".join(f"{n}={v}" for n, v in zip(names, preview.hyperparameters))
-                            row += f"  {hyper_str}"
-                        else:
-                            row += "  -"
+                    # Always add hyperparameters column for consistency
+                    if preview.hyperparameters:
+                        names = preview.get_hyperparameter_names()
+                        hyper_str = ", ".join(f"{n}={v}" for n, v in zip(names, preview.hyperparameters))
+                        row += f"  {hyper_str}"
+                    else:
+                        row += "  -"
                     
                     print(row)
             
@@ -1361,33 +1406,7 @@ class SEDInference:
                                     param_names_to_reset.append(param_name)
                         
                         elif match_type in ['regex', 'partial']:
-                            # Multiple matches - require confirmation (if confirm=True)
-                            if confirm:
-                                # Show what will be reset
-                                print(f"\n{'='*80}")
-                                print(f"Reset to default: {len(matches)} parameter(s) using {match_type} matching:")
-                                print(f"{'='*80}")
-                                
-                                # Group by file
-                                by_file = {}
-                                for matched_param, filename in matches:
-                                    if filename not in by_file:
-                                        by_file[filename] = []
-                                    by_file[filename].append(matched_param)
-                                
-                                # Show parameters to be reset
-                                for filename in sorted(by_file.keys()):
-                                    print(f"\nFile: {filename}")
-                                    for matched_param in sorted(by_file[filename]):
-                                        print(f"  - {matched_param}")
-                                
-                                print(f"\n{'='*80}")
-                                response = input(f"Reset {len(matches)} parameter(s) to defaults? [y/N]: ").strip().lower()
-                                if response not in ['y', 'yes']:
-                                    print("\nReset cancelled.")
-                                    return
-                            
-                            # Add all matched parameters
+                            # Multiple matches - add all matched parameters
                             for matched_param, _ in matches:
                                 param_names_to_reset.append(matched_param)
                     else:
@@ -1404,6 +1423,121 @@ class SEDInference:
                     f"No default values available for parameter(s): {', '.join(missing_defaults)}. "
                     f"Defaults are only available for parameters loaded with is_auto_generated=True."
                 )
+            
+            # Show preview of reset if confirm=True
+            if confirm:
+                # Build matches list for preview display
+                matches_for_preview = []
+                for param_name in param_names_to_reset:
+                    files = self._prior_manager.find_files_containing_parameter(param_name)
+                    if len(files) == 1:
+                        matches_for_preview.append((param_name, files[0]))
+                    elif iprior_file:
+                        matches_for_preview.append((param_name, os.path.basename(iprior_file)))
+                
+                # Create a modifications dict with default values for preview
+                # We'll use the confirm_multiple_parameter_modification function but with default values
+                # First, we need to show the preview with default values
+                print(f"\n{'='*80}")
+                if parameter_name is None:
+                    print(f"Reset to default: {len(param_names_to_reset)} parameter(s) in file:")
+                else:
+                    if len(matches_for_preview) == 1:
+                        print(f"Reset to default: 1 parameter:")
+                    else:
+                        match_type_for_display = 'exact' if all(p == parameter_name for p in param_names_to_reset) else match_type
+                        print(f"Reset to default: {len(param_names_to_reset)} parameter(s) using {match_type_for_display} matching:")
+                print(f"{'='*80}")
+                
+                # Group by file for display
+                by_file = {}
+                for param_name, filename in matches_for_preview:
+                    if filename not in by_file:
+                        by_file[filename] = []
+                    by_file[filename].append(param_name)
+                
+                # Show preview table with default values
+                for filename in sorted(by_file.keys()):
+                    print(f"\nFile: {filename}")
+                    print("-" * 80)
+                    
+                    # Get all priors for this file
+                    file_priors = self._prior_manager.priors_by_file[filename]
+                    matched_params = by_file[filename]
+                    
+                    # Filter to only matched parameters
+                    filtered_priors = {name: file_priors[name] for name in matched_params if name in file_priors}
+                    
+                    # Create preview with DEFAULT values
+                    preview_priors = {}
+                    for param_name in filtered_priors.keys():
+                        default_prior = self._prior_manager.original_priors[param_name]
+                        preview_priors[param_name] = default_prior
+                    
+                    # Determine column widths dynamically
+                    max_name_len = max(len(name) for name in preview_priors.keys()) if preview_priors else 10
+                    max_type_len = max(len(p.get_type_name()) for p in preview_priors.values()) if preview_priors else 10
+                    max_name_len = max(max_name_len, len("Name"))
+                    max_type_len = max(max_type_len, len("Type"))
+                    
+                    # Calculate dynamic widths for numeric columns
+                    max_isage_len = max(len(str(p.is_age)) for p in preview_priors.values()) if preview_priors else 1
+                    max_isage_len = max(max_isage_len, len("IsAge"))
+                    
+                    max_min_len = max(len(f"{p.min_val:.6g}") for p in preview_priors.values()) if preview_priors else 3
+                    max_min_len = max(max_min_len, len("Min"))
+                    
+                    max_max_len = max(len(f"{p.max_val:.6g}") for p in preview_priors.values()) if preview_priors else 3
+                    max_max_len = max(max_max_len, len("Max"))
+                    
+                    max_nbin_len = max(len(str(p.nbin)) for p in preview_priors.values()) if preview_priors else 4
+                    max_nbin_len = max(max_nbin_len, len("Nbin"))
+                    
+                    max_modified_len = len("Preview")  # All will show "Preview"
+                    max_modified_len = max(max_modified_len, len("Modified"))
+                    
+                    # Check if any priors have hyperparameters
+                    has_hyperparams = any(p.hyperparameters for p in preview_priors.values())
+                    
+                    # Build header
+                    if has_hyperparams:
+                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<{max_isage_len}}  {'Min':<{max_min_len}}  {'Max':<{max_max_len}}  {'Nbin':<{max_nbin_len}}  {'Modified':<{max_modified_len}}  Hyperparameters"
+                    else:
+                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<{max_isage_len}}  {'Min':<{max_min_len}}  {'Max':<{max_max_len}}  {'Nbin':<{max_nbin_len}}  {'Modified':<{max_modified_len}}"
+                    
+                    print(header)
+                    print("-" * len(header))
+                    
+                    # Display each parameter with DEFAULT values
+                    for param_name in sorted(preview_priors.keys()):
+                        preview = preview_priors[param_name]
+                        
+                        # Format values
+                        min_str = f"{preview.min_val:.6g}"
+                        max_str = f"{preview.max_val:.6g}"
+                        
+                        # Show "Preview" in Modified column
+                        mod_marker = "Preview"
+                        
+                        # Build row
+                        row = f"{param_name:<{max_name_len}}  {preview.get_type_name():<{max_type_len}}  {preview.is_age:<{max_isage_len}}  {min_str:<{max_min_len}}  {max_str:<{max_max_len}}  {preview.nbin:<{max_nbin_len}}  {mod_marker:<{max_modified_len}}"
+                        
+                        # Add hyperparameters if present
+                        if has_hyperparams:
+                            if preview.hyperparameters:
+                                names = preview.get_hyperparameter_names()
+                                hyper_str = ", ".join(f"{n}={v}" for n, v in zip(names, preview.hyperparameters))
+                                row += f"  {hyper_str}"
+                            else:
+                                row += "  -"
+                        
+                        print(row)
+                
+                
+                response = input(f"Reset {len(param_names_to_reset)} parameter(s) to defaults? [y/N]: ").strip().lower()
+                if response not in ['y', 'yes']:
+                    print("\nReset cancelled.")
+                    return
             
             # Set recently_modified tracking
             self._prior_manager.set_recently_modified(param_names_to_reset)
@@ -1630,22 +1764,49 @@ class SEDInference:
                     # Create a temporary display just for these parameters
                     display_lines = []
                     
-                    # Determine column widths
+                    # Determine column widths dynamically
                     max_name_len = max(len(name) for name in filtered_priors.keys()) if filtered_priors else 10
                     max_type_len = max(len(p.get_type_name()) for p in filtered_priors.values()) if filtered_priors else 10
+                    max_name_len = max(max_name_len, len("Name"))
+                    max_type_len = max(max_type_len, len("Type"))
                     
-                    # Ensure minimum widths
-                    max_name_len = max(max_name_len, 10)
-                    max_type_len = max(max_type_len, 10)
+                    # Calculate dynamic widths for numeric columns
+                    max_isage_len = max(len(str(p.is_age)) for p in filtered_priors.values()) if filtered_priors else 1
+                    max_isage_len = max(max_isage_len, len("IsAge"))
+                    
+                    max_min_len = max(len(f"{p.min_val:.6g}") for p in filtered_priors.values()) if filtered_priors else 3
+                    max_min_len = max(max_min_len, len("Min"))
+                    
+                    max_max_len = max(len(f"{p.max_val:.6g}") for p in filtered_priors.values()) if filtered_priors else 3
+                    max_max_len = max(max_max_len, len("Max"))
+                    
+                    max_nbin_len = max(len(str(p.nbin)) for p in filtered_priors.values()) if filtered_priors else 4
+                    max_nbin_len = max(max_nbin_len, len("Nbin"))
+                    
+                    # Calculate Modified column width based on possible values
+                    mod_markers = []
+                    for param_name in filtered_priors.keys():
+                        is_modified = param_name in self._prior_manager.modified_parameters
+                        is_recent = param_name in getattr(self._prior_manager, 'recently_modified', set())
+                        if is_modified and is_recent:
+                            mod_markers.append("*#")
+                        elif is_modified:
+                            mod_markers.append("*")
+                        elif is_recent:
+                            mod_markers.append("#")
+                        else:
+                            mod_markers.append("No")
+                    max_modified_len = max(len(m) for m in mod_markers) if mod_markers else 2
+                    max_modified_len = max(max_modified_len, len("Modified"))
                     
                     # Check if any priors have hyperparameters
                     has_hyperparams = any(p.hyperparameters for p in filtered_priors.values())
                     
-                    # Build header
+                    # Build header (consistent with print_priors format)
                     if has_hyperparams:
-                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<6}  {'Min':<12}  {'Max':<12}  {'Nbin':<6}  {'Modified':<10}  Hyperparameters"
+                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<{max_isage_len}}  {'Min':<{max_min_len}}  {'Max':<{max_max_len}}  {'Nbin':<{max_nbin_len}}  {'Modified':<{max_modified_len}}  Hyperparameters"
                     else:
-                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<6}  {'Min':<12}  {'Max':<12}  {'Nbin':<6}  {'Modified':<10}"
+                        header = f"{'Name':<{max_name_len}}  {'Type':<{max_type_len}}  {'IsAge':<{max_isage_len}}  {'Min':<{max_min_len}}  {'Max':<{max_max_len}}  {'Nbin':<{max_nbin_len}}  {'Modified':<{max_modified_len}}"
                     
                     print(header)
                     print("-" * len(header))
@@ -1667,12 +1828,12 @@ class SEDInference:
                         else:
                             mod_marker = "No"
                         
-                        # Format values
-                        min_str = f"{prior.min_val:<12.6g}"[:12]
-                        max_str = f"{prior.max_val:<12.6g}"[:12]
+                        # Format values (consistent with print_priors)
+                        min_str = f"{prior.min_val:.6g}"
+                        max_str = f"{prior.max_val:.6g}"
                         
                         # Build row
-                        row = f"{param_name:<{max_name_len}}  {prior.get_type_name():<{max_type_len}}  {prior.is_age:<6}  {min_str:<12}  {max_str:<12}  {prior.nbin:<6}  {mod_marker:<10}"
+                        row = f"{param_name:<{max_name_len}}  {prior.get_type_name():<{max_type_len}}  {prior.is_age:<{max_isage_len}}  {min_str:<{max_min_len}}  {max_str:<{max_max_len}}  {prior.nbin:<{max_nbin_len}}  {mod_marker:<{max_modified_len}}"
                         
                         # Add hyperparameters if present
                         if has_hyperparams:
@@ -1743,9 +1904,12 @@ class SEDInference:
                         )
                     
                     elif match_type == 'exact':
-                        # Exact match - proceed as before (no confirmation needed)
+                        # Exact match - require confirmation if confirm=True
                         if len(matches) == 1:
-                            # Single exact match
+                            # Single exact match - show confirmation if confirm=True
+                            if confirm and not confirm_multiple_parameter_modification('exact', matches, modifications):
+                                print("\nModifications cancelled.")
+                                return
                             param_names_to_modify.append(matches[0][0])
                         else:
                             # Multiple files have this exact parameter name
@@ -1757,7 +1921,10 @@ class SEDInference:
                                     f"Example: set_prior('{param_name}', iprior_file='{files[0]}', ...)"
                                 )
                             else:
-                                # iprior_file specified, add the parameter
+                                # iprior_file specified - show confirmation if confirm=True
+                                if confirm and not confirm_multiple_parameter_modification('exact', matches, modifications):
+                                    print("\nModifications cancelled.")
+                                    return
                                 param_names_to_modify.append(param_name)
                     
                     elif match_type in ['regex', 'partial']:
@@ -1807,17 +1974,21 @@ class SEDInference:
                     f"Modification is saved in memory but not persisted to disk."
                 )
         
-        # Automatically display only the modified parameters from the modified files
+        # Display all parameters from the modified file(s)
         print()  # Add blank line before display
         if len(modified_files) == 1:
-            # Only one file was modified - show only that file
-            self.print_priors(iprior_file=list(modified_files)[0], parameter_names=param_names_to_modify)
+            # Only one file was modified - show all parameters in that file
+            self.print_priors(iprior_file=list(modified_files)[0])
         else:
-            # Multiple files modified or no specific file - show all matching parameters
-            self.print_priors(parameter_names=param_names_to_modify)
+            # Multiple files modified - show all parameters from each modified file
+            for filename in sorted(modified_files):
+                self.print_priors(iprior_file=filename)
         
         # Clear recently_modified after display
         self._prior_manager.clear_recently_modified()
+        
+        # Print success message (consistent with reset_to_default path)
+        print(f"\n✓ Modified {len(param_names_to_modify)} parameter(s)")
     
     def print_priors(self, iprior_file: str = None, parameter_names: list = None):
         """
@@ -1906,12 +2077,41 @@ class SEDInference:
             print(f"\nFile: {filename}")
             print("-" * 80)
             
-            # Calculate column widths for this file
+            # Calculate column widths dynamically for this file
             name_width = max(len(p[0]) for p in params)
             name_width = max(name_width, len("Name"))
             
             type_width = max(len(p[1].get_type_name()) for p in params)
             type_width = max(type_width, len("Type"))
+            
+            # Calculate dynamic widths for numeric columns
+            isage_width = max(len(str(p[1].is_age)) for p in params)
+            isage_width = max(isage_width, len("IsAge"))
+            
+            min_width = max(len(f"{p[1].min_val:.6g}") for p in params)
+            min_width = max(min_width, len("Min"))
+            
+            max_width = max(len(f"{p[1].max_val:.6g}") for p in params)
+            max_width = max(max_width, len("Max"))
+            
+            nbin_width = max(len(str(p[1].nbin)) for p in params)
+            nbin_width = max(nbin_width, len("Nbin"))
+            
+            # Calculate Modified column width based on possible values
+            mod_markers = []
+            for name, prior in params:
+                is_modified = prior.name in self._prior_manager.modified_parameters
+                is_recent = prior.name in getattr(self._prior_manager, 'recently_modified', set())
+                if is_modified and is_recent:
+                    mod_markers.append("*#")
+                elif is_modified:
+                    mod_markers.append("*")
+                elif is_recent:
+                    mod_markers.append("#")
+                else:
+                    mod_markers.append("No")
+            modified_width = max(len(m) for m in mod_markers) if mod_markers else 2
+            modified_width = max(modified_width, len("Modified"))
             
             # Calculate hyperparameter column width
             hyper_strings = []
@@ -1927,7 +2127,7 @@ class SEDInference:
             hyper_width = max(hyper_width, len("Hyperparameters"))
             
             # Print header for this file
-            header = f"{'Name':<{name_width}}  {'Type':<{type_width}}  {'IsAge':<6}  {'Min':<10}  {'Max':<10}  {'Nbin':<4}  {'Modified':<8}  {'Hyperparameters':<{hyper_width}}"
+            header = f"{'Name':<{name_width}}  {'Type':<{type_width}}  {'IsAge':<{isage_width}}  {'Min':<{min_width}}  {'Max':<{max_width}}  {'Nbin':<{nbin_width}}  {'Modified':<{modified_width}}  {'Hyperparameters':<{hyper_width}}"
             print(header)
             print("-" * len(header))
             
@@ -1953,9 +2153,13 @@ class SEDInference:
                 else:
                     mod_marker = "No"
                 
+                # Format numeric values
+                min_str = f"{prior.min_val:.6g}"
+                max_str = f"{prior.max_val:.6g}"
+                
                 line = f"{prior.name:<{name_width}}  {prior.get_type_name():<{type_width}}  "
-                line += f"{prior.is_age:<6}  {prior.min_val:<10.6g}  {prior.max_val:<10.6g}  {prior.nbin:<4}  "
-                line += f"{mod_marker:<8}  {hyper_str:<{hyper_width}}"
+                line += f"{prior.is_age:<{isage_width}}  {min_str:<{min_width}}  {max_str:<{max_width}}  {prior.nbin:<{nbin_width}}  "
+                line += f"{mod_marker:<{modified_width}}  {hyper_str:<{hyper_width}}"
                 
                 print(line)
         
@@ -2010,123 +2214,45 @@ class SEDInference:
         Print a table of all available prior types with their hyperparameter requirements.
         
         Displays a formatted table showing all supported prior types, their names,
-        required hyperparameters, and brief descriptions.
+        required hyperparameters (including parameter names), and brief descriptions.
         
         Examples
         --------
         >>> inference = SEDInference()
         >>> inference.list_prior_types()
         """
-        print("\n" + "=" * 80)
+        print("\n" + "=" * 100)
         print("Available Prior Types")
-        print("=" * 80)
-        print(f"{'Type':<6} {'Name':<18} {'Hyperparams':<12} {'Description'}")
-        print("-" * 80)
+        print("=" * 100)
+        print(f"{'Type':<6} {'Name':<18} {'Hyperparams':<30} {'Description'}")
+        print("-" * 100)
         
         type_info = [
-            (0, "Mirror", 3, "Mirror prior (special case)"),
-            (1, "Uniform", 0, "Uniform prior"),
-            (2, "Linear-Inc", 0, "Linear increasing prior"),
-            (3, "Linear-Dec", 0, "Linear decreasing prior"),
-            (4, "TruncGaussian", 2, "Truncated Gaussian distribution"),
-            (5, "Gaussian", 2, "Gaussian (normal) distribution"),
-            (6, "Gamma", 2, "Gamma distribution"),
-            (7, "StudentT", 3, "Student's t-distribution"),
-            (8, "Beta", 2, "Beta distribution"),
-            (9, "Weibull", 2, "Weibull distribution"),
+            (0, "Mirror", 3, "[mu, sigma, nu]", "Mirror prior (special case)"),
+            (1, "Uniform", 0, "[]", "Uniform prior"),
+            (2, "Linear-Inc", 0, "[]", "Linear increasing prior"),
+            (3, "Linear-Dec", 0, "[]", "Linear decreasing prior"),
+            (4, "TruncGaussian", 2, "[mu, sigma]", "Truncated Gaussian distribution"),
+            (5, "Gaussian", 2, "[mu, sigma]", "Gaussian (normal) distribution"),
+            (6, "Gamma", 2, "[alpha, beta]", "Gamma distribution"),
+            (7, "StudentT", 3, "[mu, sigma, nu]", "Student's t-distribution"),
+            (8, "Beta", 2, "[a, b]", "Beta distribution"),
+            (9, "Weibull", 2, "[alpha, beta]", "Weibull distribution"),
         ]
         
-        for type_id, name, n_hyper, desc in type_info:
-            print(f"{type_id:<6} {name:<18} {n_hyper:<12} {desc}")
+        for type_id, name, n_hyper, hyper_names, desc in type_info:
+            print(f"{type_id:<6} {name:<18} {hyper_names:<30} {desc}")
         
-        print("=" * 80)
+        print("=" * 100)
         print("\nNote: Negative types (e.g., -1, -5) indicate log10 space")
         print("      For string names, use 'Log10_' prefix (e.g., 'Log10_Gaussian')")
-    
-    def get_prior_type_info(self, prior_type: int):
-        """
-        Get information about a specific prior type.
-        
-        Returns details about the prior type including its name, required number
-        of hyperparameters, and the meaning of each hyperparameter.
-        
-        Parameters
-        ----------
-        prior_type : int
-            Prior type (-9 to 9)
-            
-        Returns
-        -------
-        dict
-            Dictionary containing:
-            - 'name': Human-readable name (e.g., 'Gaussian', 'Linear-Inc')
-            - 'num_hyperparameters': Number of required hyperparameters
-            - 'hyperparameter_names': List of dicts with 'name' and 'description'
-            - 'description': Brief description of the prior type
-            
-        Examples
-        --------
-        >>> info = inference.get_prior_type_info(5)
-        >>> print(info['name'])
-        'Gaussian'
-        >>> print(f"Requires {info['num_hyperparameters']} hyperparameters")
-        Requires 2 hyperparameters
-        """
-        from .prior import Prior
-        
-        # Create a temporary prior to get type information
-        temp_prior = Prior(
-            name="temp",
-            prior_type=prior_type,
-            is_age=0,
-            min_val=0,
-            max_val=1,
-            nbin=10
-        )
-        
-        type_name = temp_prior.get_type_name()
-        num_hyper = temp_prior.get_required_hyperparameters()
-        hyper_names = temp_prior.get_hyperparameter_names()
-        
-        # Build hyperparameter descriptions
-        hyper_descriptions = {
-            'mu': 'Mean of the distribution',
-            'sigma': 'Standard deviation (must be positive)',
-            'alpha': 'Shape parameter (must be positive)',
-            'beta': 'Rate/scale parameter (must be positive)',
-            'nu': 'Degrees of freedom (must be positive)',
-            'a': 'First shape parameter (must be positive)',
-            'b': 'Second shape parameter (must be positive)',
-        }
-        
-        hyperparameter_info = []
-        for name in hyper_names:
-            hyperparameter_info.append({
-                'name': name,
-                'description': hyper_descriptions.get(name, 'Parameter value')
-            })
-        
-        # Get description
-        abs_type = abs(prior_type)
-        descriptions = {
-            0: "Mirror prior (special case)",
-            1: "Uniform prior - all values equally likely",
-            2: "Linear increasing prior - probability increases linearly",
-            3: "Linear decreasing prior - probability decreases linearly",
-            4: "Truncated Gaussian distribution",
-            5: "Gaussian (normal) distribution",
-            6: "Gamma distribution",
-            7: "Student's t-distribution",
-            8: "Beta distribution",
-            9: "Weibull distribution",
-        }
-        
-        return {
-            'name': type_name,
-            'num_hyperparameters': num_hyper,
-            'hyperparameter_names': hyperparameter_info,
-            'description': descriptions.get(abs_type, f"Prior type {prior_type}")
-        }
+        print("\nHyperparameter meanings:")
+        print("  mu    = Mean of the distribution")
+        print("  sigma = Standard deviation (must be positive)")
+        print("  alpha = Shape parameter (must be positive)")
+        print("  beta  = Rate/scale parameter (must be positive)")
+        print("  nu    = Degrees of freedom (must be positive)")
+        print("  a, b  = Shape parameters (must be positive)")
     
     def run(self, params: 'BayeSEDParams', validate=True, auto_select_mpi_mode=None,
             mpi_mode=None, np=None, Ntest=None):
