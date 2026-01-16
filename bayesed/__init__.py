@@ -35,6 +35,14 @@ from .inference import (
     SEDInference,
 )
 
+# Import prior management classes
+from .prior import (
+    Prior,
+)
+from .prior_manager import (
+    PriorManager,
+)
+
 # Import plotting functions
 from .plotting import (
     plot_bestfit,
@@ -115,6 +123,9 @@ __all__ = [
     'SEDModel',
     # Inference classes
     'SEDInference',
+    # Prior management classes
+    'Prior',
+    'PriorManager',
     # Plotting
     'plot_bestfit',
     # Utilities
