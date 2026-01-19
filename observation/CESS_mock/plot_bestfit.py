@@ -86,8 +86,8 @@ if hdul.__contains__('obs:spec') and '--no_spectra_fit' not in hdul[0].header['R
     obs_spec=hdul['obs:spec'].data
     waves=obs_spec['wavelength_obs']*1e4 # um to angstrom
     obs_spec['spectra_obs']=1e17*(c*waves**-1*obs_spec['spectra_obs']*1e-29)/waves # uJy*Hz = 1e-29 erg/s/cm^2
-    mask=obs_spec['spectra_obs']<0
-    obs_spec['spectra_obs'][mask]=0
+    # mask=obs_spec['spectra_obs']<0
+    # obs_spec['spectra_obs'][mask]=0
     obs_spec['spectra_obs_err']=1e17*(c*waves**-1*obs_spec['spectra_obs_err']*1e-29)/waves
     obs_spec['spectra_mod']=1e17*(c*waves**-1*obs_spec['spectra_mod']*1e-29)/waves
     if hdul.__contains__('obs:phot'):
@@ -150,8 +150,8 @@ if hdul.__contains__('obs:spec') and '--no_spectra_fit' not in hdul[0].header['R
     xmax=max(obs_spec['wavelength_obs'])
     xmin=min(xmin,min(obs_spec['wavelength_obs']))
     xmax=max(xmax,max(obs_spec['wavelength_obs']))
-    ymin=min(obs_spec['spectra_obs'][obs_spec['spectra_obs']>0])
-    ymax=max(obs_spec['spectra_obs'][obs_spec['spectra_obs']>0])
+    ymin=min(obs_spec['spectra_obs'][obs_spec['spectra_obs']>-2])
+    ymax=max(obs_spec['spectra_obs'][obs_spec['spectra_obs']>-2])
     # ymax=max(ymax,max(obs_spec['spectra_obs'][obs_spec['spectra_obs']>0]))
 
     # Print per-band chi^2 summary to stdout
@@ -161,7 +161,7 @@ if hdul.__contains__('obs:spec') and '--no_spectra_fit' not in hdul[0].header['R
 
 # Configure main plot (top subplot)
 ax1.set_xlim(xmin,xmax)
-# ax1.set_ylim(ymin,1e4)
+ax1.set_ylim(ymin,ymax)
 # ax1.set_xlim(0.65,0.66)
 # ax1.set_xlim(0.1,10)
 # ax1.set_ylim(1,1e4)
@@ -183,7 +183,7 @@ ax1.legend(ncol=2,loc='best')
 
 # If a code name is provided, place it at the center of the main figure
 if args.code_name:
-    ax1.text(0.5, 0.5, args.code_name, transform=ax1.transAxes,
+    ax1.text(0.5, 0.6, args.code_name, transform=ax1.transAxes,
              ha='center', va='center', fontsize=20, fontweight='bold', color='black', alpha=0.3)
 
 # Configure residual plot (bottom subplot)

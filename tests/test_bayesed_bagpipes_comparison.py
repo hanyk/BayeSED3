@@ -496,7 +496,7 @@ def plot_spectrum_posterior_with_residuals(fit, ID, run_name=None, save=True, sh
     title = f"ID={fit.galaxy.ID}, z_median={redshift:.3f}, $\\chi^2_\\nu$={chi2_red:.2f}{runtime_txt}"
     ax_main.set_title(title)
     # Annotate code used at the center of the top subplot
-    ax_main.text(0.5, 0.5, "BAGPIPES", transform=ax_main.transAxes,
+    ax_main.text(0.5, 0.6, "BAGPIPES", transform=ax_main.transAxes,
                  ha="center", va="center", fontsize=20, color="black", alpha=0.3)
 
     # Residuals (data - model)/err
@@ -1950,7 +1950,7 @@ Examples:
     params.z = ZParams(
         iprior_type=1,
         min=0.0,
-        max=1.25,
+        max=2.0,
     )
 
     # Set RDF parameters for modeling sigma_diff between observed spectra and model
@@ -1971,7 +1971,7 @@ Examples:
         efr=0.1,            # Moderate efficiency
         tol=0.5,            # Standard tolerance
     )
-    # params.SNRmin2 = SNRmin2Params(0.0,-1)
+    params.SNRmin2 = SNRmin2Params(0.0,-1)
     # params.unweighted_samples = True
 
 
@@ -2034,7 +2034,7 @@ Examples:
     nebular["logU"] = -2.3
 
     base_fit_instructions = {}
-    base_fit_instructions["redshift"] = (0., 1.25)
+    base_fit_instructions["redshift"] = (0., 2.0)
     base_fit_instructions["exponential"] = exp
     base_fit_instructions["dust"] = dust
     base_fit_instructions["nebular"] = nebular
