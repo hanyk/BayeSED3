@@ -17,21 +17,16 @@ requirements:
     - python
     - setuptools
     - pip
+  host:
+    - python
+    - pip
+    - setuptools
   run:
-    # Critical: OpenMPI 4.1.6 dependency
+    # System dependency (not a Python package)
     - openmpi=4.1.6
     - python >=3.7
-    # Python dependencies from requirements.txt
-    - numpy >=1.20.0
-    - h5py >=3.1.0
-    - astropy >=4.2
-    - matplotlib >=3.3.0
-    - getdist >=1.3.0
-    - requests >=2.25.0
-    - tqdm >=4.60.0
-    - pillow >=8.0.0
-    - pyperclip >=1.8.0
-    - psutil >=5.8.0
+    # All Python dependencies are defined in pyproject.toml
+    # They are automatically installed via pip during build
 
 test:
   imports:

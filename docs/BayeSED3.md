@@ -139,7 +139,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 3. **Install Python dependencies:**
    ```bash
-   pip install -r requirements.txt
+   pip install -e .  # Installs dependencies from pyproject.toml
    ```
 
 4. **Use BayeSED3 directly:**
@@ -256,7 +256,7 @@ For advanced manual setup (same as Quick Start, but with more detail):
 
 3. Install Python dependencies:
    ```
-   pip install -r requirements.txt
+   pip install -e .  # Installs dependencies from pyproject.toml
    ```
 
 4. Install HDF5 utilities (optional):
@@ -1854,7 +1854,7 @@ Please cite these papers when using BayeSED:
 - `bayesed.py`: Main interface class for BayeSED3
 - `bayesed_gui.py`: Graphical User Interface for BayeSED3
 - `run_test.py`: Script to run BayeSED3 examples
-- `requirements.txt`: List of Python dependencies
+- `pyproject.toml`: Modern Python packaging configuration (dependencies and metadata)
 - `observation/test/`: Contains test data and configuration files
 - `bin/`: Contains BayeSED3 executables for different platforms
 - `nets/`: Contains Fast Artificial Neural Network (FANN) and Approximate K-Nearest Neighbors (AKNN) models for SED emulation

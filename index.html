@@ -281,7 +281,7 @@ make
 make install
 
 # Install Python dependencies
-pip install -r requirements.txt
+pip install -e .  # Installs dependencies from pyproject.toml
 
 # Optional: Install HDF5 utilities and tkinter for GUI
 # See README for platform-specific instructions</code></pre>
@@ -390,7 +390,7 @@ python run_test.py test3 both plot  # Combined</code></pre>
                 <li><code>bayesed.py</code>: Main interface class for BayeSED3</li>
                 <li><code>bayesed_gui.py</code>: Graphical User Interface</li>
                 <li><code>run_test.py</code>: Script to run examples</li>
-                <li><code>requirements.txt</code>: Python dependencies</li>
+                <li><code>pyproject.toml</code>: Python packaging configuration (dependencies and metadata)</li>
                 <li><code>bin/</code>: BayeSED3 executables for different platforms</li>
                 <li><code>nets/</code>: FANN and AKNN models for SED emulation</li>
                 <li><code>data/</code>: Additional data files</li>

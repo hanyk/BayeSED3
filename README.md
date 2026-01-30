@@ -65,7 +65,7 @@ cd BayeSED3
 
 **3. Install Python dependencies:**
 ```bash
-pip install -r requirements.txt
+pip install -e .  # Installs dependencies from pyproject.toml
 ```
 
 **Note:** BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will auto-compile OpenMPI 4.1.6.
@@ -519,7 +519,7 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 - [`bayesed_gui.py`](bayesed_gui.py): Graphical User Interface for BayeSED3
 - [`run_test.py`](run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
 - [`run_test2.py`](run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
-- [`requirements.txt`](requirements.txt): List of Python dependencies
+- [`pyproject.toml`](pyproject.toml): Modern Python packaging configuration (dependencies and metadata)
 - [`observation/test/`](observation/test/): Contains test data and configuration files
 - [`bin/`](bin/): Contains BayeSED3 executables for different platforms
 - [`nets/`](nets/): Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation

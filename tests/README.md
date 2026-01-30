@@ -97,7 +97,7 @@ Before running these examples, ensure you have:
 2. **Required test data** in `observation/test/` directory
 3. **Python dependencies** installed:
    ```bash
-   pip install -r requirements.txt
+   pip install -e .  # Installs dependencies from pyproject.toml
    ```
 
 ## Expected Output
