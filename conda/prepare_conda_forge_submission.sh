@@ -15,7 +15,12 @@ echo "=========================================="
 echo ""
 
 # Get version from argument or detect from code
-VERSION=${1:-$(grep -oP "__version__ = ['\"]([^'\"]+)['\"]" bayesed/__init__.py | grep -oP "[0-9]+\.[0-9]+\.[0-9]+")}
+# Use sed for better cross-platform compatibility (works on both Linux and macOS)
+if [ -n "$1" ]; then
+    VERSION="$1"
+else
+    VERSION=$(sed -n 's/^__version__ = ['\''\"]\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)['\''\"]/\1/p' bayesed/__init__.py)
+fi
 
 if [ -z "$VERSION" ]; then
     echo "Error: Could not detect version"
