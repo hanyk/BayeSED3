@@ -487,21 +487,31 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 ## File Descriptions
 
 - [`bayesed/`](bayesed/): Python package providing high-level interface to BayeSED3
-  - [`core.py`](bayesed/core.py): Main interface classes (`BayeSEDInterface`, `BayeSEDParams`)
+  - [`core.py`](bayesed/core.py): Main interface classes (`BayeSEDInterface`, `BayeSEDParams`, `BayeSEDExecution`)
   - [`results/`](bayesed/results/): **Enhanced BayeSEDResults** with intelligent scope management, 2-5x performance improvements, advanced plotting (`plot_posterior_free`, `plot_posterior_derived`, `plot_bestfit`), analytics (`compute_parameter_correlations`, `get_parameter_statistics`), and comprehensive error handling
   - [`model.py`](bayesed/model.py): Model configuration classes (`SEDModel`)
   - [`data.py`](bayesed/data.py): Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
   - [`params.py`](bayesed/params.py): Parameter configuration classes
+  - [`inference.py`](bayesed/inference.py): Inference configuration (`SEDInference`)
+  - [`prior.py`](bayesed/prior.py): Prior definitions (`Prior`)
+  - [`prior_manager.py`](bayesed/prior_manager.py): Prior management (`PriorManager`)
   - [`utils.py`](bayesed/utils.py): Utility functions for data preparation and filter management
   - [`plotting.py`](bayesed/plotting.py): Plotting functions for visualization
 - [`bayesed_gui.py`](bayesed_gui.py): Graphical User Interface for BayeSED3
 - [`run_test.py`](run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
 - [`run_test2.py`](run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
 - [`pyproject.toml`](pyproject.toml): Modern Python packaging configuration (dependencies and metadata)
+- [`setup.py`](setup.py): Minimal setup for data files (pyproject.toml doesn't support data_files)
+- [`tests/`](tests/): Python interface examples and test scripts
 - [`observation/test/`](observation/test/): Contains test data and configuration files
 - [`bin/`](bin/): Contains BayeSED3 executables for different platforms
 - [`nets/`](nets/): Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
-- [`data/`](data/): other data files used by BayeSED3
+- [`models/`](models/): Template SED models (galaxy types, AGN components)
+- [`filters/`](filters/): Filter transmission curves (cigale, eazy-photoz)
+- [`data/`](data/): Other data files used by BayeSED3 (extinction curves, emission line templates)
+- [`docs/`](docs/): Detailed documentation
+- [`papers/`](papers/): Related publications in markdown format
+- [`conda/`](conda/): Conda packaging scripts and configuration
 
 ## System Compatibility
 
