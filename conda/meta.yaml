@@ -11,6 +11,8 @@ source:
 build:
   number: 0
   skip: True  # [win]
+  # Note: Windows users should use WSL (Windows Subsystem for Linux)
+  # and install the Linux version of the package
 
 requirements:
   build:

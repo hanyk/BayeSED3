@@ -17,8 +17,32 @@ def get_data_files():
     Get data files to install to $PREFIX/share/bayesed3/.
     
     Uses git ls-files to include only git-tracked files.
+    Auto-detects platform and filters platform-specific binaries accordingly.
     """
     data_files = []
+    
+    # Auto-detect platform
+    import platform as plat
+    system = plat.system()
+    if system == 'Linux':
+        platform_filter = 'linux'
+    elif system == 'Darwin':
+        platform_filter = 'macos'
+    else:
+        # Unsupported platform - raise clear error
+        raise RuntimeError(
+            f"\n{'='*70}\n"
+            f"ERROR: BayeSED3 is not supported on {system}\n"
+            f"{'='*70}\n"
+            f"Supported platforms:\n"
+            f"  - Linux (x86_64)\n"
+            f"  - macOS (x86_64 and ARM64 via Rosetta 2)\n"
+            f"\n"
+            f"Windows users: Please install via Windows Subsystem for Linux (WSL):\n"
+            f"  1. Install WSL: https://docs.microsoft.com/en-us/windows/wsl/install\n"
+            f"  2. Inside WSL, run: pip install bayesed3\n"
+            f"{'='*70}\n"
+        )
     
     # Check if we're in a git repository
     try:
@@ -33,6 +57,7 @@ def get_data_files():
         
         # Filter files to include
         included_files = []
+        skipped_binaries = []
         for file_path in tracked_files:
             if not file_path or not os.path.isfile(file_path):
                 continue
@@ -49,6 +74,15 @@ def get_data_files():
                 continue
             if file_path.startswith('conda/') or file_path.startswith('.git/'):
                 continue
+            
+            # Platform-specific binary filtering
+            if file_path.startswith('bin/'):
+                if platform_filter == 'linux' and file_path.startswith('bin/mac/'):
+                    skipped_binaries.append(file_path)
+                    continue  # Skip macOS binaries on Linux
+                elif platform_filter == 'macos' and file_path.startswith('bin/linux/'):
+                    skipped_binaries.append(file_path)
+                    continue  # Skip Linux binaries on macOS
             
             included_files.append(file_path)
         

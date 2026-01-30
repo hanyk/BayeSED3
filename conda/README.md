@@ -9,6 +9,8 @@ conda install -c conda-forge bayesed3
 
 ### For Maintainers
 
+**Prerequisites:** `conda install conda-build`
+
 **Development workflow:**
 ```bash
 # 1. Make changes

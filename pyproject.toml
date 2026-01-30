@@ -36,11 +36,15 @@ dependencies = [
     "GetDist>=1.3.0",
     "requests>=2.25.0",
     "tqdm>=4.60.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+gui = [
     "Pillow>=8.0.0",
     "pyperclip>=1.8.0",
     "psutil>=5.8.0",
 ]
-dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://github.com/hanyk/BayeSED3"
@@ -51,9 +55,38 @@ Issues = "https://github.com/hanyk/BayeSED3/issues"
 [project.scripts]
 BayeSED3_GUI = "bayesed_gui:main"
 
+[tool.setuptools.packages.find]
+# Only find packages in the root, and exclude everything else
+where = ["."]
+include = ["bayesed*"]
+exclude = [
+    "bin*",
+    "models*",
+    "nets*",
+    "filters*",
+    "data*",
+    "observation*",
+    "output*",
+    "papers*",
+    "plot*",
+    "tests*",
+    "tools*",
+    "docs*",
+    "test1*",
+    "test2*",
+    "test3*",
+    "build*",
+    "conda*",
+    "bayesed3.egg-info*",
+]
+
 [tool.setuptools]
-packages = {find = {}}
+# Explicitly list py-modules (top-level .py files to include)
 py-modules = ["bayesed_gui"]
+
+# Explicitly exclude package data - all data files handled by setup.py's data_files
+[tool.setuptools.package-data]
+"*" = []
 
 [tool.setuptools.dynamic]
 version = {attr = "bayesed.__version__"}
