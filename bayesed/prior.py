@@ -16,6 +16,11 @@ class Prior:
     BayeSED3 supports prior types from -9 to 9, where negative values indicate log10 space.
     Different prior types require different numbers of hyperparameters:
     
+    - Type 0: Mirror prior (3 hyperparameters: model_id, par_type, par_id)
+      References other parameters in the model:
+      * par_type=0: Other information in input file (model_id must be -1)
+      * par_type=1: Free parameters of model with given model_id
+      * par_type=2: Derived parameters of model with given model_id
     - Types 1, 2, 3: Standard priors (no hyperparameters)
     - Type 4: Truncated Gaussian (0-2 hyperparameters with defaults)
     - Type 5: Gaussian (2 hyperparameters: mu, sigma)
@@ -23,7 +28,6 @@ class Prior:
     - Type 7: Student's-t (3 hyperparameters: mu, sigma, nu)
     - Type 8: Beta (2 hyperparameters: a, b)
     - Type 9: Weibull (2 hyperparameters: a, b)
-    - Type 0: Special case (3 hyperparameters)
     
     Parameters
     ----------
@@ -249,8 +253,8 @@ class Prior:
             return ["a", "b"]
         elif abs_type == 9:  # Weibull
             return ["a", "b"]
-        elif self.prior_type == 0:  # Special case
-            return [f"param_{i+1}" for i in range(3)]  # Generic names
+        elif self.prior_type == 0:  # Mirror prior
+            return ["model_id", "par_type", "par_id"]
         else:
             return []
     

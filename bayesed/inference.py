@@ -2543,7 +2543,7 @@ class SEDInference:
         print("-" * 100)
         
         type_info = [
-            (0, "Mirror", 3, "[mu, sigma, nu]", "Mirror prior (special case)"),
+            (0, "Mirror", 3, "[model_id, par_type, par_id]", "Mirror prior (references other parameters)"),
             (1, "Uniform", 0, "[]", "Uniform prior"),
             (2, "Linear-Inc", 0, "[]", "Linear increasing prior"),
             (3, "Linear-Dec", 0, "[]", "Linear decreasing prior"),
@@ -2568,6 +2568,13 @@ class SEDInference:
         print("  beta  = Rate/scale parameter (must be positive)")
         print("  nu    = Degrees of freedom (must be positive)")
         print("  a, b  = Shape parameters (must be positive)")
+        print("\nMirror prior (type 0) - Special hyperparameters:")
+        print("  model_id = Model component ID to reference (-1 for input file data)")
+        print("  par_type = Parameter type to mirror:")
+        print("             0: Other information in input file (model_id must be -1)")
+        print("             1: Free parameters of model with given model_id")
+        print("             2: Derived parameters of model with given model_id")
+        print("  par_id   = Parameter ID within the selected model/type")
     
     def run(self, params: 'BayeSEDParams', validate=True, auto_select_mpi_mode=None,
             mpi_mode=None, np=None, Ntest=None):
