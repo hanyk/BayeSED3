@@ -37,21 +37,25 @@ if [ ! -f "bayesed/__init__.py" ]; then
 fi
 
 # Get current version
-CURRENT_VERSION=$(grep -oP "__version__ = ['\"]([^'\"]+)['\"]" bayesed/__init__.py | grep -oP "[0-9]+\.[0-9]+\.[0-9]+")
+CURRENT_VERSION=$(grep "__version__" bayesed/__init__.py | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
 echo "Current version: $CURRENT_VERSION"
 echo ""
 
-# Ask for new version
-read -p "Enter new version (e.g., 3.0.1): " NEW_VERSION
+# Generate date-based default version (YYYY.MM.DD format)
+DEFAULT_VERSION=$(date +"%Y.%m.%d")
 
+# Ask for new version with date-based default
+read -p "Enter new version (default: $DEFAULT_VERSION): " NEW_VERSION
+
+# Use default if empty
 if [ -z "$NEW_VERSION" ]; then
-    echo "Error: Version cannot be empty"
-    exit 1
+    NEW_VERSION="$DEFAULT_VERSION"
+    echo "Using default version: $NEW_VERSION"
 fi
 
-# Validate version format
+# Validate version format (allow YYYY.MM.DD or X.Y.Z)
 if ! echo "$NEW_VERSION" | grep -qE "^[0-9]+\.[0-9]+\.[0-9]+$"; then
-    echo "Error: Version must be in format X.Y.Z (e.g., 3.0.1)"
+    echo "Error: Version must be in format X.Y.Z or YYYY.MM.DD (e.g., 2026.01.30)"
     exit 1
 fi
 
