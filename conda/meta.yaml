@@ -1,5 +1,5 @@
 {% set name = "bayesed3" %}
-{% set version = "3.0.0" %}
+{% set version = "2026.01.30" %}
 
 package:
   name: {{ name|lower }}
