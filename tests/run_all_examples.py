@@ -2,105 +2,121 @@
 """
 Run All BayeSED3 Python Interface Examples
 
-This script runs all the Python interface examples extracted from README.md.
-Each example demonstrates different aspects of BayeSED3 functionality.
+This script runs all test examples sequentially and provides a summary
+of successes and failures.
 """
 
 import sys
 import traceback
 from pathlib import Path
 
-# Add the parent directory to the path so we can import bayesed
+# Add parent directory to path to ensure bayesed can be imported
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-def run_example(example_name, example_function):
-    """Run a single example with error handling."""
-    print(f"\n{'='*60}")
-    print(f"Running {example_name}")
-    print(f"{'='*60}")
+def run_example(name, test_function):
+    """Run a single test example and catch any errors."""
+    print(f"\n{'='*80}")
+    print(f"Running: {name}")
+    print(f"{'='*80}\n")
     
     try:
-        result = example_function()
-        print(f"✅ {example_name} completed successfully!")
+        test_function()
+        print(f"\n✓ {name} completed successfully!")
         return True
     except Exception as e:
-        print(f"❌ {example_name} failed with error:")
-        print(f"   {str(e)}")
+        print(f"\n✗ {name} failed with error:")
+        print(f"  {type(e).__name__}: {e}")
         traceback.print_exc()
         return False
 
 def main():
-    """Run all examples."""
-    print("BayeSED3 Python Interface Examples")
-    print("=" * 60)
+    """Run all examples and provide summary."""
     
-    examples = []
-    results = []
+    results = {}
     
-    # Import and run each example
+    # Import and run each test
+    print("Starting BayeSED3 Python Interface Examples")
+    print("=" * 80)
+    
+    # 1. Quick Start
     try:
         from quick_start import test_quick_start
-        examples.append(("Quick Start", test_quick_start))
+        results['Quick Start'] = run_example('Quick Start', test_quick_start)
     except ImportError as e:
-        print(f"Could not import quick_start: {e}")
+        print(f"✗ Could not import quick_start: {e}")
+        results['Quick Start'] = False
     
+    # 2. AGN Fitting
     try:
         from test_agn_fitting import test_agn_fitting
-        examples.append(("AGN Fitting", test_agn_fitting))
+        results['AGN Fitting'] = run_example('AGN Fitting', test_agn_fitting)
     except ImportError as e:
-        print(f"Could not import test_agn_fitting: {e}")
+        print(f"✗ Could not import test_agn_fitting: {e}")
+        results['AGN Fitting'] = False
     
+    # 3. Data Arrays
     try:
         from test_data_arrays import test_data_arrays
-        examples.append(("Data Arrays", test_data_arrays))
+        results['Data Arrays'] = run_example('Data Arrays', test_data_arrays)
     except ImportError as e:
-        print(f"Could not import test_data_arrays: {e}")
+        print(f"✗ Could not import test_data_arrays: {e}")
+        results['Data Arrays'] = False
     
+    # 4. Custom Model
     try:
-        from test_custom_model import test_custom_model_dust_emission, test_custom_model_full_agn
-        examples.append(("Custom Model - Dust Emission", test_custom_model_dust_emission))
-        examples.append(("Custom Model - Full AGN", test_custom_model_full_agn))
+        from test_custom_model import test_custom_model_dust_emission
+        results['Custom Model'] = run_example('Custom Model', test_custom_model_dust_emission)
     except ImportError as e:
-        print(f"Could not import test_custom_model: {e}")
+        print(f"✗ Could not import test_custom_model: {e}")
+        results['Custom Model'] = False
     
+    # 5. Multi-Model Comparison
     try:
         from test_multi_model_comparison import test_multi_model_comparison
-        examples.append(("Multi-Model Comparison", test_multi_model_comparison))
+        results['Multi-Model Comparison'] = run_example('Multi-Model Comparison', test_multi_model_comparison)
     except ImportError as e:
-        print(f"Could not import test_multi_model_comparison: {e}")
+        print(f"✗ Could not import test_multi_model_comparison: {e}")
+        results['Multi-Model Comparison'] = False
     
+    # 6. Advanced Analytics
     try:
-        from test_advanced_analytics import test_advanced_analytics, test_evidence_analysis
-        examples.append(("Advanced Analytics", test_advanced_analytics))
-        examples.append(("Evidence Analysis", test_evidence_analysis))
+        from test_advanced_analytics import test_advanced_analytics
+        results['Advanced Analytics'] = run_example('Advanced Analytics', test_advanced_analytics)
     except ImportError as e:
-        print(f"Could not import test_advanced_analytics: {e}")
+        print(f"✗ Could not import test_advanced_analytics: {e}")
+        results['Advanced Analytics'] = False
     
-    # Run all examples
-    for example_name, example_function in examples:
-        success = run_example(example_name, example_function)
-        results.append((example_name, success))
+    # 7. Prior Management
+    try:
+        from test_prior_management import test_prior_management
+        results['Prior Management'] = run_example('Prior Management', test_prior_management)
+    except ImportError as e:
+        print(f"✗ Could not import test_prior_management: {e}")
+        results['Prior Management'] = False
     
-    # Summary
-    print(f"\n{'='*60}")
+    # Print summary
+    print(f"\n{'='*80}")
     print("SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'='*80}\n")
     
-    successful = sum(1 for _, success in results if success)
+    passed = sum(1 for v in results.values() if v)
+    failed = sum(1 for v in results.values() if not v)
     total = len(results)
     
-    for example_name, success in results:
-        status = "✅ PASSED" if success else "❌ FAILED"
-        print(f"{status}: {example_name}")
+    for name, success in results.items():
+        status = "✓ PASSED" if success else "✗ FAILED"
+        print(f"{status:12} {name}")
     
-    print(f"\nTotal: {successful}/{total} examples passed")
+    print(f"\n{'-'*80}")
+    print(f"Total: {total} | Passed: {passed} | Failed: {failed}")
+    print(f"{'-'*80}\n")
     
-    if successful == total:
-        print("🎉 All examples completed successfully!")
-        return 0
+    if failed > 0:
+        print("Some examples failed. Check the output above for details.")
+        sys.exit(1)
     else:
-        print("⚠️  Some examples failed. Check the output above for details.")
-        return 1
+        print("All examples completed successfully!")
+        sys.exit(0)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

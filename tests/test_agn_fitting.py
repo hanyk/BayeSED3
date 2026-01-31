@@ -17,7 +17,7 @@ def test_agn_fitting():
     # AGN with all components (includes galaxy host)
     params = BayeSEDParams.agn(
         input_file='observation/test/qso.txt',
-        outdir='output',
+        outdir='tests/output_agn_fitting',
         ssp_model='bc2003_hr_stelib_chab_neb_2000r',
         sfh_type='exponential',
         dal_law='calzetti',

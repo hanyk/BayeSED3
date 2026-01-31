@@ -40,7 +40,7 @@ def test_data_arrays():
         # Create and run analysis
         params = BayeSEDParams.galaxy(
             input_file=input_file,
-            outdir='observation/demo_analysis/output',
+            outdir='tests/output_data_arrays',
             filters=filter_files['filters_file'],
             filters_selected=filter_files['filters_selected_file']
         )

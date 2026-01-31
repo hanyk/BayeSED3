@@ -73,6 +73,19 @@ This directory contains Python examples extracted from the main README.md file, 
 - GetDist samples and triangle plots
 - Evidence analysis with different return formats
 
+### 7. `test_prior_management.py` - Prior Management
+**What it demonstrates:**
+- Programmatic prior management without editing .iprior files
+- Different prior types (Uniform, Gaussian, Gamma, Beta, etc.)
+- Pattern matching and bulk prior updates
+
+**Key features:**
+- `SEDInference` class for prior management
+- `set_prior()` for modifying priors
+- `list_prior_types()` for available distributions
+- Regex patterns and partial matching
+- Reset to default priors
+
 ## Running the Examples
 
 ### Run Individual Examples

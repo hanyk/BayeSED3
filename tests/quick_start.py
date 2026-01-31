@@ -17,7 +17,7 @@ def test_quick_start():
     # Simple galaxy fitting
     params = BayeSEDParams.galaxy(
         input_file='observation/test/gal.txt',
-        outdir='output',
+        outdir='tests/output_quick_start',
         ssp_model='bc2003_hr_stelib_chab_neb_2000r',
         sfh_type='exponential',
         dal_law='calzetti'
@@ -27,7 +27,7 @@ def test_quick_start():
     result = bayesed.run(params)
 
     # Load and analyze results
-    results = BayeSEDResults('output',catalog_name='gal')
+    results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
     results.print_summary()
 
     # Access parameters and objects
@@ -73,7 +73,7 @@ def test_quick_start():
     # Object-level analysis
     if available_objects:
         object_id = available_objects[0]
-        object_results = BayeSEDResults('output', object_id=object_id,catalog_name='gal')
+        object_results = BayeSEDResults('tests/output_quick_start', object_id=object_id,catalog_name='gal')
         object_results.plot_bestfit()
 
         object_results.set_parameter_labels(custom_labels)

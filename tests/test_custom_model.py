@@ -29,7 +29,7 @@ def test_custom_model_dust_emission():
     params = BayeSEDParams(
         input_type=0,  # Flux in μJy
         input_file='observation/test2/test.txt',
-        outdir='test2_output',
+        outdir='tests/output_custom_model',
         filters='observation/test2/filters.txt',
         filters_selected='observation/test2/filters_selected.txt',
         save_sample_par=True  # Enable posterior sample generation

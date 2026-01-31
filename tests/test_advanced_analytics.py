@@ -13,7 +13,7 @@ def test_advanced_analytics():
 
     # Load results with intelligent configuration detection
     # Note: If multiple catalogs exist, specify catalog_name explicitly
-    results = BayeSEDResults('output',catalog_name='gal')
+    results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
 
     # Get available parameter names (with component IDs like [0,1])
     free_params = results.get_free_parameters()
@@ -50,7 +50,7 @@ def test_advanced_analytics():
 def test_evidence_analysis():
     """Test evidence analysis with different return formats."""
 
-    results = BayeSEDResults('output',catalog_name='gal')
+    results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
 
     print("=== Evidence Analysis ===")
 

@@ -177,7 +177,7 @@ bayesed = BayeSEDInterface(mpi_mode='auto')
 # Simple galaxy fitting
 params = BayeSEDParams.galaxy(
     input_file='observation/test/gal.txt',
-    outdir='output',
+    outdir='tests/output_quick_start',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti'
@@ -187,7 +187,7 @@ params = BayeSEDParams.galaxy(
 result = bayesed.run(params)
 
 # Load and analyze results
-results = BayeSEDResults('output',catalog_name='gal')
+results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
 results.print_summary()
 
 # Access parameters and objects
@@ -221,25 +221,29 @@ results.plot_posterior_derived(max_params=5)
 results.plot_posterior(params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]'])  # Mixed free+derived parameters
 
 # Object-level analysis
-object_results = BayeSEDResults('output', object_id='spec-0285-51930-0184_GALAXY_STARFORMING',catalog_name='gal')
-object_results.plot_bestfit()
+if available_objects:
+    object_id = available_objects[0]
+    object_results = BayeSEDResults('tests/output_quick_start', object_id=object_id,catalog_name='gal')
+    object_results.plot_bestfit()
 
-object_results.set_parameter_labels(custom_labels)
-object_results.plot_posterior_free()
-object_results.plot_posterior_derived(max_params=5)
-object_results.plot_posterior(params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]'])  # Mixed free+derived parameters
+    object_results.set_parameter_labels(custom_labels)
+    object_results.plot_posterior_free()
+    object_results.plot_posterior_derived(max_params=5)
+    object_results.plot_posterior(params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]'])  # Mixed free+derived parameters
 ```
 
 **AGN Fitting:**
 
 ```python
-# AGN with all components (includes galaxy host)
+from bayesed import BayeSEDInterface, BayeSEDParams
+
 # Initialize interface with Ntest for quick testing (optional)
 bayesed = BayeSEDInterface(mpi_mode='auto', Ntest=2)  # Process only first 2 objects
 
+# AGN with all components (includes galaxy host)
 params = BayeSEDParams.agn(
     input_file='observation/test/qso.txt',
-    outdir='output',
+    outdir='tests/output_agn_fitting',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti',
@@ -261,7 +265,7 @@ BayeSED3 provides a powerful API for managing parameter priors programmatically 
 from bayesed import SEDInference, BayeSEDParams
 
 # Initialize and load priors
-params = BayeSEDParams.galaxy(input_file='observation/test/gal.txt', outdir='output')
+params = BayeSEDParams.galaxy(input_file='observation/test/gal.txt', outdir='tests/output_prior_management')
 inference = SEDInference()
 inference.priors_init(params)
 
@@ -296,6 +300,7 @@ inference.set_prior('Av_.*', reset_to_default=True)  # Reset all Av parameters
 
 ```python
 import numpy as np
+import os
 from bayesed import BayeSEDInterface, BayeSEDParams
 from bayesed.data import SEDObservation
 
@@ -311,7 +316,6 @@ obs = SEDObservation(
 )
 
 # Convert to BayeSED input format
-import os
 os.makedirs('observation/demo_analysis', exist_ok=True)
 input_file = obs.to_bayesed_input('observation/demo_analysis', 'demo_catalog')
 
@@ -325,7 +329,7 @@ filter_files = bayesed.prepare_filters_from_svo(
 # Create and run analysis
 params = BayeSEDParams.galaxy(
     input_file=input_file,
-    outdir='observation/demo_analysis/output',
+    outdir='tests/output_data_arrays',
     filters=filter_files['filters_file'],
     filters_selected=filter_files['filters_selected_file']
 )
@@ -355,7 +359,7 @@ agn = SEDModel.create_agn(agn_components=['tor'])
 params = BayeSEDParams(
     input_type=0,  # Flux in μJy
     input_file='observation/test2/test.txt',
-    outdir='test2_output',
+    outdir='tests/output_custom_model',
     filters='observation/test2/filters.txt',
     filters_selected='observation/test2/filters_selected.txt',
     save_sample_par=True  # Enable posterior sample generation
@@ -381,7 +385,7 @@ input_file = 'observation/test/gal.txt'
 # Model 1: Exponential SFH with Calzetti dust law
 params1 = BayeSEDParams.galaxy(
     input_file=input_file,
-    outdir='output_model1_exp_calzetti',
+    outdir='tests/output_model1_exp_calzetti',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti',
@@ -392,7 +396,7 @@ bayesed.run(params1)
 # Model 2: Delayed SFH with SMC dust law
 params2 = BayeSEDParams.galaxy(
     input_file=input_file,
-    outdir='output_model2_delayed_smc',
+    outdir='tests/output_model2_delayed_smc',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='delayed',
     dal_law='smc',
@@ -401,8 +405,8 @@ params2 = BayeSEDParams.galaxy(
 bayesed.run(params2)
 
 # Compare results for the same object with different models
-results1 = BayeSEDResults('output_model1_exp_calzetti')
-results2 = BayeSEDResults('output_model2_delayed_smc')
+results1 = BayeSEDResults('tests/output_model1_exp_calzetti')
+results2 = BayeSEDResults('tests/output_model2_delayed_smc')
 
 # Standardize parameter names across models for comparison
 results_list = [results1, results2]
@@ -431,7 +435,7 @@ from bayesed import BayeSEDResults
 
 # Load results with intelligent configuration detection
 # Note: If multiple catalogs exist, specify catalog_name explicitly
-results = BayeSEDResults('output',catalog_name='gal')
+results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
 
 # Get available parameter names (with component IDs like [0,1])
 free_params = results.get_free_parameters()
@@ -466,14 +470,6 @@ plt.show()
 
 For more detailed documentation and advanced usage, see [docs/BayeSED3.md](docs/BayeSED3.md).
 
-**Comprehensive Examples:**
-
-See [tests/run_test2.py](tests/run_test2.py) for comprehensive examples demonstrating the high-level Python interface, including:
-- Galaxy and AGN fitting with various model configurations
-- Advanced parameter settings and inference configuration
-- Result loading and visualization
-- Complete test cases recreating the original [`tests/run_test.py`](tests/run_test.py) examples
-
 ### Graphical User Interface (GUI)
 
 Launch the GUI:
@@ -501,16 +497,14 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 - [`pyproject.toml`](pyproject.toml): Modern Python packaging configuration (dependencies and metadata)
 - [`setup.py`](setup.py): Minimal setup for data files (pyproject.toml doesn't support data_files)
 - [`tests/`](tests/): Python interface examples and test scripts
-  - [`quick_start.py`](tests/quick_start.py): Basic usage examples for getting started with BayeSED3
-  - [`run_test.py`](tests/run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
-  - [`run_test2.py`](tests/run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
+  - [`run_test.py`](tests/run_test.py): Examples using low-level Python interface (direct parameter construction)
+  - [`quick_start.py`](tests/quick_start.py): Basic usage examples for high-level Python interface
   - [`test_agn_fitting.py`](tests/test_agn_fitting.py): Examples for AGN component fitting and analysis
   - [`test_data_arrays.py`](tests/test_data_arrays.py): Working with data arrays and creating observations programmatically
   - [`test_custom_model.py`](tests/test_custom_model.py): Custom model configuration and advanced setup
   - [`test_multi_model_comparison.py`](tests/test_multi_model_comparison.py): Comparing multiple models using Bayesian evidence
   - [`test_advanced_analytics.py`](tests/test_advanced_analytics.py): Advanced posterior analysis and GetDist integration
   - [`test_bayesed_bagpipes_comparison.py`](tests/test_bayesed_bagpipes_comparison.py): Comparison between BayeSED3 and BAGPIPES results
-  - [`run_all_examples.py`](tests/run_all_examples.py): Script to run all test examples sequentially
 - [`observation/test/`](observation/test/): Contains test data and configuration files
 - [`bin/`](bin/): Contains BayeSED3 executables for different platforms
 - [`nets/`](nets/): Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
