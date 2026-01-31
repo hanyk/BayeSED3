@@ -3,7 +3,10 @@ import os
 import sys
 import subprocess
 
-def run_bayesed_example(obj, input_dir='observation/test', output_dir='output', np=None, Ntest=None):
+def run_bayesed_example(obj, input_dir='observation/test', output_dir=None, np=None, Ntest=None):
+    if output_dir is None:
+        output_dir = f'{input_dir}/output'
+    
     bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
     params = BayeSEDParams(
@@ -101,7 +104,7 @@ def run_bayesed_test1(survey, obs_file, np=None, Ntest=None):
     params = BayeSEDParams(
         input_type=1,  # 1: Input file contains observed photometric SEDs with AB magnitude
         input_file=obs_file,
-        outdir='test1',
+        outdir=os.path.join(os.path.dirname(obs_file), 'output'),
         save_bestfit=2,  # 2: Save the best fitting result in both fits and hdf5 formats
         save_sample_par=True,
         multinest=MultiNestParams(
@@ -139,10 +142,11 @@ def run_bayesed_test1(survey, obs_file, np=None, Ntest=None):
 def run_bayesed_test2(np=None, Ntest=None):
     bayesed = BayeSEDInterface(mpi_mode='1', np=np, Ntest=Ntest)
 
+    input_file = 'observation/test2/test.txt'
     params = BayeSEDParams(
         input_type=0,
-        input_file='observation/test2/test.txt',
-        outdir='test2',
+        input_file=input_file,
+        outdir=os.path.join(os.path.dirname(input_file), 'output'),
         save_bestfit=0,  # 0: Save the best fitting result in fits format
         save_sample_par=True,
         multinest=MultiNestParams(
@@ -194,7 +198,7 @@ def run_bayesed_test3(obj_type, itype, np=None, Ntest=None):
     params = BayeSEDParams(
         input_type=1,
         input_file=input_file,
-        outdir='test3',
+        outdir=os.path.join(os.path.dirname(input_file), 'output'),
         save_bestfit=0,  # 0: Save the best fitting result in fits format
         save_sample_par=True,
         multinest=MultiNestParams(
@@ -241,16 +245,16 @@ def run_bayesed_test3(obj_type, itype, np=None, Ntest=None):
 def plot_results(obj, output_dir):
     if obj in ['gal', 'qso']:
         plot_script = 'observation/test/plot_bestfit.py'
-        search_dir = os.path.join(output_dir, obj)
+        search_dir = 'observation/test/output'
     elif obj == 'test1':
         plot_script = 'observation/test1/plot_bestfit.py'
-        search_dir = 'test1'
+        search_dir = 'observation/test1/output'
     elif obj == 'test2':
         plot_script = 'observation/test2/plot_bestfit.py'
-        search_dir = 'test2'
+        search_dir = 'observation/test2/output'
     elif obj == 'test3':
         plot_script = 'observation/test3/plot_bestfit.py'
-        search_dir = 'test3'
+        search_dir = 'observation/test3/output'
     else:
         print(f"Cannot find appropriate plotting script for object {obj}")
         return
@@ -269,8 +273,6 @@ def plot_results(obj, output_dir):
                     subprocess.run(cmd)
 
 if __name__ == "__main__":
-    # Ensure output directory exists
-    os.makedirs('output', exist_ok=True)
 
     # Get obj from command line arguments
     if len(sys.argv) < 2:

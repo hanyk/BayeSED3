@@ -194,7 +194,7 @@ def run_galaxy_analysis_enhanced(obj='gal', plot=False):
 
     # Use real data files from the repository
     input_file = f'observation/test/{obj}.txt'
-    output_dir = f'output_{obj}'
+    output_dir = os.path.join(os.path.dirname(input_file), 'output2')
 
     # Simple galaxy configuration using builder method
     if obj == 'gal':
@@ -293,12 +293,13 @@ def run_photometric_survey_analysis(survey='CSST', plot=False):
     bayesed = BayeSEDInterface(mpi_mode='auto')
 
     # Use real data files from the repository
-    obs_file = 'observation/test1/test_inoise1.txt'
+    input_file = 'observation/test1/test_inoise1.txt'
+    output_dir = os.path.join(os.path.dirname(input_file), 'output2')
 
     # Simple galaxy configuration for photometric survey
     params = BayeSEDParams.galaxy(
-        input_file=obs_file,
-        outdir='test1_output',
+        input_file=input_file,
+        outdir=output_dir,
         ssp_model='bc2003_lr_BaSeL_chab',
         sfh_type='exponential',
         dal_law='calzetti',
@@ -308,21 +309,21 @@ def run_photometric_survey_analysis(survey='CSST', plot=False):
     )
 
     print(f"Running photometric survey analysis: {survey}...")
-    print(f"Using real data: {obs_file}")
+    print(f"Using real data: {input_file}")
     result = bayesed.run(params)
 
     if plot:
         # Enhanced results analysis
-        results = BayeSEDResults('test1_output')
+        results = BayeSEDResults(output_dir)
         results.plot_posterior_free(output_file=f'{survey}_free_params.png', show=False)
 
         # Object-level analysis
         objects = results.list_objects()
         if objects:
-            obj_results = BayeSEDResults('test1_output', object_id=objects[0])
+            obj_results = BayeSEDResults(output_dir, object_id=objects[0])
             obj_results.plot_bestfit(show=True)
 
-        test_enhanced_results_analysis('test1_output', max_objects=1)
+        test_enhanced_results_analysis(output_dir, max_objects=1)
 
 
 def run_agn_torus_analysis(plot=False):
@@ -355,10 +356,13 @@ def run_agn_torus_analysis(plot=False):
     agn = SEDModel.create_agn(agn_components=['tor'])
 
     # Assemble configuration using real data files
+    input_file = 'observation/test2/test.txt'
+    output_dir = os.path.join(os.path.dirname(input_file), 'output2')
+    
     params = BayeSEDParams(
         input_type=0,  # Flux in μJy
-        input_file='observation/test2/test.txt',
-        outdir='test2_output',
+        input_file=input_file,
+        outdir=output_dir,
         filters='observation/test2/filters.txt',
         filters_selected='observation/test2/filters_selected.txt',
         save_sample_par=True  # Enable posterior sample generation
@@ -373,7 +377,7 @@ def run_agn_torus_analysis(plot=False):
 
     if plot:
         # Enhanced results analysis
-        results = BayeSEDResults('test2_output')
+        results = BayeSEDResults(output_dir)
 
         # Custom labels for AGN parameters
         agn_labels = {
@@ -389,10 +393,10 @@ def run_agn_torus_analysis(plot=False):
         # Object-level analysis
         objects = results.list_objects()
         if objects:
-            obj_results = BayeSEDResults('test2_output', object_id=objects[0])
+            obj_results = BayeSEDResults(output_dir, object_id=objects[0])
             obj_results.plot_bestfit(show=True, use_log_scale=True)
 
-        test_enhanced_results_analysis('test2_output', max_objects=1)
+        test_enhanced_results_analysis(output_dir, max_objects=1)
 
 
 def run_advanced_galaxy_analysis(obj_type='STARFORMING', plot=False):
@@ -416,11 +420,12 @@ def run_advanced_galaxy_analysis(obj_type='STARFORMING', plot=False):
 
     # Use real data files from the repository
     input_file = f'observation/test3/test_{obj_type}.txt'
+    output_dir = os.path.join(os.path.dirname(input_file), 'output2')
 
     # Advanced galaxy configuration - use simpler configuration that works
     params = BayeSEDParams.galaxy(
         input_file=input_file,
-        outdir='test3_output',
+        outdir=output_dir,
         ssp_model='bc2003_hr_stelib_chab_neb_300r',
         sfh_type='exponential',
         dal_law='calzetti',
@@ -438,7 +443,7 @@ def run_advanced_galaxy_analysis(obj_type='STARFORMING', plot=False):
 
     if plot:
         # Enhanced results analysis
-        results = BayeSEDResults('test3_output')
+        results = BayeSEDResults(output_dir)
 
         # Custom labels for advanced parameters
         advanced_labels = {
@@ -456,10 +461,10 @@ def run_advanced_galaxy_analysis(obj_type='STARFORMING', plot=False):
         # Object-level analysis
         objects = results.list_objects()
         if objects:
-            obj_results = BayeSEDResults('test3_output', object_id=objects[0])
+            obj_results = BayeSEDResults(output_dir, object_id=objects[0])
             obj_results.plot_bestfit(show=True)
 
-        test_enhanced_results_analysis('test3_output', max_objects=1)
+        test_enhanced_results_analysis(output_dir, max_objects=1)
 
 
 def demonstrate_multi_model_comparison():
@@ -474,7 +479,7 @@ def demonstrate_multi_model_comparison():
     print("\n=== Multi-Model Comparison Demonstration ===\n")
 
     # Check for existing output directories from previous runs
-    output_dirs = ['output_gal', 'output_qso', 'test1_output', 'test2_output', 'test3_output']
+    output_dirs = ['observation/test/output2', 'observation/test1/output2', 'observation/test2/output2', 'observation/test3/output2']
     available_dirs = [d for d in output_dirs if os.path.exists(d)]
 
     if len(available_dirs) < 2:

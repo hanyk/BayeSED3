@@ -136,16 +136,16 @@ conda build purge
    python run_test.py gal plot
    python run_test.py qso plot
    ```
-![Best-fit gal](output/gal/spec-0285-51930-0184_GALAXY_STARFORMING/0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits.png)
-![Best-fit qso](output/qso/spec-2091-53447-0584_QSO_BROADLINE/0Stellar+Nebular_2dal8_10_1bbb_2dal7_15_2BLR_kin_eml3_13_3FeII_kin_con2_6_4NLR_kin_eml2_13_sys_err0_bestfit.fits.png)
+![Best-fit gal](observation/test/output/gal/spec-0285-51930-0184_GALAXY_STARFORMING/0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits.png)
+![Best-fit qso](observation/test/output/qso/spec-2091-53447-0584_QSO_BROADLINE/0Stellar+Nebular_2dal8_10_1bbb_2dal7_15_2BLR_kin_eml3_13_3FeII_kin_con2_6_4NLR_kin_eml2_13_sys_err0_bestfit.fits.png)
 
 2. photometric SED analysis
    ```
    python run_test.py test1 plot
    python run_test.py test2 plot
    ```
-![Best-fit mock_phot](test1/test_inoise1/0/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal8_10_z_CSST_bestfit.fits.png)
-![Best-fit W0533](test2/W0533_ALMA/W0533/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal7_10_1gb_8_2clumpy201410tor_1_bestfit.fits.png)
+![Best-fit mock_phot](observation/test1/output/test_inoise1/0/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal8_10_z_CSST_bestfit.fits.png)
+![Best-fit W0533](observation/test2/output/W0533_ALMA/W0533/0csp_sfh200_bc2003_lr_BaSeL_chab_i0000_2dal7_10_1gb_8_2clumpy201410tor_1_bestfit.fits.png)
 
 3. mock CSST photometric and/or spectroscopic SED analysis
    ```
@@ -153,10 +153,10 @@ conda build purge
    python run_test.py test3 spec plot
    python run_test.py test3 both plot
    ```
-![Best-fit csst_mock_phot](test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_phot_bestfit.fits.png)
-![Best-fit csst_mock_spec](test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_spec_bestfit.fits.png)
-![Best-fit csst_mock_both](test3/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png)
-![pdftree csst_mock_all](test3/seedcat2_0_STARFORMING_inoise2/8144596/pdftree.png)
+![Best-fit csst_mock_phot](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_phot_bestfit.fits.png)
+![Best-fit csst_mock_spec](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_spec_bestfit.fits.png)
+![Best-fit csst_mock_both](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png)
+![pdftree csst_mock_all](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/pdftree.png)
 
 4. [ A new approach to constraining properties of AGN host galaxies by combining image and SED decomposition](https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract)
 
