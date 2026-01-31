@@ -111,22 +111,27 @@ source:
 build:
   number: 0
   skip: true  # [win]
-  script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
   build:
     - {{ compiler('c') }}
     - {{ compiler('fortran') }}
+    - {{ stdlib("c") }}
   host:
     - python
     - pip
     - setuptools
   run:
-    # System dependency (not a Python package)
-    - openmpi=4.1.6
-    - python >=3.7
-    # All Python dependencies are defined in pyproject.toml
-    # They are automatically installed via pip during build
+    - openmpi 4.1.6
+    - python
+    # Python dependencies from pyproject.toml
+    - numpy >=1.20.0
+    - h5py >=3.1.0
+    - astropy-base >=4.2
+    - matplotlib-base >=3.3.0
+    - getdist >=1.3.0
+    - requests >=2.25.0
+    - tqdm >=4.60.0
 
 test:
   imports:
@@ -139,21 +144,35 @@ about:
   home: https://github.com/hanyk/BayeSED3
   license: MIT
   license_file: LICENSE
-  summary: Bayesian SED synthesis and analysis of galaxies and AGNs
+  summary: Bayesian SED synthesis and analysis tool for galaxies and AGNs with full posterior inference and model comparison
   description: |
-    BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation 
-    of spectral energy distributions (SEDs) of galaxies and Active Galactic Nuclei (AGNs). 
-    It performs Bayesian parameter estimation using posterior probability distributions (PDFs) 
-    and Bayesian SED model comparison using Bayesian evidence.
+    BayeSED3 is a sophisticated Bayesian tool for interpreting spectral energy distributions (SEDs) 
+    of galaxies and Active Galactic Nuclei (AGNs). It performs rigorous Bayesian parameter estimation 
+    using posterior probability distributions and model comparison via Bayesian evidence calculation.
     
-    Key Features:
-    - Multi-component SED synthesis for galaxies and AGNs
-    - Stellar population synthesis with flexible star formation histories
-    - Dust attenuation and emission modeling
-    - AGN component modeling (accretion disk, BLR, NLR, torus, FeII)
-    - Handles both photometric and spectroscopic data
-    - Parallel processing via MPI
-    - Python API and GUI interface
+    Key Capabilities:
+    - Multi-component SED modeling: stellar populations, dust attenuation/emission, AGN components
+    - Flexible star formation histories (exponential, delayed, non-parametric)
+    - Comprehensive AGN modeling (accretion disk, BLR/NLR, torus, FeII emission)
+    - Handles photometric and spectroscopic data (individual or combined)
+    - Machine learning-based SED emulation (FANN, AKNN) for computational efficiency
+    - MPI-based parallel processing for large datasets
+    - Nested sampling via MultiNest for robust Bayesian inference
+    - Python API with high-level interface and comprehensive result analysis
+    - GetDist integration for advanced posterior visualization
+    - Optional GUI for interactive model configuration
+    
+    Scientific Applications:
+    - Galaxy stellar mass, age, and star formation rate estimation
+    - AGN-host galaxy decomposition
+    - Dust properties and attenuation curves
+    - Model comparison using Bayesian evidence
+    - Mock survey analysis and forecasting
+    
+    Platform Support: Linux x86_64, macOS x86_64/ARM64 (via Rosetta 2), Windows (via WSL)
+    
+    Citation: Han & Han 2012 (ApJ 749, 123); Han & Han 2014 (ApJS 215, 2); 
+    Han & Han 2019 (ApJS 240, 3); Han et al. 2023 (ApJS 269, 39)
   doc_url: https://github.com/hanyk/BayeSED3
   dev_url: https://github.com/hanyk/BayeSED3
 
@@ -169,8 +188,9 @@ cat > "$RECIPE_DIR/build.sh" << 'EOF'
 #!/bin/bash
 set -e
 
-# Install Python package
-$PYTHON -m pip install . --no-deps --ignore-installed -vv
+# Install Python package WITH dependencies
+# Dependencies are read from pyproject.toml
+$PYTHON -m pip install . --ignore-installed -vv
 
 # Create share directory for data files
 mkdir -p $PREFIX/share/bayesed3
