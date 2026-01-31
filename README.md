@@ -498,11 +498,19 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
   - [`utils.py`](bayesed/utils.py): Utility functions for data preparation and filter management
   - [`plotting.py`](bayesed/plotting.py): Plotting functions for visualization
 - [`bayesed_gui.py`](bayesed_gui.py): Graphical User Interface for BayeSED3
-- [`run_test.py`](run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
-- [`run_test2.py`](run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
 - [`pyproject.toml`](pyproject.toml): Modern Python packaging configuration (dependencies and metadata)
 - [`setup.py`](setup.py): Minimal setup for data files (pyproject.toml doesn't support data_files)
 - [`tests/`](tests/): Python interface examples and test scripts
+  - [`quick_start.py`](tests/quick_start.py): Basic usage examples for getting started with BayeSED3
+  - [`run_test.py`](tests/run_test.py): Script to run BayeSED3 examples using low-level Python interface (direct parameter construction)
+  - [`run_test2.py`](tests/run_test2.py): Comprehensive examples demonstrating the high-level Python interface (using `BayeSEDInterface`, `BayeSEDParams`, `SEDModel`, etc.)
+  - [`test_agn_fitting.py`](tests/test_agn_fitting.py): Examples for AGN component fitting and analysis
+  - [`test_data_arrays.py`](tests/test_data_arrays.py): Working with data arrays and creating observations programmatically
+  - [`test_custom_model.py`](tests/test_custom_model.py): Custom model configuration and advanced setup
+  - [`test_multi_model_comparison.py`](tests/test_multi_model_comparison.py): Comparing multiple models using Bayesian evidence
+  - [`test_advanced_analytics.py`](tests/test_advanced_analytics.py): Advanced posterior analysis and GetDist integration
+  - [`test_bayesed_bagpipes_comparison.py`](tests/test_bayesed_bagpipes_comparison.py): Comparison between BayeSED3 and BAGPIPES results
+  - [`run_all_examples.py`](tests/run_all_examples.py): Script to run all test examples sequentially
 - [`observation/test/`](observation/test/): Contains test data and configuration files
 - [`bin/`](bin/): Contains BayeSED3 executables for different platforms
 - [`nets/`](nets/): Contains [Fast Artificial Neural Network (FANN)](https://github.com/libfann/fann) and [Approximate K-Nearest Neighbors (AKNN)](http://www.cs.umd.edu/~mount/ANN/) models for SED emulation
