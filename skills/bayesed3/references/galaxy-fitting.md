@@ -73,29 +73,36 @@ result = bayesed.run(params)
 | `bc2003_hr_stelib_chab_neb_2000r` | High | STELIB | Chabrier | Yes |
 | `bc2003_hr_stelib_chab_neb_300r` | High | STELIB | Chabrier | Yes (low-res) |
 | `bc2003_lr_BaSeL_chab` | Low | BaSeL | Chabrier | No |
-| `bc2003_lr_BaSeL_chab_i0000` | Low | BaSeL | Chabrier | No |
 
 ## SFH Types
 
 | `itype_sfh` | `sfh_type` | Description |
 |-------------|------------|-------------|
-| 0 | `'instantaneous'` | Instantaneous burst |
+| 0 | `'instantaneous'`, `'instantaneous_burst'`, `'burst'` | Instantaneous burst |
 | 1 | `'constant'` | Constant SFR |
-| 2 | `'exponential'` | Exponential decay τ |
-| 3 | — | Exponential rise |
-| 5 | `'delayed'` | Delayed exponential t·exp(-t/τ) |
+| 2 | `'exponential'`, `'exponentially_declining'` | Exponential decay τ |
+| 3 | `'exponentially_increasing'`, `'increasing'` | Exponential rise |
+| 4 | `'single_burst'`, `'burst_length_tau'` | Single burst of length tau |
+| 5 | `'delayed'`, `'delayed_exponential'` | Delayed exponential t·exp(-t/τ) |
 | 6 | `'beta'` | Beta function |
-| 7 | `'lognormal'` | Log-normal |
-| 9 | `'nonparametric'` | Non-parametric |
+| 7 | `'lognormal'`, `'log_normal'` | Log-normal |
+| 8 | `'double_powerlaw'`, `'double_power_law'` | Double power-law SFH |
+| 9 | `'nonparametric'`, `'non_parametric'` | Non-parametric |
 
 ## Dust Attenuation Laws
 
 | `ilaw` | `dal_law` | Description |
 |--------|-----------|-------------|
-| 1 | — | Starburst (Calzetti+2000, with scattering) |
-| 7 | `'smc'` | SMC (Fitzpatrick+86) |
-| 8 | `'calzetti'` | SB (Calzetti2000) |
-| 9 | — | Star-forming (Reddy+2015) |
+| 0 | `'sed_model'`, `'sed_normalization'` | SED model with L_dust normalization |
+| 1 | `'starburst'`, `'starburst_calzetti'`, `'calzetti_fast'` | Starburst (Calzetti+2000, FAST) |
+| 2 | `'milky_way'`, `'milky_way_cardelli'`, `'cardelli'` | Milky Way (Cardelli+1989, FAST) |
+| 3 | `'star_forming'`, `'star_forming_salim'`, `'salim'` | Star-forming (Salim+2018) |
+| 4 | `'mw_allen'`, `'allen'` | MW (Allen+76, hyperz) |
+| 5 | `'mw_fitzpatrick'`, `'fitzpatrick_mw'` | MW (Fitzpatrick+86, hyperz) |
+| 6 | `'lmc'`, `'lmc_fitzpatrick'`, `'fitzpatrick_lmc'` | LMC (Fitzpatrick+86, hyperz) |
+| 7 | `'smc'`, `'smc_fitzpatrick'`, `'fitzpatrick_smc'` | SMC (Fitzpatrick+86, hyperz) |
+| 8 | `'calzetti'`, `'calzetti2000'`, `'starburst_calzetti2000'` | SB (Calzetti2000, hyperz) |
+| 9 | `'star_forming_reddy'`, `'reddy'`, `'reddy2015'` | Star-forming (Reddy+2015) |
 
 ## Adding Dust Emission (SEDModel Interface)
 

@@ -94,7 +94,7 @@ SFH types: 0=instantaneous, 1=constant, 2=exponential decay, 3=exponential rise,
 | `-t, --template` | `-t igroup,id,M82,iscalable` | Template SED |
 | `--sedlib` | `--sedlib igroup,id,name,iscalable,dir,itype,f_run,ikey` | Pre-built SED library |
 | `--cloudy` | `--cloudy igroup,id,cloudy,iscalable` | CLOUDY photoionization model |
-| `-r, --rbf` | `-r igroup,id,name,iscalable` | RBF model |
+| `--rbf` | `--rbf igroup,id,name,iscalable` | RBF model |
 | `--inn` | `--inn igroup,id,name,iscalable,f_run,ikey` | INN model |
 | `--rename` | `--rename id,ireplace,newname` | Rename a component |
 | `--rename_all` | `--rename_all name` | Rename combination of all models |
@@ -123,7 +123,7 @@ Default: `1,0,0,100,0.1,0.5,1000,-1e90,1,0,0,0,-1e90,100000,0.01`
 | `efr` | Sampling efficiency (0.05–0.3) |
 | `tol` | Evidence tolerance |
 | `updInt` | Update interval |
-| `fb` | Feedback: 0=silent, 2=verbose |
+| `fb` | Feedback level: 0=silent, 1=minimal, 2=normal (recommended), 3=verbose |
 | `resume` | Resume from checkpoint |
 
 | Option | Example | Description |

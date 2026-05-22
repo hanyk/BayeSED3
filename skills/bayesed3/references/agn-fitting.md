@@ -79,11 +79,11 @@ params = BayeSEDParams(
     # Component 3: FeII emission (AKNN model)
     aknn=[AKNNParams(igroup=3, id=3, name='FeII',
                      iscalable=1, k=1, f_run=1)],
-    kin=[KinParams(id=3, ikin=2)],  # FeII kinematics
+    kin=[KinParams(id=3, velscale=10, num_gauss_hermites_con=2, num_gauss_hermites_eml=0)],  # FeII kinematics (Gauss-Hermite)
 
     multinest=MultiNestParams(nlive=40, efr=0.05, updInt=100, fb=2),
     sys_err_obs=SysErrParams(min=0.0, max=0.2),
-    snrmin1=SNRmin1Params(snrmin1_phot=0, snrmin1_spec=3)  # spectral SNR threshold
+    snrmin1=SNRmin1Params(phot=0, spec=3)  # spectral SNR threshold
 )
 ```
 

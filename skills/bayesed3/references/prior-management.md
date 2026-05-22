@@ -89,8 +89,8 @@ inference.set_prior('log(age/yr)', reset_to_default=True)
 # Batch reset (regex)
 inference.set_prior('Av_.*', reset_to_default=True)
 
-# Reset all priors
-inference.reset_all_priors()
+# Reset all priors (match every parameter name)
+inference.set_prior('.*', reset_to_default=True)
 ```
 
 ## Prior Type Reference

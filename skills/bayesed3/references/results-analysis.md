@@ -48,9 +48,13 @@ hdf5_table = results.load_hdf5_results()
 # Filter by SNR (remove low signal-to-noise objects)
 high_snr_table = results.load_hdf5_results(filter_snr=True, min_snr=5.0)
 
-# Specify HDF5 file (for multi-model runs)
-configs = results.list_model_configurations()
-table_model2 = results.load_hdf5_results(hdf5_file=configs['catalog_model2'])
+# Load a different model's results (multi-model runs)
+results_model2 = BayeSEDResults(
+    'tests/output_quick_start',
+    catalog_name='gal',
+    model_config='model2'  # specify which model config to load
+)
+hdf5_table_m2 = results_model2.load_hdf5_results()
 ```
 
 ## Parameter Statistics
