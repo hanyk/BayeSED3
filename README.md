@@ -536,7 +536,7 @@ The further development of BayeSED needs your support. If BayeSED has been of be
 - [Han, Y., & Han, Z. 2014, ApJS, 215, 2](https://ui.adsabs.harvard.edu/abs/2014ApJS..215....2H/abstract)
 - [Han, Y., & Han, Z. 2019, ApJS, 240, 3](https://ui.adsabs.harvard.edu/abs/2019ApJS..240....3H/abstract)
 - [Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39](https://ui.adsabs.harvard.edu/abs/2023ApJS..269...39H/abstract)
-- Han, Y., et al. 2024a, in prep.
+- [Han, Y., Zheng, X. Z., Yang, X., Wen, R., Liu, F. S., Zou, H., Bai, J.-M., Zhao, Y., Fan, L., Zhang, F., Kang, X., Li, X., Guo, H., Zhang, P., Zhan, H., Zhao, G.-B., Li, C., Gong, Y., Gu, Y., Shi, F., Zhou, X., Sui, J., Jing, Y., & Han, Z. 2026, ApJS, 283, 66](https://ui.adsabs.harvard.edu/abs/2026ApJS..283...66H/abstract)
 
 ## More Information
 
