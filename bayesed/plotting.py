@@ -1429,8 +1429,8 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 # Sulfur lines
                 (0.67316300, '[S II]6716', 'pink'),
                 (0.67312100, '[S II]6731', 'hotpink'),
-                (0.40690000, '[S II]4069', 'darksalmon'),
-                (0.40760000, '[S II]4076', 'lightsalmon'),
+                (0.40686000, '[S II]4069', 'darksalmon'),
+                (0.40763500, '[S II]4076', 'lightsalmon'),
                 (0.90687000, '[S III]9069', 'lightpink'),
                 (0.95323000, '[S III]9532', 'plum'),
 
@@ -1471,7 +1471,6 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 # Iron lines (common in AGN)
                 (0.42587000, '[Fe II]4259', 'chocolate'),
                 (0.51270000, '[Fe II]5127', 'sienna'),
-                (0.46580000, '[Fe III]4658', 'peru'),
                 (0.16300000, '[Fe II]1630', 'saddlebrown'),
 
                 # AGN coronal lines
