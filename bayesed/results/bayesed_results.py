@@ -1598,9 +1598,10 @@ class BayeSEDResults:
                     filter_file: Optional[str] = None, filter_selection_file: Optional[str] = None,
                     use_rest_frame: bool = True, flux_unit: str = 'fnu', use_log_scale: Optional[bool] = None,
                     model_names: Optional[List[str]] = None, show_emission_lines: bool = True,
-                    emission_line_fontsize: int = 12, title_fontsize: int = 16, 
+                    show_total: bool = True, show_components: Union[bool, Dict[str, bool]] = True,
+                    emission_line_fontsize: int = 12, title_fontsize: int = 16,
                     label_fontsize: int = 16, legend_fontsize: int = 14,
-                    figsize: tuple = (12, 8), dpi: int = 300, 
+                    figsize: tuple = (12, 8), dpi: int = 300,
                     focus_on_data_range: bool = True, **kwargs) -> Any:
         """
         Plot best-fit SED using the bayesed.plotting module.
@@ -1630,6 +1631,13 @@ class BayeSEDResults:
             Custom names for model components. If None, auto-generates from HDU names
         show_emission_lines : bool, default True
             Show emission line markers for spectroscopy
+        show_total : bool, default True
+            Whether to plot the total model curve. Set False to hide.
+        show_components : bool or dict, default True
+            Control visibility of individual model components.
+            - True: show all components
+            - False: hide all components
+            - Dict: show/hide specific components by model name (e.g., `{'model:stellar': True, 'model:tor': False}`)
         emission_line_fontsize : int, default 12
             Font size for emission line labels. Larger values make labels more readable.
         title_fontsize : int, default 16
@@ -1667,6 +1675,12 @@ class BayeSEDResults:
         ...     figsize=(14, 10)
         ... )
         >>> 
+        >>> # Hide the total model line
+        >>> results.plot_bestfit(show_total=False)
+        >>>
+        >>> # Hide specific components
+        >>> results.plot_bestfit(show_components={'model:stellar': True, 'model:tor': False})
+        >>>
         >>> # With filter overlay
         >>> results.plot_bestfit(
         ...     filter_file='filters.txt',
@@ -1707,6 +1721,8 @@ class BayeSEDResults:
             use_log_scale=use_log_scale,
             model_names=model_names,
             show_emission_lines=show_emission_lines,
+            show_total=show_total,
+            show_components=show_components,
             emission_line_fontsize=emission_line_fontsize,
             title_fontsize=title_fontsize,
             label_fontsize=label_fontsize,
@@ -1718,6 +1734,53 @@ class BayeSEDResults:
         )
 
         return fig
+
+    def list_model_components(self, object_id: Optional[str] = None) -> List[str]:
+        """
+        List available model components in the best-fit FITS file.
+
+        Parameters
+        ----------
+        object_id : str, optional
+            Object ID to get components for. If None, uses first available object.
+
+        Returns
+        -------
+        List[str]
+            List of model component names (HDU names like 'model:stellar', 'model:tor')
+
+        Examples
+        --------
+        >>> # Get available model components
+        >>> components = results.list_model_components()
+        >>> print(components)  # ['model:stellar', 'model:tor', 'model:blr']
+        >>>
+        >>> # Use with plot_bestfit to show/hide specific components
+        >>> results.plot_bestfit(show_components={'model:tor': False})
+        """
+        if object_id is None:
+            if self.object_id is not None:
+                object_id = self.object_id
+            else:
+                objects = self.list_objects()
+                if objects:
+                    object_id = objects[0]
+                else:
+                    raise ValueError("No objects available")
+
+        fits_files = self._find_config_files(object_id, "*_bestfit.fits")
+        if not fits_files:
+            object_dir = self.output_dir / self.catalog_name / object_id
+            raise FileNotFoundError(f"No bestfit FITS files found for object {object_id} in {object_dir}")
+
+        fits_file = self._select_unique_file(fits_files, "bestfit FITS", object_id, log_selection=False)
+
+        from astropy.io import fits
+        with fits.open(fits_file) as hdul:
+            components = [h.name for h in hdul if h.name.startswith('model:') and h.name != 'model:total']
+
+        logger.info(f"Found {len(components)} model components: {components}")
+        return components
 
     def plot_posterior_free(self, object_id: Optional[str] = None,
                            output_file: Optional[str] = None,

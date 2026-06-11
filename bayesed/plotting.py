@@ -13,11 +13,13 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                  use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
 
-                 model_names=None, show_emission_lines=True, emission_line_fontsize=12,
+                 model_names=None, show_emission_lines=True, show_components=True,
+                 show_total=True, emission_line_fontsize=12, emission_line_ypos=0.85,
 
                  title_fontsize=16, label_fontsize=16, legend_fontsize=14,
 
-                 figsize=(12, 8), dpi=300, focus_on_data_range=True, **kwargs):
+                 figsize=(12, 8), dpi=300, focus_on_data_range=True,
+                 spec_obs_labels=None, spec_mod_labels=None, **kwargs):
 
     """
 
@@ -65,15 +67,11 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         Flux unit: 'fnu' (μJy), 'nufnu' (νFν in μJy*Hz), or 'flambda' (default: 'fnu')
 
-    use_log_scale : bool, optional
-
+    use_log_scale : bool or str, optional
         Use logarithmic scale for axes. If None (default), auto-detects based on data range.
-
         Auto-detection uses log scale when either axis spans more than 1 order of magnitude
-
         (range ratio > 10). If negative values are present, defaults to linear scale.
-
-        Set to True to force log scale, or False to force linear scale.
+        Valid values: True (both axes), False (neither), 'x' (log x only), 'y' (log y only), 'both' (same as True).
 
     model_names : list of str, optional
 
@@ -83,9 +81,24 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         Show emission line markers for spectroscopy (default: True)
 
+    show_components : bool or dict, default True
+
+        Control visibility of individual model components.
+        - True: show all components
+        - False: hide all components
+        - Dict: show/hide specific components by model name
+
+    show_total : bool, default True
+
+        Whether to plot the total model curve. Set False to hide.
+
     emission_line_fontsize : int, default 12
 
         Font size for emission line labels. Larger values make labels more readable.
+
+    emission_line_ypos : float, default 0.85
+
+        Vertical position for emission line labels (0-1 range, as fraction of axis height).
 
     title_fontsize : int, default 16
 
@@ -106,6 +119,20 @@ def plot_bestfit(fits_file, output_file=None, show=True,
     dpi : int
 
         Resolution for saved figure (default: 300)
+
+    spec_obs_labels : dict, str, or None, optional
+
+        Custom labels for observed spectra. Multiple bands supported via dict mapping
+
+        band index to label string (e.g., {1: 'BOSS obs', 2: 'MUSE obs'}).
+
+        Single string applies to first/only band. None uses default 'spec:obs_{band}'.
+
+    spec_mod_labels : dict, str, or None, optional
+
+        Custom labels for model spectra. Same format as spec_obs_labels.
+
+        None uses default 'spec:mod_{band}'.
 
     focus_on_data_range : bool
 
@@ -186,6 +213,17 @@ def plot_bestfit(fits_file, output_file=None, show=True,
     # Constants
 
     c = 2.9979246e+14  # um/s (speed of light)
+
+    # Extract parameters before passing to plot() - these go to other matplotlib functions
+    plot_xlim = kwargs.pop('xlim', None)
+    plot_ylim = kwargs.pop('ylim', None)
+    # Legend kwargs: use dict comprehension to filter None values
+    legend_kwargs = {k: v for k, v in {
+        'loc': kwargs.pop('legend_loc', None),
+        'bbox_to_anchor': kwargs.pop('bbox_to_anchor', None),
+    }.items() if v is not None}
+    # Other common plot parameters that shouldn't go to ax1.plot()
+    # Add here as needed: title_kwargs, xlabel_kwargs, ylabel_kwargs, etc.
 
     
 
@@ -308,7 +346,16 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         # Plot model components
 
+        # Handle show_components as boolean or dict for individual control
+        if isinstance(show_components, bool):
+            components_to_show = {m: show_components for m in models}
+        else:
+            # Dict: use explicit visibility, default to True for unlisted
+            components_to_show = {m: show_components.get(m, True) for m in models}
+
         for model, name in zip(models, model_names):
+            if not components_to_show.get(model, True):
+                continue
 
             try:
 
@@ -428,7 +475,7 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         # Plot total model if available
 
-        if 'model:total' in hdul:
+        if show_total and 'model:total' in hdul:
 
             try:
 
@@ -780,11 +827,23 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                             
 
-                            ax1.plot(wl_spec, spec_obs, label=f'spec:obs_{band}', alpha=0.7)
+                            # Resolve spec labels — support dict per band, string, or None
+                            _obs_label = f'spec:obs_{band}'
+                            _mod_label = f'spec:mod_{band}'
+                            if spec_obs_labels is not None:
+                                if isinstance(spec_obs_labels, dict):
+                                    _obs_label = spec_obs_labels.get(band, _obs_label)
+                                else:
+                                    _obs_label = str(spec_obs_labels)
+                            if spec_mod_labels is not None:
+                                if isinstance(spec_mod_labels, dict):
+                                    _mod_label = spec_mod_labels.get(band, _mod_label)
+                                else:
+                                    _mod_label = str(spec_mod_labels)
 
-                            ax1.plot(wl_spec, spec_mod, label=f'spec:mod_{band}', 
+                            ax1.plot(wl_spec, spec_obs, label=_obs_label, alpha=0.7)
 
-                                   linestyle='--', alpha=0.7)
+                            ax1.plot(wl_spec, spec_mod, label=_mod_label, linestyle='--', alpha=0.7)
 
                             # Collect wavelength range from spectroscopy data
 
@@ -1146,10 +1205,12 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         
 
-        if use_log_scale:
-
+        # Handle log scale: None, False, True, 'x', 'y', 'both'
+        log_x = use_log_scale in (True, 'both', 'x')
+        log_y = use_log_scale in (True, 'both', 'y')
+        if log_x:
             ax1.set_xscale('log')
-
+        if log_y:
             ax1.set_yscale('log')
 
             # Re-apply x-axis limits after setting log scale with multiplicative padding
@@ -1298,9 +1359,22 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
             ncol = min(3, max(1, n_items // 5)) if n_items > 10 else 1
 
-            ax1.legend(loc='best', ncol=ncol, fontsize=legend_fontsize, framealpha=0.9)
+            # Build legend kwargs: use legend_loc if provided, else 'best'
+            if 'loc' not in legend_kwargs:
+                legend_kwargs['loc'] = 'best'
+            legend_kwargs['ncol'] = ncol
+            legend_kwargs['fontsize'] = legend_fontsize
+            legend_kwargs['framealpha'] = 0.9
 
-        
+            ax1.legend(**legend_kwargs)
+
+        # Set axis limits if provided (applied LAST, overriding all previous logic)
+        if plot_xlim is not None:
+            ax1.set_xlim(plot_xlim)
+        if plot_ylim is not None:
+            ax1.set_ylim(plot_ylim)
+
+
 
         # Add emission line markers and labels after all data is plotted and axis limits are set
         if show_emission_lines:
@@ -1391,10 +1465,10 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 # Calculate label position (near top of plot, but not overlapping with data)
                 if use_log_scale and ylim[0] > 0:
                     # For log scale, use geometric mean for label position
-                    label_y = ylim[1] * 0.85  # 85% of the way up in log space
+                    label_y = ylim[1] * emission_line_ypos  # emission_line_ypos % of the way up in log space
                 else:
                     # For linear scale, use arithmetic position
-                    label_y = ylim[0] + 0.85 * (ylim[1] - ylim[0])
+                    label_y = ylim[0] + emission_line_ypos * (ylim[1] - ylim[0])
                 
                 # Filter out lines that are too close together to avoid label overlap
                 # Calculate minimum separation based on x-axis range and log/linear scale
