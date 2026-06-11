@@ -344,6 +344,12 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         
 
+        # Line styles for model components — all non-solid to distinguish from total/spec.
+        # Colors avoid: black (total), warm reds/oranges (spec_obs), blues/teals (spec_mod).
+        _component_styles = ['--', '-.', ':', (0, (3, 1, 1, 1)), (0, (5, 2))]
+        _component_colors = ['#27AE60', '#D4AC0D', '#8E44AD', '#C0392B', '#17A589']
+        _comp_plotted = 0
+
         # Plot model components
 
         # Handle show_components as boolean or dict for individual control
@@ -365,17 +371,17 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                     continue
 
-                
+
 
                 mask = data['flux'] > 0
 
-                
+
 
                 if np.sum(mask) == 0:
 
                     continue
 
-                
+
 
                 # Try to get wavelength column (handle both rest and obs frame)
 
@@ -407,11 +413,11 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                             continue
 
-                
+
 
                 flux = data['flux'][mask]
 
-                
+
 
                 # Convert flux units if needed
 
@@ -451,9 +457,13 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
                         flux = c * wl**-2 * flux
 
-                
 
-                ax1.plot(wl, flux, label=name, **kwargs)
+
+                ax1.plot(wl, flux, label=name,
+                         linestyle=_component_styles[_comp_plotted % len(_component_styles)],
+                         color=_component_colors[_comp_plotted % len(_component_colors)],
+                         **kwargs)
+                _comp_plotted += 1
 
                 # Collect wavelength range from model
 
@@ -754,6 +764,9 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 if obs_spec is not None and len(obs_spec) > 0:
 
                     bands = np.unique(obs_spec['iband'])
+                    # Distinct color pairs per band so adjacent bands don't blend
+                    _obs_colors = ['#E74C3C', '#E67E22', '#8E44AD', '#2ECC71', '#F39C12']
+                    _mod_colors = ['#3498DB', '#1ABC9C', '#9B59B6', '#16A085', '#F1C40F']
 
                     for band in bands:
 
@@ -841,9 +854,11 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                                 else:
                                     _mod_label = str(spec_mod_labels)
 
-                            ax1.plot(wl_spec, spec_obs, label=_obs_label, alpha=0.7)
+                            ax1.plot(wl_spec, spec_obs, label=_obs_label,
+                                     color=_obs_colors[band % len(_obs_colors)], alpha=0.9)
 
-                            ax1.plot(wl_spec, spec_mod, label=_mod_label, linestyle='--', alpha=0.7)
+                            ax1.plot(wl_spec, spec_mod, label=_mod_label,
+                                     color=_mod_colors[band % len(_mod_colors)], alpha=0.9)
 
                             # Collect wavelength range from spectroscopy data
 
@@ -1389,23 +1404,39 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 (0.48626830, r'H$\beta$', 'green'),
                 (0.43407410, r'H$\gamma$', 'lightgreen'),
                 (0.41017500, r'H$\delta$', 'lime'),
+                (0.36460000, r'H$\infty$', 'darkred'),
+
+                # Hydrogen Paschen series (near-IR)
+                (1.28200000, 'Paβ 1.282', 'tomato'),
+                (1.87500000, 'Paα 1.875', 'firebrick'),
                 
                 # Oxygen lines
                 (0.49602949, '[O III]4959', 'blue'),
                 (0.50082397, '[O III]5007', 'cyan'),
+                (0.43632612, '[O III]4363', 'deepskyblue'),
                 (0.37270917, '[O II]3726', 'orange'),
                 (0.37298754, '[O II]3729', 'darkorange'),
                 (0.63004000, '[O I]6300', 'coral'),
                 (0.63640000, '[O I]6364', 'lightcoral'),
+                (0.73200000, '[O II]7320', 'lightsalmon'),
+                (0.73300000, '[O II]7330', 'darksalmon'),
                 
                 # Nitrogen lines
                 (0.65498590, '[N II]6548', 'magenta'),
                 (0.65852685, '[N II]6583', 'purple'),
+                (0.51983000, '[N I]5199', 'violet'),
                 
                 # Sulfur lines
                 (0.67316300, '[S II]6716', 'pink'),
                 (0.67312100, '[S II]6731', 'hotpink'),
+                (0.40690000, '[S II]4069', 'darksalmon'),
+                (0.40760000, '[S II]4076', 'lightsalmon'),
+                (0.90687000, '[S III]9069', 'lightpink'),
                 (0.95323000, '[S III]9532', 'plum'),
+
+                # Argon lines (HII regions)
+                (0.71360000, '[Ar III]7136', 'mediumorchid'),
+                (0.77510000, '[Ar III]7751', 'blueviolet'),
                 
                 # Carbon lines
                 (0.15491000, 'C IV 1549', 'darkblue'),
@@ -1418,6 +1449,7 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 # Neon lines
                 (0.38691000, '[Ne III]3869', 'teal'),
                 (0.39685000, '[Ne III]3967', 'darkcyan'),
+                (0.34260000, '[Ne V]3426', 'mediumspringgreen'),
                 (0.24240000, '[Ne IV]2424', 'orchid'),
                 
                 # Silicon lines
@@ -1428,12 +1460,24 @@ def plot_bestfit(fits_file, output_file=None, show=True,
                 # Helium lines
                 (0.58756000, 'He I 5876', 'gold'),
                 (0.44713000, 'He II 4471', 'yellow'),
+                (0.38890000, 'He I 3889', 'olive'),
+                (0.66780000, 'He I 6678', 'goldenrod'),
+                (0.70650000, 'He I 7065', 'darkkhaki'),
+                (0.46860000, 'He II 4686', 'yellowgreen'),
+                (0.47130000, 'He I 4713', 'darkolivegreen'),
+                (0.49220000, 'He I 4922', 'olivedrab'),
                 (0.16400000, 'He II 1640', 'khaki'),
                 
                 # Iron lines (common in AGN)
                 (0.42587000, '[Fe II]4259', 'chocolate'),
                 (0.51270000, '[Fe II]5127', 'sienna'),
+                (0.46580000, '[Fe III]4658', 'peru'),
                 (0.16300000, '[Fe II]1630', 'saddlebrown'),
+
+                # AGN coronal lines
+                (0.57210000, '[Fe VII]5721', 'crimson'),
+                (0.60870000, '[Fe VII]6087', 'indianred'),
+                (0.63750000, '[Fe X]6375', 'salmon'),
                 
                 # Lyman series
                 (0.12157000, r'Ly$\alpha$ 1216', 'indigo'),
