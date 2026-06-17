@@ -41,6 +41,55 @@ class BayeSEDResults:
 
     """
 
+    @staticmethod
+    def _to_str(x) -> str:
+        """Convert bytes to string, handling HDF5 byte columns."""
+        return x.decode('utf-8') if isinstance(x, bytes) else str(x)
+
+    @staticmethod
+    def _match_strings(candidates: List[str], pattern: str, match_mode: str,
+                       case_sensitive: bool) -> List[str]:
+        """
+        Match pattern against candidate strings using specified mode.
+
+        Parameters
+        ----------
+        candidates : list of str
+            Strings to search through
+        pattern : str
+            Pattern to match
+        match_mode : str
+            'contains' for substring, 'regex' for regex matching
+        case_sensitive : bool
+            Whether matching is case sensitive
+
+        Returns
+        -------
+        list of str
+            Matching candidates
+        """
+        import re
+
+        if match_mode == 'contains':
+            if case_sensitive:
+                return [c for c in candidates if pattern in c]
+            else:
+                pattern_lower = pattern.lower()
+                return [c for c in candidates if pattern_lower in c.lower()]
+
+        elif match_mode == 'regex':
+            try:
+                if case_sensitive:
+                    compiled = re.compile(pattern)
+                else:
+                    compiled = re.compile(pattern, re.IGNORECASE)
+                return [c for c in candidates if compiled.search(c)]
+            except re.error as e:
+                raise ValueError(f"Invalid regular expression '{pattern}': {e}")
+
+        else:
+            raise ValueError(f"Invalid match_mode '{match_mode}'. Must be 'contains' or 'regex'")
+
     def __init__(self, output_dir: Union[str, Path], catalog_name: Optional[str] = None,
                  model_config: Optional[Union[str, int]] = None, object_id: Optional[str] = None):
         """Initialize BayeSEDResults."""
@@ -55,7 +104,7 @@ class BayeSEDResults:
         self._hdf5_table = None
         self._hdf5_file = None
         self.parameters = None  # Public access to HDF5 table
-        
+
         # Cache for GetDist samples to avoid duplicate loading
         self._getdist_samples_cache = {}
 
@@ -495,7 +544,7 @@ class BayeSEDResults:
     # ========================================================================
 
     def get_parameter_names(self, pattern: Optional[str] = None,
-                           match_mode: str = 'contains',
+                           param_match_mode: str = 'contains',
                            case_sensitive: bool = True) -> List[str]:
         """
         Get list of parameter names with optional filtering.
@@ -507,7 +556,7 @@ class BayeSEDResults:
             Supports:
             - 'contains': Parameters that contain this substring anywhere (default)
             - 'regex': Regular expression pattern matching
-        match_mode : str, default 'contains'
+        param_match_mode : str, default 'contains'
             Matching mode for parameter names:
             - 'contains': Substring matching anywhere in parameter name
             - 'regex': Regular expression pattern
@@ -528,7 +577,7 @@ class BayeSEDResults:
         >>> mass_params = results.get_parameter_names("mass")
         
         >>> # Find percentile parameters using regex
-        >>> percentiles = results.get_parameter_names(r".*_(16|50|84)$", match_mode='regex')
+        >>> percentiles = results.get_parameter_names(r".*_(16|50|84)$", param_match_mode='regex')
         
         >>> # Case-insensitive search
         >>> sfr_params = results.get_parameter_names("SFR", case_sensitive=False)
@@ -544,41 +593,11 @@ class BayeSEDResults:
             return all_param_names
 
         # Apply filtering using the same logic as get_parameter_values
-        import re
-        matching_params = []
-
-        if match_mode == 'contains':
-            # Substring matching anywhere in parameter name
-            if case_sensitive:
-                for param in all_param_names:
-                    if pattern in param:
-                        matching_params.append(param)
-            else:
-                search_pattern = pattern.lower()
-                for param in all_param_names:
-                    if search_pattern in param.lower():
-                        matching_params.append(param)
-
-        elif match_mode == 'regex':
-            # Regular expression matching
-            try:
-                if case_sensitive:
-                    regex_pattern = re.compile(pattern)
-                else:
-                    regex_pattern = re.compile(pattern, re.IGNORECASE)
-                
-                for param in all_param_names:
-                    if regex_pattern.search(param):
-                        matching_params.append(param)
-            except re.error as e:
-                raise ValueError(f"Invalid regular expression '{pattern}': {e}")
-
-        else:
-            raise ValueError(f"Invalid match_mode '{match_mode}'. Must be 'contains' or 'regex'")
+        matching_params = self._match_strings(all_param_names, pattern, param_match_mode, case_sensitive)
 
         if not matching_params and pattern is not None:
             # Provide helpful error message
-            error_msg = f"No parameters found matching '{pattern}' with mode '{match_mode}'"
+            error_msg = f"No parameters found matching '{pattern}' with mode '{param_match_mode}'"
             if not case_sensitive:
                 error_msg += " (case-insensitive)"
             error_msg += f".\nUse get_parameter_names() to see all available parameters."
@@ -747,13 +766,57 @@ class BayeSEDResults:
         
         logger.info(f"Found {len(derived_params)} derived parameters using HDF5 structure analysis")
         logger.debug(f"Derived parameters: {derived_params}")
-        
+
         return derived_params
+
+    def _transpose_parameter_table(self, table: 'astropy.table.Table') -> 'astropy.table.Table':
+        """
+        Transpose a parameter table so objects become columns and parameters become rows.
+
+        Parameters
+        ----------
+        table : astropy.table.Table
+            Input table with ID column and parameter columns
+
+        Returns
+        -------
+        astropy.table.Table
+            Transposed table with parameter names as rows and object values as columns
+        """
+        import pandas as pd
+        from astropy.table import Table
+
+        if len(table) == 0:
+            return table
+
+        # Get object IDs and parameter names
+        object_ids = [str(obj_id) for obj_id in table['ID']]
+        param_names = [col for col in table.colnames if col != 'ID']
+
+        # Efficient: convert to pandas DataFrame, transpose, then back to astropy Table
+        # pandas handles mixed types efficiently with its transpose
+        df = table[param_names].to_pandas()
+        df.index = object_ids
+        df_transposed = df.T
+
+        # Convert back to astropy Table
+        new_table = Table.from_pandas(df_transposed)
+
+        # Add parameter column as first column
+        new_table['parameter'] = param_names
+        # Move 'parameter' column to first position
+        col_order = ['parameter'] + [c for c in new_table.colnames if c != 'parameter']
+        new_table = new_table[col_order]
+
+        logger.debug(f"Transposed table: {len(param_names)} parameters x {len(object_ids)} objects")
+        return new_table
 
     def get_parameter_values(self, parameter_name: str,
                            object_ids: Optional[Union[str, List[str]]] = None,
-                           match_mode: str = 'contains',
-                           case_sensitive: bool = True) -> 'astropy.table.Table':
+                           param_match_mode: str = 'contains',
+                           object_match_mode: str = 'contains',
+                           case_sensitive: bool = True,
+                           transpose: bool = False) -> 'astropy.table.Table':
         """
         Get parameter values by filtering the loaded HDF5 table with flexible matching.
 
@@ -765,32 +828,51 @@ class BayeSEDResults:
             - 'regex': Regular expression pattern matching
         object_ids : str or List[str], optional
             Specific object ID(s) to filter. Can be a single string or list of strings.
-        match_mode : str, default 'contains'
+            Supports object_match_mode for flexible matching:
+            - 'contains': Object IDs containing this substring
+            - 'regex': Regular expression pattern matching
+            - 'exact': Exact match
+        param_match_mode : str, default 'contains'
             Matching mode for parameter names:
             - 'contains': Substring matching anywhere in column name
-            - 'regex': Regular expression pattern
+            - 'regex': Regular expression pattern matching
+        object_match_mode : str, default 'contains'
+            Matching mode for object IDs:
+            - 'contains': Substring matching in object IDs
+            - 'regex': Regular expression pattern matching
+            - 'exact': Exact match
         case_sensitive : bool, default True
             Whether matching should be case sensitive
+        transpose : bool, default False
+            If True, transpose the table so objects become columns and
+            parameters become rows. Useful for comparing parameters across objects.
 
         Returns
         -------
         astropy.table.Table
             Sub-table containing ID column and all parameter columns that
-            match the given parameter name according to the specified mode
+            match the given parameter name according to the specified mode.
+            If transpose=True, returns transposed table with objects as columns.
 
         Examples
         --------
         >>> # Find all columns containing "mass" anywhere (default)
         >>> mass_table = results.get_parameter_values("mass")
-        
+
         >>> # Case-insensitive search for columns containing "SFR"
         >>> sfr_table = results.get_parameter_values("sfr", case_sensitive=False)
-        
+
+        >>> # Get transposed table for comparing a parameter across objects
+        >>> mass_table = results.get_parameter_values("mass", transpose=True)
+
         >>> # Regex pattern to find percentile columns
-        >>> percentiles = results.get_parameter_values(r".*_(16|50|84)$", match_mode='regex')
-        
+        >>> percentiles = results.get_parameter_values(r".*_(16|50|84)$", param_match_mode='regex')
+
         >>> # Find columns ending with "_err" or "_error" using regex
-        >>> errors = results.get_parameter_values(r"_(err|error)$", match_mode='regex')
+        >>> errors = results.get_parameter_values(r"_(err|error)$", param_match_mode='regex')
+
+        >>> # Filter objects by regex pattern
+        >>> results.get_parameter_values("z", object_ids=r".*_150135", object_match_mode='regex')
         """
         if self._hdf5_table is None:
             raise RuntimeError("HDF5 table not loaded")
@@ -798,39 +880,10 @@ class BayeSEDResults:
         import re
 
         available_columns = self._hdf5_table.colnames
-        matching_columns = []
-
-        if match_mode == 'contains':
-            # Substring matching anywhere in column name
-            if case_sensitive:
-                for col in available_columns:
-                    if parameter_name in col:
-                        matching_columns.append(col)
-            else:
-                search_pattern = parameter_name.lower()
-                for col in available_columns:
-                    if search_pattern in col.lower():
-                        matching_columns.append(col)
-
-        elif match_mode == 'regex':
-            # Regular expression matching
-            try:
-                if case_sensitive:
-                    pattern = re.compile(parameter_name)
-                else:
-                    pattern = re.compile(parameter_name, re.IGNORECASE)
-                
-                for col in available_columns:
-                    if pattern.search(col):
-                        matching_columns.append(col)
-            except re.error as e:
-                raise ValueError(f"Invalid regular expression '{parameter_name}': {e}")
-
-        else:
-            raise ValueError(f"Invalid match_mode '{match_mode}'. Must be 'contains' or 'regex'")
+        matching_columns = self._match_strings(available_columns, parameter_name, param_match_mode, case_sensitive)
 
         if not matching_columns:
-            error_msg = f"No columns found matching '{parameter_name}' with mode '{match_mode}'"
+            error_msg = f"No columns found matching '{parameter_name}' with mode '{param_match_mode}'"
             if not case_sensitive:
                 error_msg += " (case-insensitive)"
             error_msg += f" in HDF5 table.\nUse get_parameter_names() to see all available parameters."
@@ -841,32 +894,74 @@ class BayeSEDResults:
         columns_to_include = ['ID'] + matching_columns
         sub_table = self._hdf5_table[columns_to_include]
 
+        # Pre-convert object IDs to strings (handles bytes) - single pass
+        all_object_ids_str = np.array([self._to_str(obj_id) for obj_id in sub_table['ID']])
+
         # Apply object filtering if specified
         if object_ids is not None:
-            # Convert single string to list for consistent handling
-            if isinstance(object_ids, str):
-                object_ids = [object_ids]
-
-            # Filter table by object IDs
-            object_mask = [str(obj_id) in [str(x) for x in object_ids] for obj_id in sub_table['ID']]
-            if any(object_mask):
-                filtered_table = sub_table[object_mask]
-                return filtered_table
+            # Convert object_ids to list and decode bytes if needed
+            if isinstance(object_ids, (str, bytes)):
+                object_ids_list = [self._to_str(object_ids)]
             else:
-                available_objects = [str(obj_id) for obj_id in sub_table['ID']]
-                raise ValueError(f"None of the specified objects {object_ids} found in data. "
-                               f"Available objects: {available_objects}")
+                object_ids_list = [self._to_str(x) for x in object_ids]
+
+            # Create combined mask for all patterns using vectorized operations
+            combined_mask = np.zeros(len(all_object_ids_str), dtype=bool)
+
+            # Pre-compute lowercase object IDs if case-insensitive (single pass)
+            if not case_sensitive:
+                all_object_ids_lower = np.array([obj_id.lower() for obj_id in all_object_ids_str])
+
+            for pattern in object_ids_list:
+                if object_match_mode == 'contains':
+                    if case_sensitive:
+                        mask = np.array([pattern in obj_id for obj_id in all_object_ids_str])
+                    else:
+                        pattern_lower = pattern.lower()
+                        mask = np.array([pattern_lower in obj_id for obj_id in all_object_ids_lower])
+                elif object_match_mode == 'regex':
+                    try:
+                        if case_sensitive:
+                            compiled_pattern = re.compile(pattern)
+                        else:
+                            compiled_pattern = re.compile(pattern, re.IGNORECASE)
+                        mask = np.array([bool(compiled_pattern.search(obj_id)) for obj_id in all_object_ids_str])
+                    except re.error as e:
+                        raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
+                elif object_match_mode == 'exact':
+                    if case_sensitive:
+                        mask = np.array([pattern == obj_id for obj_id in all_object_ids_str])
+                    else:
+                        pattern_lower = pattern.lower()
+                        mask = np.array([pattern_lower == obj_id for obj_id in all_object_ids_lower])
+                else:
+                    raise ValueError(f"Invalid object_match_mode '{object_match_mode}'. "
+                                   f"Must be 'contains', 'regex', or 'exact'")
+                combined_mask = combined_mask | mask
+
+            if np.any(combined_mask):
+                sub_table = sub_table[combined_mask]
+                # Update object ID array for second filter stage
+                all_object_ids_str = all_object_ids_str[combined_mask]
+            else:
+                raise ValueError(f"None of the specified objects {object_ids} found in data "
+                               f"with object_match_mode='{object_match_mode}'. "
+                               f"Available objects: {list(all_object_ids_str)}")
 
         # Apply scope filtering for object-level access
         if self.object_id is not None:
-            # Find the specific object
-            object_mask = [str(obj_id) == str(self.object_id) for obj_id in sub_table['ID']]
-            if any(object_mask):
-                return sub_table[object_mask]
+            self_object_id_str = self._to_str(self.object_id)
+            mask = all_object_ids_str == self_object_id_str
+            if np.any(mask):
+                sub_table = sub_table[mask]
             else:
                 raise ValueError(f"Object '{self.object_id}' not found in data")
 
         logger.debug(f"Found {len(matching_columns)} columns for parameter '{parameter_name}': {matching_columns}")
+
+        # Transpose table if requested (always last)
+        if transpose:
+            sub_table = self._transpose_parameter_table(sub_table)
 
         # Return sub-table for sample-level access
         return sub_table
