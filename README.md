@@ -532,11 +532,11 @@ Issues and pull requests are welcome. Please make sure to update tests before su
 ## Citation
 
 The further development of BayeSED needs your support. If BayeSED has been of benefit to you, either directly or indirectly, please consider citing our papers:
-- [Han, Y., & Han, Z. 2012, ApJ, 749, 123](https://ui.adsabs.harvard.edu/abs/2012ApJ...749..123H/abstract)
-- [Han, Y., & Han, Z. 2014, ApJS, 215, 2](https://ui.adsabs.harvard.edu/abs/2014ApJS..215....2H/abstract)
-- [Han, Y., & Han, Z. 2019, ApJS, 240, 3](https://ui.adsabs.harvard.edu/abs/2019ApJS..240....3H/abstract)
-- [Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39](https://ui.adsabs.harvard.edu/abs/2023ApJS..269...39H/abstract)
-- [Han, Y., Zheng, X. Z., Yang, X., Wen, R., Liu, F. S., Zou, H., Bai, J.-M., Zhao, Y., Fan, L., Zhang, F., Kang, X., Li, X., Guo, H., Zhang, P., Zhan, H., Zhao, G.-B., Li, C., Gong, Y., Gu, Y., Shi, F., Zhou, X., Sui, J., Jing, Y., & Han, Z. 2026, ApJS, 283, 66](https://ui.adsabs.harvard.edu/abs/2026ApJS..283...66H/abstract)
+- Han, Y., & Han, Z. 2012, ApJ, 749, 123 — ["Decoding Spectral Energy Distributions of Dust-obscured Starburst-Active Galactic Nucleus"](https://ui.adsabs.harvard.edu/abs/2012ApJ...749..123H/abstract)
+- Han, Y., & Han, Z. 2014, ApJS, 215, 2 — ["BayeSED: A General Approach to Fitting the Spectral Energy Distribution of Galaxies"](https://ui.adsabs.harvard.edu/abs/2014ApJS..215....2H/abstract)
+- Han, Y., & Han, Z. 2019, ApJS, 240, 3 — ["A Comprehensive Bayesian Discrimination of the Simple Stellar Population Model, Star Formation History, and Dust Attenuation Law in the Spectral Energy Distribution Modeling of Galaxies"](https://ui.adsabs.harvard.edu/abs/2019ApJS..240....3H/abstract)
+- Han, Y., Fan, L., Zheng, X. Z., Bai, J.-M., & Han, Z. 2023, ApJS, 269, 39 — ["BayeSED-GALAXIES. I. Performance Test for Simultaneous Photometric Redshift and Stellar Population Parameter Estimation of Galaxies in the CSST Wide-field Multiband Imaging Survey"](https://ui.adsabs.harvard.edu/abs/2023ApJS..269...39H/abstract)
+- Han, Y., Zheng, X. Z., Yang, X., Wen, R., Liu, F. S., Zou, H., Bai, J.-M., Zhao, Y., Fan, L., Zhang, F., Kang, X., Li, X., Guo, H., Zhang, P., Zhan, H., Zhao, G.-B., Li, C., Gong, Y., Gu, Y., Shi, F., Zhou, X., Sui, J., Jing, Y., & Han, Z. 2026, ApJS, 283, 66 — ["BayeSED-GALAXIES. II. Bayesian Full Spectrum Analysis of Galaxies and Application in the CSST Wide-field Slitless Spectroscopy Survey"](https://ui.adsabs.harvard.edu/abs/2026ApJS..283...66H/abstract)
 
 ## More Information
 
