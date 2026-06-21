@@ -71,6 +71,7 @@ class Prior:
     component: Optional[str] = None
     description: Optional[str] = None
     source_file: Optional[str] = None  # Track which .iprior file this came from
+    component_id: Optional[int] = None  # Model component ID, parsed from .iprior.{N} suffix
     
     def get_required_columns(self) -> int:
         """

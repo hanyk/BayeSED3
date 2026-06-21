@@ -76,6 +76,7 @@ def get_data_files():
                 continue
             
             # Platform-specific binary filtering
+            # Structure: bin/{linux,mac}/{x86,arm}/
             if file_path.startswith('bin/'):
                 if platform_filter == 'linux' and file_path.startswith('bin/mac/'):
                     skipped_binaries.append(file_path)

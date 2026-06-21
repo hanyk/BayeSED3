@@ -169,22 +169,21 @@ class PriorManager:
             self.priors_by_file[basename] = OrderedDict()
         
         self.priors_by_file[basename].update(loaded_priors)
-        
+
+        # Parse component_id from .iprior.{N} suffix
+        if '.iprior.' in basename:
+            suffix = basename.rsplit('.iprior.', 1)[-1]
+            if suffix.isdigit():
+                cid = int(suffix)
+                for prior in loaded_priors.values():
+                    prior.component_id = cid
+
         # If auto-generated, store as originals for tracking
         if is_auto_generated:
+            from dataclasses import replace
             for name, prior in loaded_priors.items():
-                # Create a copy for original_priors
-                self.original_priors[name] = Prior(
-                    name=prior.name,
-                    prior_type=prior.prior_type,
-                    is_age=prior.is_age,
-                    min_val=prior.min_val,
-                    max_val=prior.max_val,
-                    nbin=prior.nbin,
-                    hyperparameters=prior.hyperparameters.copy(),
-                    component=prior.component,
-                    description=prior.description
-                )
+                # Create a copy for original_priors (read-only snapshot, shared refs harmless)
+                self.original_priors[name] = replace(prior)
         
         return loaded_priors
     

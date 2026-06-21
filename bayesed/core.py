@@ -1748,6 +1748,15 @@ class BayeSEDInterface:
         self.os = platform.system().lower()
         self.arch = platform.machine().lower()
 
+        # Only 64-bit architectures supported
+        _64bit_archs = {"x86_64", "amd64", "arm64", "aarch64"}
+        if self.arch not in _64bit_archs:
+            raise ValueError(
+                f"Unsupported architecture: {self.arch}. "
+                f"BayeSED3 requires a 64-bit system (x86_64 or arm64/aarch64). "
+                f"Detected: {self.arch}"
+            )
+
     def _get_max_threads(self):
         """
         Get the number of available CPU cores/processes.
@@ -1820,7 +1829,10 @@ class BayeSEDInterface:
                 try:
                     result = subprocess.run([conda_mpirun, "--version"], capture_output=True, text=True)
                     installed_version = result.stdout.split()[3]
-                    if installed_version == openmpi_version:
+                    import re
+                    m = re.match(r'\d+\.\d+\.\d+', installed_version)
+                    installed_major_minor = m.group(0) if m else ''
+                    if installed_major_minor == openmpi_version:
                         print(f"Using conda-installed OpenMPI {installed_version}")
                         return conda_mpirun
                     else:
@@ -1834,7 +1846,10 @@ class BayeSEDInterface:
             try:
                 result = subprocess.run([system_mpirun, "--version"], capture_output=True, text=True)
                 installed_version = result.stdout.split()[3]
-                if installed_version == openmpi_version:
+                import re
+                m = re.match(r'\d+\.\d+\.\d+', installed_version)
+                installed_major_minor = m.group(0) if m else ''
+                if installed_major_minor == openmpi_version:
                     print(f"Using system-installed OpenMPI {installed_version}")
                     return system_mpirun
                 else:
@@ -2034,8 +2049,12 @@ class BayeSEDInterface:
         else:
             raise ValueError(f"Unsupported operating system: {self.os}")
 
+        # Map machine arch to directory name
+        arch_map = {"x86_64": "x86", "arm64": "arm", "aarch64": "arm"}
+        arch_dir = arch_map.get(self.arch, "x86")  # fallback x86
+
         # Use resource path resolution for both conda and repository installations
-        relative_path = os.path.join("bin", platform_dir, executable)
+        relative_path = os.path.join("bin", platform_dir, arch_dir, executable)
         executable_path = _get_resource_path(relative_path)
 
         return executable_path

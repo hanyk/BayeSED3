@@ -5,8 +5,8 @@
 set -e
 
 # setup.py will auto-detect the platform and install only appropriate binaries
-# - Linux builds: only bin/linux/* installed
-# - macOS builds: only bin/mac/* installed
+# - Linux builds: only bin/linux/{x86,arm} installed
+# - macOS builds: only bin/mac/{x86,arm} installed
 # - Windows builds: blocked by meta.yaml (skip: True  # [win])
 
 echo "Building BayeSED3 for $(uname) - setup.py will auto-detect platform"

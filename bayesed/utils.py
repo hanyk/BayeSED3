@@ -3391,7 +3391,7 @@ def _get_resource_path(relative_path):
     Parameters
     ----------
     relative_path : str
-        Relative path from BayeSED3 root (e.g., 'bin/linux/bayesed_mn_1', 'models/...')
+        Relative path from BayeSED3 root (e.g., 'bin/linux/x86/bayesed_mn_1', 'models/...')
         
     Returns
     -------

@@ -745,6 +745,22 @@ class SEDInference:
                         print("✓ Fresh defaults generated")
                         if relevant_filenames:
                             print(f"✓ Identified {len(relevant_filenames)} relevant file(s) for current model config")
+
+                    # If generated filenames don't exist in input dir (e.g. new binary
+                    # adds .iprior.{N} suffix), copy defaults to input dir and skip filter.
+                    if relevant_filenames:
+                        input_basenames = {os.path.basename(f) for f in iprior_files}
+                        if not (input_basenames & relevant_filenames):
+                            if verbose:
+                                print(f"  Input dir has stale .iprior files, copying generated defaults...")
+                            defaults_files = [os.path.join(priors_defaults_dir, b) for b in relevant_filenames]
+                            copied = []
+                            for f in defaults_files:
+                                dst = os.path.join(input_dir, os.path.basename(f))
+                                shutil.copy2(f, dst)
+                                copied.append(dst)
+                            iprior_files = copied
+                            files_existed_before = None  # skip filter, use these files directly
                 except Exception as e:
                     import logging
                     logging.getLogger(__name__).warning(
@@ -1162,8 +1178,8 @@ class SEDInference:
                     pass  # Ignore cleanup errors
     
     def set_prior(self, parameter_name=None, iprior_file=None, prior_type=None, is_age=None,
-                  min_val=None, max_val=None, nbin=None, hyperparameters=None, confirm=True, 
-                  reset_to_default=False) -> None:
+                  min_val=None, max_val=None, nbin=None, hyperparameters=None, confirm=True,
+                  reset_to_default=False, component_id=None) -> None:
         """
         Modify prior parameters or query information about loaded priors.
         
@@ -1244,6 +1260,12 @@ class SEDInference:
             Whether to ask for user confirmation before applying modifications.
             Default is True (always ask for confirmation).
             Set to False to skip confirmation (useful for scripting/automation).
+        component_id : int, optional
+            Filter by model component ID (from .iprior.{N} filename suffix).
+            When set, only parameters from files with matching .iprior.{N} suffix
+            are considered. Useful for multi-component models where the same
+            parameter name exists across multiple instances.
+            Example: set_prior('Av_2', component_id=0, min_val=0.1)
         reset_to_default : bool, optional
             If True, reset the parameter(s) to their auto-generated default values.
             Default is False. When True, all other modification parameters are ignored.
@@ -1492,7 +1514,12 @@ class SEDInference:
                 for filename, params in self._prior_manager.priors_by_file.items():
                     for name in params.keys():
                         all_params.append((name, filename))
-            
+
+            # Filter by component_id if specified
+            if component_id is not None:
+                all_params = [(n, f) for n, f in all_params
+                              if self._prior_manager.priors_by_file[f][n].component_id == component_id]
+
             # Step 1: Try exact match first
             exact_matches = [(name, fname) for name, fname in all_params if name == pattern]
             if exact_matches:
@@ -2208,14 +2235,19 @@ class SEDInference:
                     match_type, matches = find_matching_parameters(param_name, iprior_file)
                     
                     if match_type == 'none':
-                        # No matches found - provide helpful error
-                        all_params = set()
-                        for filename, params in self._prior_manager.priors_by_file.items():
-                            all_params.update(params.keys())
-                        available = ', '.join(sorted(all_params))
+                        # No matches found — provide helpful error
+                        if component_id is not None:
+                            ids = sorted(set(p.component_id for ps in self._prior_manager.priors_by_file.values() for p in ps.values()))
+                            raise KeyError(
+                                f"No parameters match '{param_name}' with component_id={component_id} "
+                                f"(available component_ids: {ids})"
+                            )
+                        all_params = ', '.join(sorted(set(
+                            n for ps in self._prior_manager.priors_by_file.values() for n in ps
+                        )))
                         raise KeyError(
-                            f"No parameters match pattern '{param_name}'. "
-                            f"Available parameters: {available}"
+                            f"No parameters match '{param_name}'. "
+                            f"Available parameters: {all_params}"
                         )
                     
                     elif match_type == 'exact':

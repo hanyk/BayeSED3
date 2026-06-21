@@ -21,36 +21,38 @@ def test_prior_management():
     
     # View and modify priors
     print("\n=== Modifying log(age/yr) prior ===")
-    inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60)
-    
+    inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60, confirm=False)
+
     # List all available prior types
     print("\n=== Available Prior Types ===")
     inference.list_prior_types()  # Shows: Uniform, Gaussian, Gamma, Beta, Student's t, Weibull, etc.
-    
+
     # Use different prior types (Uniform, Gaussian, Gamma, Beta, etc.)
     print("\n=== Setting Gaussian prior for log(age/yr) ===")
-    inference.set_prior('log(age/yr)', prior_type='Gaussian', 
-                       min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0])
-    
+    inference.set_prior('log(age/yr)', prior_type='Gaussian',
+                       min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0],
+                       confirm=False)
+
     # Regex patterns (with confirmation)
     print("\n=== Setting Gaussian prior for all Av parameters ===")
-    inference.set_prior('^Av_.*', prior_type='Gaussian', hyperparameters=[1.0, 0.3])
-    
+    inference.set_prior('^Av_.*', prior_type='Gaussian', hyperparameters=[1.0, 0.3],
+                       confirm=False)
+
     # Partial matching
     print("\n=== Partial matching for 'age' ===")
-    inference.set_prior('age', min_val=8.0, max_val=10.0)  # Matches 'log(age/yr)', etc.
-    
+    inference.set_prior('age', min_val=8.0, max_val=10.0, confirm=False)  # Matches 'log(age/yr)', etc.
+
     # Query without modifying
     print("\n=== Query parameters containing 'age' ===")
     inference.set_prior('age')  # Shows all parameters containing 'age'
-    
+
     # Reset a single parameter to its default prior
     print("\n=== Resetting log(age/yr) to default ===")
-    inference.set_prior('log(age/yr)', reset_to_default=True)
-    
+    inference.set_prior('log(age/yr)', reset_to_default=True, confirm=False)
+
     # Reset multiple parameters using patterns
     print("\n=== Resetting all Av parameters to default ===")
-    inference.set_prior('Av_.*', reset_to_default=True)  # Reset all Av parameters
+    inference.set_prior('Av_.*', reset_to_default=True, confirm=False)  # Reset all Av parameters
     
     print("\n=== Final Priors ===")
     inference.print_priors()
