@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools>=64", "wheel", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -88,8 +88,7 @@ py-modules = ["bayesed_gui"]
 [tool.setuptools.package-data]
 "*" = []
 
-[tool.setuptools.dynamic]
-version = {attr = "bayesed.__version__"}
+[tool.setuptools_scm]
 
 # Note: OpenMPI 4.1.6 is required but not a Python package.
 # It must be installed separately:

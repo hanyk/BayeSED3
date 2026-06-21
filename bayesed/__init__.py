@@ -4,7 +4,11 @@ BayeSED3 Python Interface
 This package provides a Python interface to BayeSED3, a Bayesian SED fitting tool.
 """
 
-__version__ = "2026.01.31"
+from importlib.metadata import version, PackageNotFoundError
+try:
+    __version__ = version("bayesed3")
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 # Import core classes from core module
 from .core import (
