@@ -1,5 +1,5 @@
 {% set name = "bayesed3" %}
-{% set version = "2026.01.31" %}
+{% set version = environ.get('GIT_DESCRIBE_TAG', '').lstrip('v') or '0.0.0' %}
 
 package:
   name: {{ name|lower }}

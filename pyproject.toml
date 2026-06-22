@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "bayesed3"
 description = "Bayesian SED synthesis and analysis of galaxies and AGNs"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
     {name = "Yunkun Han", email = "hanyk@ynao.ac.cn"}
@@ -89,6 +89,7 @@ py-modules = ["bayesed_gui"]
 "*" = []
 
 [tool.setuptools_scm]
+fallback_version = "0.0.0"
 
 # Note: OpenMPI 4.1.6 is required but not a Python package.
 # It must be installed separately:
