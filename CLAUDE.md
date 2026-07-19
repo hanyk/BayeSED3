@@ -97,7 +97,11 @@ Canonical copy: repo [`skills/`](skills/) (`SKILL.md` + `references/`). Sync-ove
 
 ### Issue tracker
 
-Issues tracked as local markdown under `.scratch/<feature-slug>/` (spec + one file per ticket). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues for `hanyk/BayeSED3` (via `gh`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical roles map 1:1 to tracker labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
