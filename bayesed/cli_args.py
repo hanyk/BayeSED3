@@ -58,7 +58,8 @@ def _format_z_params(z_params):
     return f"{z_params.iprior_type},{z_params.is_age},{z_params.min},{z_params.max},{z_params.nbin}"
 
 def _format_SFR_over_params(SFR_over_params):
-    return f"{SFR_over_params.past_Myr1},{SFR_over_params.past_Myr2},{SFR_over_params.save_bestfit}"
+    # help.txt: --SFR_over ARG1[,ARGn] (past Myr windows; default e.g. 10,100)
+    return ','.join(str(x) for x in SFR_over_params.past_Myrs)
 
 def _format_SNRmin1_params(SNRmin1_params):
     return f"{SNRmin1_params.phot},{SNRmin1_params.spec}"
@@ -226,7 +227,7 @@ def to_cli_args(params):
         args.extend(['--suffix', params.suffix])
 
     if params.SFR_over:
-        args.extend(['--SFR_over', f"{params.SFR_over.past_Myr1},{params.SFR_over.past_Myr2}"])
+        args.extend(['--SFR_over', _format_SFR_over_params(params.SFR_over)])
 
     if params.SNRmin1:
         args.extend(['--SNRmin1', f"{params.SNRmin1.phot},{params.SNRmin1.spec}"])

@@ -153,7 +153,7 @@ model.set_redshift_prior(iprior_type=1, min=0.0, max=4.0, nbin=40)
 model.set_sys_err_mod(iprior_type=1, min=0.0, max=0.1, nbin=40)
 model.set_kinematics(id=0, velscale=10, num_gauss_hermites_con=0, num_gauss_hermites_eml=0)
 model.set_luminosity(id=-1, w_min=..., w_max=...)            # w_min/w_max required
-model.set_sfr_over(past_Myr1=10.0, past_Myr2=100.0)
+model.set_sfr_over(past_Myrs=(10.0, 100.0))  # or (10, 100, 1000), …
 model.set_lw_max(lw_max=...)
 model.set_line_list(file=..., type=0)                        # 0=intrinsic,1=emergent,2/3=cumulative variants
 ```

@@ -6,8 +6,8 @@ including model parameters (SSP, SFH, AGN, etc.), algorithm parameters (MultiNes
 and other configuration parameters.
 """
 
-from dataclasses import dataclass
-from typing import Optional, Union
+from dataclasses import dataclass, field
+from typing import List, Optional, Union
 
 @dataclass
 class FANNParams:
@@ -271,8 +271,8 @@ class MultiNestParams:
 
 @dataclass
 class SFROverParams:
-    past_Myr1: float = 10.0  # First past time in Myr
-    past_Myr2: float = 100.0  # Second past time in Myr
+    """Past-time windows (Myr) for average SFR; maps to ``--SFR_over ARG1[,ARGn]``."""
+    past_Myrs: List[float] = field(default_factory=lambda: [10.0, 100.0])
 
 @dataclass
 class SNRmin1Params:

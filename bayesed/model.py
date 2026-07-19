@@ -273,20 +273,19 @@ class SEDModel:
         self._luminosity = LuminosityParams(id=id, w_min=w_min, w_max=w_max)
         return self
     
-    def set_sfr_over(self, past_Myr1=10.0, past_Myr2=100.0):
+    def set_sfr_over(self, past_Myrs=(10.0, 100.0)):
         """
-        Set star formation rate averaging.
-        
+        Set star formation rate averaging windows.
+
         Parameters
         ----------
-        past_Myr1 : float
-            First past time in Myr (default: 10.0)
-        past_Myr2 : float
-            Second past time in Myr (default: 100.0)
+        past_Myrs : sequence of float
+            Past times in Myr for average SFR (``--SFR_over ARG1[,ARGn]``).
+            Default: ``(10.0, 100.0)``.
         """
         # Import here to avoid circular dependency
         from .params import SFROverParams
-        self._sfr_over = SFROverParams(past_Myr1=past_Myr1, past_Myr2=past_Myr2)
+        self._sfr_over = SFROverParams(past_Myrs=list(past_Myrs))
         return self
     
     def set_lw_max(self, lw_max):

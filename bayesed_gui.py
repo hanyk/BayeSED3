@@ -1822,10 +1822,10 @@ class BayeSEDGUI:
 
         # Other settings
         if self.use_sfr.get():
-            params.SFR_over = SFROverParams(
-                past_Myr1=float(self.sfr_myr_entry.get().split(',')[0]),
-                past_Myr2=float(self.sfr_myr_entry.get().split(',')[1])
-            )
+            past_Myrs = [
+                float(x) for x in self.sfr_myr_entry.get().split(',') if x.strip()
+            ]
+            params.SFR_over = SFROverParams(past_Myrs=past_Myrs)
 
         if self.use_snr.get():
             params.SNRmin1 = SNRmin1Params(
