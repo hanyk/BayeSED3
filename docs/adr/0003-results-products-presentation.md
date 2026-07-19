@@ -1,0 +1,3 @@
+# Results facade with Products and Presentation
+
+`BayeSEDResults` remains the public facade for scientific Results. Internally it lazily holds `ResultsProducts` (HDF5 discovery/load, parameter tables, evidence, posterior sample files, best-fit spectrum data) and `ResultsPresentation` (GetDist/`MCSamples`, all `plot_*`, correlations/statistics), with presentation constructed against the products instance. We rejected a new public products type, a three-way Store split on the first cut, putting analytics on the products side, and unifying string-match policies in this change. Unused redesign modules (`base`/`models`/`logger`/`exceptions`) are deleted.

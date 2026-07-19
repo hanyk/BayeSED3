@@ -25,8 +25,8 @@ Metadata from one binary run (`BayeSEDExecution`: exit code, paths, timing).
 _Avoid_: Results, analysis results, fit output (when meaning scientific posteriors)
 
 **Results**:
-Scientific posterior products loaded from HDF5 (`BayeSEDResults`).
-_Avoid_: Execution, run output (when meaning only process metadata)
+Scientific posterior products loaded from HDF5 (`BayeSEDResults` facade over products + presentation).
+_Avoid_: Execution, run output (when meaning only process metadata); treating plot helpers as the definition of Results
 
 **Evidence**:
 Bayesian evidence for a model configuration (`get_evidence()` → `log_evidence`, with error).

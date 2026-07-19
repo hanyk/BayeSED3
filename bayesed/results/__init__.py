@@ -1,8 +1,8 @@
 """
 BayeSED Results Analysis Package
 
-This package provides efficient access to BayeSED analysis results
-with dramatically reduced complexity while maintaining full backward compatibility.
+Public entry: BayeSEDResults (facade). Internals: ResultsProducts +
+ResultsPresentation (ADR-0003).
 """
 
 from .bayesed_results import BayeSEDResults

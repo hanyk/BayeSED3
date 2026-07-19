@@ -20,7 +20,7 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 - **`params.py`**: Dataclasses for every component (SSP, SFH, DAL, AGN, MultiNest, cosmology, etc.). These generate `.iprior` and config files consumed by the C/Fortran backend.
 - **`model.py`**: `SEDModel` — high-level builder with `create_galaxy()` / `create_agn()` and `add_dust_emission()`.
 - **`data.py`**: `SEDObservation`, `PhotometryObservation`, `SpectrumObservation` — convert numpy arrays to BayeSED input catalog format via `.to_bayesed_input()`.
-- **`results/`**: Subpackage (not a single file). `BayeSEDResults` in `bayesed_results.py` handles HDF5 loading, posterior plotting, GetDist integration, parameter analytics (correlations, statistics), and SNR filtering. `standardize_parameter_names()` and `plot_posterior_comparison()` live here too.
+- **`results/`**: Subpackage. `BayeSEDResults` is a thin facade (ADR-0003) over `ResultsProducts` (HDF5/table/evidence/samples) and `ResultsPresentation` (GetDist, plots, corr/stats). `standardize_parameter_names()` / `plot_posterior_comparison()` in `utils.py`.
 - **`inference.py`**: `SEDInference` — sampler settings and `run()`; prior UX via thin facades (`priors_init` / `set_prior`, …) onto `Priors`.
 - **`priors.py`**: `Priors` — prior lifecycle (load/generate/edit/validate `.iprior`); holds `PriorManager` internally (ADR-0002).
 - **`prior.py` / `prior_manager.py`**: `Prior` value object (Uniform, Gaussian, …); `PriorManager` is the `.iprior` I/O adapter (not the public entry).

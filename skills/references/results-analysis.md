@@ -2,7 +2,8 @@
 # Results Loading, Statistics, and Visualization — Detailed Guide
 ---
 
-**Results** (`BayeSEDResults`) are scientific posterior products from HDF5.  
+**Results** (`BayeSEDResults`) are scientific posterior products from HDF5.
+The public class is a facade over `ResultsProducts` + `ResultsPresentation` (ADR-0003); call sites stay the same.
 On the happy path, `SEDInference.run(params)` already returns Results.  
 After `BayeSEDInterface.run` (**Execution** only), construct `BayeSEDResults(outdir, ...)` yourself.
 
