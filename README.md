@@ -488,9 +488,10 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
   - [`model.py`](bayesed/model.py): Model configuration classes (`SEDModel`)
   - [`data.py`](bayesed/data.py): Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
   - [`params.py`](bayesed/params.py): Parameter configuration classes
-  - [`inference.py`](bayesed/inference.py): Inference configuration (`SEDInference`)
+  - [`inference.py`](bayesed/inference.py): Inference configuration (`SEDInference`); prior UX facades
+  - [`priors.py`](bayesed/priors.py): Prior lifecycle (`Priors`)
   - [`prior.py`](bayesed/prior.py): Prior definitions (`Prior`)
-  - [`prior_manager.py`](bayesed/prior_manager.py): Prior management (`PriorManager`)
+  - [`prior_manager.py`](bayesed/prior_manager.py): Internal `.iprior` I/O adapter (`PriorManager`)
   - [`utils.py`](bayesed/utils.py): Utility functions for data preparation and filter management
   - [`plotting.py`](bayesed/plotting.py): Plotting functions for visualization
 - [`bayesed_gui.py`](bayesed_gui.py): Graphical User Interface for BayeSED3

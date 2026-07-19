@@ -1,8 +1,10 @@
 """
-Prior Manager for BayeSED3.
+Internal .iprior I/O adapter for BayeSED3.
 
-This module provides the PriorManager class for loading, modifying, and saving
-parameter priors from .iprior files.
+`PriorManager` loads, modifies, and saves parameter priors from `.iprior` files.
+Public prior lifecycle goes through `bayesed.priors.Priors` or the
+`SEDInference.priors_*` facades (see ADR-0002) — do not treat this module as the
+package entry point.
 """
 
 import os
@@ -14,12 +16,11 @@ from .prior import Prior
 
 class PriorManager:
     """
-    Manages loading, modifying, and saving of BayeSED3 prior files.
-    
-    The PriorManager handles .iprior files which contain parameter prior specifications
-    for BayeSED3 analysis. It supports loading priors from files, modifying them
-    programmatically, tracking changes, and saving them back to files.
-    
+    Internal adapter for loading, modifying, and saving BayeSED3 `.iprior` files.
+
+    Prefer `SEDInference.priors_init` / `set_prior` (or `Priors`) for normal use.
+    This class is held by `Priors` for file I/O, change tracking, and display.
+
     Parameters
     ----------
     base_directory : str, optional
@@ -38,6 +39,9 @@ class PriorManager:
         
     Examples
     --------
+    >>> # Prefer the public path for analysis workflows:
+    >>> #   inference = SEDInference(); inference.priors_init(params); inference.set_prior(...)
+    >>> # Direct PriorManager use is for low-level .iprior I/O only:
     >>> manager = PriorManager(base_directory='observation/test')
     >>> priors = manager.load_prior_file('2dal8.iprior')
     >>> manager.save_prior_file('2dal8_modified.iprior', list(priors.values()))

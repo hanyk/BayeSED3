@@ -21,8 +21,9 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 - **`model.py`**: `SEDModel` — high-level builder with `create_galaxy()` / `create_agn()` and `add_dust_emission()`.
 - **`data.py`**: `SEDObservation`, `PhotometryObservation`, `SpectrumObservation` — convert numpy arrays to BayeSED input catalog format via `.to_bayesed_input()`.
 - **`results/`**: Subpackage (not a single file). `BayeSEDResults` in `bayesed_results.py` handles HDF5 loading, posterior plotting, GetDist integration, parameter analytics (correlations, statistics), and SNR filtering. `standardize_parameter_names()` and `plot_posterior_comparison()` live here too.
-- **`inference.py`**: `SEDInference` — prior management. Call `priors_init(params)` then `set_prior(name, ...)` with regex support.
-- **`prior.py` / `prior_manager.py`**: Prior type definitions (Uniform, Gaussian, Gamma, Beta, Student's t, Weibull) and management utilities.
+- **`inference.py`**: `SEDInference` — sampler settings and `run()`; prior UX via thin facades (`priors_init` / `set_prior`, …) onto `Priors`.
+- **`priors.py`**: `Priors` — prior lifecycle (load/generate/edit/validate `.iprior`); holds `PriorManager` internally (ADR-0002).
+- **`prior.py` / `prior_manager.py`**: `Prior` value object (Uniform, Gaussian, …); `PriorManager` is the `.iprior` I/O adapter (not the public entry).
 - **`plotting.py`**: `plot_bestfit()` and related visualization helpers.
 - **`utils.py`**: Filter management (SVO download), `create_input_catalog()`, filter calibration constants (`FILTER_TYPE_ENERGY`, `FILTER_CALIB_STANDARD`, etc.).
 
@@ -78,7 +79,7 @@ Use `BayeSEDInterface(Ntest=2)` to limit processing to the first N objects — u
 - **Parameter construction**: Default `SEDModel.create_galaxy` / `create_agn`; shortcuts `BayeSEDParams.galaxy()` / `.agn()`; low-level `SSPParams` / `SFHParams` / `DALParams` for full control.
 - **Result loading**: Prefer Results from `inference.run`; or `BayeSEDResults(output_dir, catalog_name='...', object_id='...')` after an Execution. Results are cached via `_lazy_load_hdf5()`.
 - **Observation creation**: `SEDObservation` converts numpy arrays to BayeSED input catalogs via `.to_bayesed_input()`.
-- **Prior management**: `SEDInference.priors_init(params)` then `set_prior(name, ...)` with regex pattern support — avoids manual `.iprior` file editing.
+- **Prior management**: `SEDInference.priors_init(params)` then `set_prior(name, ...)` with regex pattern support — facades over `Priors`; avoid treating `PriorManager` as the entry point.
 - **Model comparison**: Run multiple model configurations on same data, use `from bayesed.results import standardize_parameter_names, plot_posterior_comparison`, then compare Bayesian evidence via `results.get_evidence()`.
 
 ## File Conventions

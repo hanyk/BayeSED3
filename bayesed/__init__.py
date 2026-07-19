@@ -36,12 +36,12 @@ from .inference import (
     SEDInference,
 )
 
-# Import prior management classes
+# Import prior management classes (PriorManager is internal — use Priors / SEDInference)
+from .priors import (
+    Priors,
+)
 from .prior import (
     Prior,
-)
-from .prior_manager import (
-    PriorManager,
 )
 
 # Import plotting functions
@@ -124,9 +124,9 @@ __all__ = [
     'SEDModel',
     # Inference classes
     'SEDInference',
-    # Prior management classes
+    # Prior management classes (PriorManager: bayesed.prior_manager, not public)
+    'Priors',
     'Prior',
-    'PriorManager',
     # Plotting
     'plot_bestfit',
     # Utilities

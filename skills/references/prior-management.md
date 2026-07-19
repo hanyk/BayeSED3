@@ -8,6 +8,9 @@
 > `set_prior` / `print_priors` / `validate_priors` **require** `priors_init` first.
 > Changing priors after a run does not affect that completed analysis.
 
+Call these methods on `SEDInference` (skill happy path). Lifecycle implementation lives in
+`bayesed.priors.Priors`; `PriorManager` is an internal `.iprior` I/O adapter (ADR-0002).
+
 `inference.run(params)` returns **Results** (`BayeSEDResults`).  
 `BayeSEDInterface.run(params)` returns **Execution** — use only for batch/diagnostics, then load Results separately.
 

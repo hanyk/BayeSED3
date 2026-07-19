@@ -31,3 +31,7 @@ _Avoid_: Execution, run output (when meaning only process metadata)
 **Evidence**:
 Bayesian evidence for a model configuration (`get_evidence()` → `log_evidence`, with error).
 _Avoid_: Treating raw `INSlogZ` as the only public key name
+
+**Priors**:
+The prior lifecycle for a model configuration — load/generate/edit/save of `.iprior` specifications (`Priors`).
+_Avoid_: Treating `PriorManager` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors

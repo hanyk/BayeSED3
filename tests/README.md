@@ -80,7 +80,7 @@ This directory contains Python examples extracted from the main README.md file, 
 - Pattern matching and bulk prior updates
 
 **Key features:**
-- `SEDInference` class for prior management
+- `SEDInference` facades (`priors_init` / `set_prior` / …) over `bayesed.priors.Priors`
 - `set_prior()` for modifying priors
 - `list_prior_types()` for available distributions
 - Regex patterns and partial matching
