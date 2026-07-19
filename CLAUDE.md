@@ -16,7 +16,8 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 - **High-level Python API** (all other `tests/test_*.py`): Prefer `SEDModel` builder (skill canonical path); factory methods `BayeSEDParams.galaxy()` / `.agn()` are shortcuts with sensible defaults.
 
 ### Core Package: `bayesed/`
-- **`core.py`**: `BayeSEDInterface` (runs the binary), `BayeSEDParams` (config/factory methods), `BayeSEDExecution` (execution metadata returned by `run()`). Handles MPI parallelization, config file generation, and binary invocation.
+- **`core.py`**: `BayeSEDInterface` (runs the binary), `BayeSEDParams` (config/factory methods), `BayeSEDExecution` (execution metadata returned by `run()`). MPI + subprocess; CLI argv via internal `cli_args.to_cli_args` (ADR-0004).
+- **`cli_args.py`**: Internal adapter — `BayeSEDParams` → binary argv (not a public export).
 - **`params.py`**: Dataclasses for every component (SSP, SFH, DAL, AGN, MultiNest, cosmology, etc.). These generate `.iprior` and config files consumed by the C/Fortran backend.
 - **`model.py`**: `SEDModel` — high-level builder with `create_galaxy()` / `create_agn()` and `add_dust_emission()`.
 - **`data.py`**: `SEDObservation`, `PhotometryObservation`, `SpectrumObservation` — convert numpy arrays to BayeSED input catalog format via `.to_bayesed_input()`.

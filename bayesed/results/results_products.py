@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 class ResultsProducts:
     """Deep products module for BayeSED Results (load + scientific accessors)."""
 
+    @staticmethod
     def _to_str(x) -> str:
         """Convert bytes to string, handling HDF5 byte columns."""
         return x.decode('utf-8') if isinstance(x, bytes) else str(x)
+
+    @staticmethod
     def _match_strings(candidates: List[str], pattern: str, match_mode: str,
                        case_sensitive: bool) -> List[str]:
         """
