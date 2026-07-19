@@ -2,29 +2,36 @@
 # Prior Management — Detailed Guide (SEDInference API)
 ---
 
-> **Critical order: priors_init → set_prior → run()**
-> `priors_init()` and `set_prior()` MUST be called BEFORE `bayesed.run()` or `inference.run()`.
-> Modifying priors after running has no effect on the current analysis.
+> **Happy-path order: `priors_init` → (optional `set_prior`) → `inference.run()`**
+>
+> Always call `priors_init(params)` before a run on the skill happy path.
+> `set_prior` / `print_priors` / `validate_priors` **require** `priors_init` first.
+> Changing priors after a run does not affect that completed analysis.
+
+`inference.run(params)` returns **Results** (`BayeSEDResults`).  
+`BayeSEDInterface.run(params)` returns **Execution** — use only for batch/diagnostics, then load Results separately.
 
 ## Basic Usage
 
 ```python
 from bayesed import SEDInference, BayeSEDParams
+from bayesed.model import SEDModel
 
-# Create parameter configuration first
-params = BayeSEDParams.galaxy(
-    input_file='observation/test/gal.txt',
-    outdir='tests/output_prior_test'
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti',
 )
+params = BayeSEDParams(
+    input_file='observation/test/gal.txt',
+    outdir='tests/output_prior_test',
+    save_sample_par=True,
+)
+params.add_galaxy(galaxy)
 
-# Initialize prior manager
 inference = SEDInference()
-inference.priors_init(params)  # load default priors from params
-
-# View all priors
+inference.priors_init(params)
 inference.print_priors()
-
-# List available prior types
 inference.list_prior_types()
 # Output: Uniform, Gaussian, Gamma, Beta, Student's t, Weibull, ...
 ```
@@ -32,71 +39,49 @@ inference.list_prior_types()
 ## Modifying Prior Ranges (Uniform Prior)
 
 ```python
-# Exact parameter name match
 inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60)
-
-# Modify extinction parameter
 inference.set_prior('Av_2', min_val=0.0, max_val=3.0, nbin=50)
-
-# Modify redshift prior
 inference.set_prior('z', min_val=0.0, max_val=1.0, nbin=100)
 ```
 
 ## Setting Non-Uniform Priors
 
 ```python
-# Gaussian prior: hyperparameters=[mean, std]
 inference.set_prior('log(age/yr)',
                    prior_type='Gaussian',
-                   min_val=8.0, max_val=12.0,
-                   hyperparameters=[10.0, 1.0])
+                   hyperparameters=[9.0, 0.3])
 
-# Gamma prior: hyperparameters=[shape k, scale θ]
 inference.set_prior('Av_2',
                    prior_type='Gamma',
-                   min_val=0.0, max_val=5.0,
                    hyperparameters=[2.0, 0.5])
 
-# Beta prior: hyperparameters=[α, β]
 inference.set_prior('log(Z/Zsun)',
                    prior_type='Beta',
-                   min_val=-2.0, max_val=0.5,
-                   hyperparameters=[2.0, 5.0])
+                   hyperparameters=[2.0, 2.0],
+                   min_val=-2.0, max_val=0.5)
 ```
 
 ## Batch Matching (Regular Expressions)
 
 ```python
-# Regex match (shows matches and requests confirmation)
-inference.set_prior('^Av_.*',
-                   prior_type='Gaussian',
-                   hyperparameters=[1.0, 0.3])
-
-# Partial string match (matches all parameters containing 'age')
-inference.set_prior('age', min_val=8.0, max_val=10.0)
-
-# Query only, no modification (shows all matching parameters)
-inference.set_prior('age')
-inference.set_prior('Av')
+inference.set_prior(r'log\(age.*\)', min_val=8.0, max_val=10.0)  # may prompt for confirmation
+inference.set_prior('age', min_val=8.0, max_val=10.0)            # substring match
+# Query only:
+inference.print_priors(pattern='age')
 ```
 
 ## Resetting Priors
 
 ```python
-# Reset a single parameter to default prior
-inference.set_prior('log(age/yr)', reset_to_default=True)
-
-# Batch reset (regex)
-inference.set_prior('Av_.*', reset_to_default=True)
-
-# Reset all priors (match every parameter name)
-inference.set_prior('.*', reset_to_default=True)
+inference.reset_to_default('log(age/yr)')
+inference.reset_to_default(r'Av_.*')
+inference.reset_to_default('.*')  # all parameters
 ```
 
 ## Prior Type Reference
 
-| Type | `prior_type` | `hyperparameters` |
-|------|-------------|-------------------|
+| Type | `prior_type` string | Hyperparameters |
+|------|---------------------|------------------|
 | Uniform | `'Uniform'` | None (use min/max) |
 | Gaussian | `'Gaussian'` | `[mean μ, std σ]` |
 | Gamma | `'Gamma'` | `[shape k, scale θ]` |
@@ -106,37 +91,43 @@ inference.set_prior('.*', reset_to_default=True)
 
 ## Prior File (.iprior)
 
-Prior configurations are automatically saved as `.iprior` files in the `outdir` directory.
-Format: `param_name prior_type min max nbin [hyperparameters...]`
+Prior configurations are saved as `.iprior` files under `outdir`.  
+Format: `param_name prior_type min max nbin [hyperparameters...]`  
+Prefer the `SEDInference` API over hand-editing.
 
-Manual editing of `.iprior` files is possible, but using the `SEDInference` API is recommended.
+## Sampler Helpers on SEDInference
+
+Optional; applied when you call `inference.run`. Full MultiNest / NNLM recipes: `advanced-run-modes.md`.
+
+```python
+inference.multinest(nlive=100, efr=0.1, INS=1, fb=2)
+# Also: inference.gsl(...), inference.nnlm(...), inference.ndumper(...), inference.set_logzero(...)
+```
 
 ## Complete Workflow Example
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams, SEDInference
+from bayesed import BayeSEDParams, SEDInference
+from bayesed.model import SEDModel
 
-bayesed = BayeSEDInterface(mpi_mode='auto')
-
-# 1. Create parameters
-params = BayeSEDParams.galaxy(
-    input_file='observation/test/gal.txt',
-    outdir='tests/output_custom_prior',
+galaxy = SEDModel.create_galaxy(
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
-    dal_law='calzetti'
+    dal_law='calzetti',
 )
+params = BayeSEDParams(
+    input_file='observation/test/gal.txt',
+    outdir='tests/output_custom_prior',
+    save_sample_par=True,
+)
+params.add_galaxy(galaxy)
 
-# 2. Customize priors (BEFORE run)
 inference = SEDInference()
 inference.priors_init(params)
+inference.set_prior('log(age/yr)', min_val=8.0, max_val=10.1)
+inference.set_prior('log(tau/yr)', min_val=7.0, max_val=10.5)
+inference.set_prior('Av_2', min_val=0.0, max_val=4.0)
+inference.set_prior('log(Z/Zsun)', min_val=-2.0, max_val=0.5)
 
-# Set priors based on physical constraints
-inference.set_prior('log(age/yr)', min_val=8.0, max_val=10.1)  # 0.1Gyr - 13Gyr
-inference.set_prior('log(tau/yr)', min_val=7.0, max_val=10.5)  # SFH timescale
-inference.set_prior('Av_2', min_val=0.0, max_val=4.0)          # extinction
-inference.set_prior('log(Z/Zsun)', min_val=-2.0, max_val=0.5)  # metallicity
-
-# 3. Run (priors are now active)
-result = bayesed.run(params)
+results = inference.run(params)  # BayeSEDResults
 ```

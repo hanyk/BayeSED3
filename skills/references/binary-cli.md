@@ -2,6 +2,8 @@
 # Binary CLI — Complete Options Reference
 ---
 
+Escape hatch for raw binary flags. Prefer the Python happy path (`SEDModel` + `SEDInference`) in `SKILL.md`. For Python equivalents of phot/spec-only, NNLM/RDF, MultiNest tuning, and AB mag catalogs, use `advanced-run-modes.md` first.
+
 Run `./bin/linux/bayesed_mn_1 --help` for the authoritative reference.
 
 ## Invoking the Binary

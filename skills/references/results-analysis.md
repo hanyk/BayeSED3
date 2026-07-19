@@ -2,10 +2,18 @@
 # Results Loading, Statistics, and Visualization — Detailed Guide
 ---
 
+**Results** (`BayeSEDResults`) are scientific posterior products from HDF5.  
+On the happy path, `SEDInference.run(params)` already returns Results.  
+After `BayeSEDInterface.run` (**Execution** only), construct `BayeSEDResults(outdir, ...)` yourself.
+
 ## Loading Results
 
 ```python
 from bayesed import BayeSEDResults
+from bayesed.results.utils import list_catalog_names
+
+# Discover catalogs in an outdir
+print(list_catalog_names('tests/output_quick_start'))
 
 # Basic loading (auto-detect catalog)
 results = BayeSEDResults('tests/output_quick_start')
@@ -39,20 +47,35 @@ derived_params = results.get_derived_parameters()
 # e.g.: ['log(Mstar)[0,1]', 'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]', ...]
 ```
 
+## Discovery Helpers
+
+```python
+from bayesed.results.utils import list_catalog_names
+
+list_catalog_names('tests/output_quick_start')
+# results.list_model_configurations() / list_model_components() when multi-config
+
+# Posterior samples (GetDist-backed)
+samples = results.get_posterior_samples(object_id=objects[0])
+
+# Optional renames for plotting / comparison
+# results.rename_parameters({'old[0,1]': 'new_name'})
+```
+
 ## Loading HDF5 Data Tables
 
 ```python
 # Load all results
 hdf5_table = results.load_hdf5_results()
 
-# Filter by SNR (remove low signal-to-noise objects)
+# Filter by SNR (optional; defaults are filter_snr=True, min_snr=0.0)
 high_snr_table = results.load_hdf5_results(filter_snr=True, min_snr=5.0)
 
-# Load a different model's results (multi-model runs)
+# Load a different model configuration (multi-configuration runs)
 results_model2 = BayeSEDResults(
     'tests/output_quick_start',
     catalog_name='gal',
-    model_config='model2'  # specify which model config to load
+    model_config='model2'  # which model configuration to load
 )
 hdf5_table_m2 = results_model2.load_hdf5_results()
 ```
@@ -86,7 +109,7 @@ print(correlations)  # correlation coefficient matrix
 ```python
 # Get evidence (dict format)
 evidence = results.get_evidence()
-print(f"ln(Z) = {evidence['INSlogZ']:.2f} ± {evidence['INSlogZerr']:.2f}")
+print(f"ln(Z) = {evidence['log_evidence']:.2f} ± {evidence['log_evidence_error']:.2f}")
 
 # Table format
 evidence_table = results.get_evidence(return_format='table')
@@ -151,7 +174,7 @@ for object_id in objects[:3]:  # process first 3 objects
     obj_results.plot_bestfit()
     obj_results.plot_posterior_free()
     print(f"Object {object_id}:")
-    print(f"  ln(Z) = {obj_results.get_evidence()['INSlogZ']:.2f}")
+    print(f"  ln(Z) = {obj_results.get_evidence()['log_evidence']:.2f}")
 ```
 
 ## GetDist Advanced Analysis
@@ -182,10 +205,8 @@ plt.show()
 
 ## Parameter Name Format
 
-BayeSED3 parameter names follow the format `param_name[igroup,id]`:
-- `[0,1]` = group 0, component 1 (typically the galaxy)
-- `[1,2]` = group 1, component 2 (typically the AGN accretion disk)
-- Derived parameters (e.g., stellar mass) also carry component identifiers
+BayeSED3 parameter names follow the format `param_name[igroup,id]`.
+Exact indices depend on auto-assignment / low-level IDs — inspect `get_free_parameters()` rather than assuming AGN always starts at `[1,2]`. See `custom-models.md` for SEDModel offset rules.
 
 ```python
 # View actual parameter names
@@ -233,5 +254,5 @@ results.plot_posterior_derived(max_params=5)
 
 # Bayesian evidence
 evidence = results.get_evidence()
-print(f"ln(Z) = {evidence['INSlogZ']:.2f} ± {evidence['INSlogZerr']:.2f}")
+print(f"ln(Z) = {evidence['log_evidence']:.2f} ± {evidence['log_evidence_error']:.2f}")
 ```

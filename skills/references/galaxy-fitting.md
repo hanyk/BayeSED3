@@ -2,12 +2,12 @@
 # Galaxy SED Fitting — Detailed Guide
 ---
 
-## High-Level Interface (Recommended)
+Default assembly for agents: **`SEDModel`** — happy path and dust emission in `custom-models.md`. This page covers the factory shortcut, low-level `*Params`, and SSP/SFH/DAL tables.
+
+## Factory Shortcut
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults
-
-bayesed = BayeSEDInterface(mpi_mode='auto')
+from bayesed import BayeSEDParams, SEDInference
 
 params = BayeSEDParams.galaxy(
     input_file='observation/test/gal.txt',
@@ -15,16 +15,18 @@ params = BayeSEDParams.galaxy(
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti',
-    save_sample_par=True  # required for posterior plots and model comparison
+    save_sample_par=True,  # required for posterior plots / model-configuration comparison
 )
 
-result = bayesed.run(params)
+inference = SEDInference()
+inference.priors_init(params)
+results = inference.run(params)
 ```
 
 ## Low-Level Interface (Fine-Grained Control)
 
 ```python
-from bayesed import BayeSEDParams
+from bayesed import BayeSEDParams, SEDInference
 from bayesed import (SSPParams, SFHParams, DALParams, ZParams,
                      MultiNestParams, SysErrParams, RDFParams)
 
@@ -33,7 +35,7 @@ params = BayeSEDParams(
     input_file='observation/test/gal.txt',
     outdir='observation/test/output/gal',
     save_bestfit=0,                        # 0=FITS, 1=HDF5, 2=both
-    save_sample_par=True,
+    save_sample_par=True,  # required for posterior plots / model-configuration comparison
     filters='observation/test/filters.txt',
     filters_selected='observation/test/filters_selected.txt',
 
@@ -53,18 +55,22 @@ params = BayeSEDParams(
         ilaw=8,                            # 8=Calzetti2000, 7=SMC
         con_eml_tot=2                      # 2=continuum+emission lines
     )],
-    z=ZParams(iprior_type=1),              # redshift prior
+    z=ZParams(iprior_type=1),
     multinest=MultiNestParams(
-        nlive=40,                          # live points (40 for testing, 400+ for production)
-        efr=0.05,                          # sampling efficiency
+        nlive=40,                          # 40 for testing, 400+ for production
+        efr=0.05,
         updInt=100,
         fb=2
     ),
-    sys_err_obs=SysErrParams(min=0.0, max=0.2)  # systematic error
+    sys_err_obs=SysErrParams(min=0.0, max=0.2)
 )
 
-result = bayesed.run(params)
+inference = SEDInference()
+inference.priors_init(params)
+results = inference.run(params)
 ```
+
+AB mag, phot/spec-only, NNLM/RDF: `advanced-run-modes.md`.
 
 ## SSP Model Options
 
@@ -104,33 +110,11 @@ result = bayesed.run(params)
 | 8 | `'calzetti'`, `'calzetti2000'`, `'starburst_calzetti2000'` | SB (Calzetti2000, hyperz) |
 | 9 | `'star_forming_reddy'`, `'reddy'`, `'reddy2015'` | Star-forming (Reddy+2015) |
 
-## Adding Dust Emission (SEDModel Interface)
+String→int mapping for `SEDModel.create_galaxy`: also in `custom-models.md`.
 
-```python
-from bayesed.model import SEDModel
+## Spectroscopic Input Catalogs
 
-galaxy = SEDModel.create_galaxy(
-    ssp_model='bc2003_lr_BaSeL_chab',
-    sfh_type='exponential',
-    dal_law='smc'
-)
-galaxy.add_dust_emission()  # Add greybody dust emission component
-
-params = BayeSEDParams(
-    input_type=0,
-    input_file='observation/test2/test.txt',
-    outdir='tests/output_custom',
-    filters='observation/test2/filters.txt',
-    filters_selected='observation/test2/filters_selected.txt',
-    save_sample_par=True
-)
-params.add_galaxy(galaxy)
-bayesed.run(params)
-```
-
-## Spectroscopic Data Fitting
-
-To fit photometry and spectroscopy simultaneously, the input file must include spectral columns (wavelength, flux, error, LSF). Use `SEDObservation` to create input files with spectra:
+Build photometry+spectra catalogs with `SEDObservation` — full API in `data-preparation.md`. Minimal shape:
 
 ```python
 from bayesed.data import SEDObservation
@@ -143,10 +127,10 @@ obs = SEDObservation(
     phot_fluxes=np.array([[12.5, 25.1]]),
     phot_errors=np.array([[1.2, 2.5]]),
     spec_band_names=['SDSS_spec'],
-    spec_wavelengths=[np.linspace(0.38, 0.92, 500)],  # units: μm
+    spec_wavelengths=[np.linspace(3800, 9200, 500)],
     spec_fluxes=[np.ones(500) * 10.0],
     spec_errors=[np.ones(500) * 1.0],
-    spec_lsf_sigma=[np.ones(500) * 0.0003],  # LSF width in μm
+    spec_lsf_sigma=[np.ones(500) * 0.0003],
     input_type=0
 )
 input_file = obs.to_bayesed_input('observation/my_spec', 'spec_catalog')

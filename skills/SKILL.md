@@ -1,198 +1,135 @@
 ---
 name: bayesed3
-description: Use this skill for any BayeSED3 Bayesian SED analysis task — galaxy or AGN fitting, stellar mass/SFR/age/metallicity estimation, AGN component decomposition, Bayesian evidence calculation, MultiNest sampling, prior management, posterior visualization, or model comparison. Invoke whenever the user asks how to fit a galaxy or AGN SED, use the BayeSED3 Python interface, set priors, load results, or compare models. Even a vague "how do I fit this galaxy?" should trigger this skill immediately.
+description: Use for BayeSED3 SED work — galaxy or AGN fitting, prior setup, Results and posterior plots, Bayesian evidence or model-configuration comparison, MultiNest or advanced run modes (AB mag, phot/spec-only). Trigger immediately on vague asks like "how do I fit this galaxy?"
 ---
 
 # BayeSED3 Bayesian SED Analysis Workflow
 
-BayeSED3 performs Bayesian parameter estimation and model comparison for galaxy/AGN spectral energy distributions (SEDs) using MultiNest nested sampling. The Python interface wraps the underlying C/Fortran binary and provides both high-level and low-level usage modes.
+Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits).
+
+**Happy path:** Observation → Input catalog → `SEDModel` → `SEDInference.priors_init` → (optional `set_prior`) → `inference.run` → **Results** → analyze / compare.
+
+## Decision Tree
+
+```
+1. Need an input catalog?
+   → Existing .txt, or data-preparation.md (SEDObservation / filters)
+2. Build the SED model
+   → Default: SEDModel → custom-models.md
+   → Shortcut: .galaxy() / .agn() → galaxy-fitting.md / agn-fitting.md
+   → Fine control: *Params → same refs + run_test.py
+3. Advanced run mode? (AB mag, phot/spec-only, NNLM/RDF/SNR, MultiNest)
+   → advanced-run-modes.md
+4. priors_init(params); optional set_prior → prior-management.md
+5. inference.run(params) → Results
+   → Batch/diagnostics: Interface.run → Execution, then BayeSEDResults(outdir)
+6. Analyze → results-analysis.md
+7. Compare model configurations → model-comparison.md
+8. CLI / --import → binary-cli.md
+```
 
 ## Reference Files
 
-Detailed content in `references/`:
-- `galaxy-fitting.md` — Galaxy SED fitting (SSP+SFH+DAL configuration)
-- `agn-fitting.md` — AGN/QSO multi-component fitting (accretion disk, BLR, NLR, FeII, torus)
-- `prior-management.md` — Prior management API (SEDInference)
-- `model-comparison.md` — Multi-model Bayesian comparison (evidence, posterior comparison)
-- `results-analysis.md` — Result loading, statistics, visualization
-- `binary-cli.md` — Full binary CLI options (advanced output, IGM, physical AGN models, `--import`)
+| File | Open when |
+|------|-----------|
+| `references/data-preparation.md` | Arrays → catalog, filters, nondetections, spectroscopy |
+| `references/custom-models.md` | Canonical `SEDModel`, dust, torus, mixed components |
+| `references/galaxy-fitting.md` | Factory + low-level galaxy; SSP/SFH/DAL tables |
+| `references/agn-fitting.md` | Factory + low-level AGN |
+| `references/prior-management.md` | `set_prior`, prior types, `.iprior` |
+| `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF, MultiNest |
+| `references/results-analysis.md` | Load Results, stats, plots, GetDist |
+| `references/model-comparison.md` | Evidence ranking, posterior comparison |
+| `references/binary-cli.md` | Binary flags and `--import` |
 
-## Two Interface Levels
+## Happy-path steps
 
-**High-level** (recommended for most cases):
-```python
-params = BayeSEDParams.galaxy(input_file=..., outdir=..., ssp_model=..., sfh_type=..., dal_law=...)
-params = BayeSEDParams.agn(input_file=..., outdir=..., agn_components=['dsk','blr','nlr','feii'])
-```
+Each step ends when its **Done** criterion holds. Follow in order; open a reference only when the decision tree points there.
 
-**Low-level** (for fine-grained control): Construct `SSPParams`, `SFHParams`, `DALParams`, etc. manually and assemble into `BayeSEDParams`. See `references/galaxy-fitting.md`.
+1. **Input catalog** — path to a BayeSED `.txt` catalog (build via `data-preparation.md` if needed).  
+   **Done:** `input_file` points at an existing catalog file.
 
-## Complete Analysis Workflow
+2. **SED model** — default `SEDModel.create_galaxy` / `create_agn` + `params.add_*` (`custom-models.md`).  
+   **Done:** `params` has components attached and `save_sample_par=True` when posteriors or comparison are required.
 
-### Step 1: Prepare Input Data
+3. **Priors** — `SEDInference().priors_init(params)`; optional `set_prior` (`prior-management.md`).  
+   **Done:** `priors_init` has run for this `params` (and every `set_prior` finished before the run).
 
-**Option A: Use an existing text file** (recommended for testing)
-```python
-# Format: one source per line, flux/error columns + filter names
-# Example files: observation/test/gal.txt, observation/test/qso.txt
-input_file = 'observation/test/gal.txt'
-```
+4. **Run** — `results = inference.run(params)` → **Results**. Batch path: `Interface.run` → **Execution**, then `BayeSEDResults(outdir, ...)`.  
+   **Done:** you hold a `BayeSEDResults` instance (from `inference.run` or explicit load).
 
-**Option B: Create from numpy arrays**
-```python
-from bayesed.data import SEDObservation
-import numpy as np
+5. **Analyze** — summary, best-fit, posteriors, evidence (`results-analysis.md`).  
+   **Done:** `print_summary()` (or equivalent) succeeded and `get_evidence()` returned `log_evidence` / `log_evidence_error` when evidence was requested.
 
-obs = SEDObservation(
-    ids=['galaxy_001', 'galaxy_002'],
-    z_min=[0.1, 0.2],
-    z_max=[0.15, 0.25],
-    phot_filters=['SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i'],
-    phot_fluxes=np.array([[12.5, 25.1, 18.3], [15.2, 28.9, 22.1]]),
-    phot_errors=np.array([[1.2, 2.5, 1.8], [1.5, 2.9, 2.2]]),
-    input_type=0  # 0=flux (μJy), 1=AB magnitude
-)
-input_file = obs.to_bayesed_input('observation/my_analysis', 'my_catalog')
-```
+6. **Compare** (optional) — separate `outdir` per model configuration (`model-comparison.md`).  
+   **Done:** each configuration has Results; evidence or posterior comparison produced if asked.
 
-**Download filters** (from SVO database)
-```python
-bayesed = BayeSEDInterface()
-filter_files = bayesed.prepare_filters_from_svo(
-    svo_filter_ids=['SLOAN/SDSS.g', 'SLOAN/SDSS.r', 'SLOAN/SDSS.i'],
-    output_dir='observation/my_analysis/filters'
-)
-# Returns filter_files['filters_file'] and filter_files['filters_selected_file']
-```
-
-### Step 2: Initialize Interface
+### Skeleton
 
 ```python
-from bayesed import BayeSEDInterface
-
-bayesed = BayeSEDInterface(
-    mpi_mode='auto',  # 'auto' auto-selects, '1' single-process, 'n' multi-process
-    Ntest=2           # Only process first N objects (use during development)
-)
-```
-
-### Step 3: Build Parameter Configuration
-
-**Galaxy fitting** → see `references/galaxy-fitting.md`
-**AGN fitting** → see `references/agn-fitting.md`
-
-Quick reference:
-
-| Parameter | Common values |
-|-----------|--------------|
-| `ssp_model` | `'bc2003_hr_stelib_chab_neb_2000r'` (high-res), `'bc2003_lr_BaSeL_chab'` (low-res) |
-| `sfh_type` | `'exponential'`, `'delayed'`, `'nonparametric'` |
-| `dal_law` | `'calzetti'` (starburst), `'smc'` (SMC extinction), `'milky_way'` |
-| `agn_components` | `['dsk','blr','nlr','feii']`, any combination |
-
-### Step 4: (Optional) Manage Priors — MUST be done before running
-
-**Critical: `priors_init()` and `set_prior()` MUST be called BEFORE `bayesed.run()`.** Modifying priors after running has no effect on the current analysis.
-
-→ See `references/prior-management.md` for full API
-
-```python
-from bayesed import SEDInference
-inference = SEDInference()
-inference.priors_init(params)          # Step 1: load defaults from params
-inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8)  # Step 2: modify
-inference.print_priors()               # Optional: verify settings
-
-# Step 3: run (priors are now active)
-result = bayesed.run(params)
-# Or equivalently: result = inference.run(params)
-```
-
-### Step 5: Run Analysis
-
-```python
-result = bayesed.run(params)
-# result is a BayeSEDExecution object (execution metadata), NOT scientific results
-# Scientific results must be loaded separately via BayeSEDResults
-```
-
-### Step 6: Load and Analyze Results
-
-→ See `references/results-analysis.md`
-
-```python
-from bayesed import BayeSEDResults
-
-results = BayeSEDResults(
-    'tests/output_quick_start',
-    catalog_name='gal',    # Required when multiple catalogs exist
-    object_id='obj_001'    # Optional: single object
-)
-
-results.print_summary()
-objects = results.list_objects()
-free_params = results.get_free_parameters()
-```
-
-### Step 7: Visualize
-
-```python
-# Set LaTeX parameter labels (optional)
-results.set_parameter_labels({
-    'log(age/yr)[0,1]': r'\log(age/\mathrm{yr})',
-    'log(Mstar)[0,1]': r'\log(M_\star/M_\odot)',
-})
-
-results.plot_bestfit()                        # Best-fit SED
-results.plot_posterior_free()                 # Free parameter posteriors
-results.plot_posterior_derived(max_params=5)  # Derived parameter posteriors
-results.plot_posterior(params=['log(age/yr)[0,1]', 'log(Mstar)[0,1]'])
-```
-
-## Model Comparison
-
-→ See `references/model-comparison.md`
-
-```python
-from bayesed.results import standardize_parameter_names, plot_posterior_comparison
-
-# Run multiple models on the same data, then compare Bayesian evidence
-evidence1 = results1.get_evidence()  # {'INSlogZ': ..., 'INSlogZerr': ...}
-evidence2 = results2.get_evidence()
-delta_logZ = evidence1['INSlogZ'] - evidence2['INSlogZ']
-# delta_logZ > 0 means model 1 is preferred
-```
-
-## Key Imports
-
-```python
-from bayesed import (
-    BayeSEDInterface, BayeSEDParams, BayeSEDResults,
-    SEDInference,
-    # Low-level parameter classes (for fine-grained control)
-    SSPParams, SFHParams, DALParams, MultiNestParams, SysErrParams,
-    BigBlueBumpParams, AKNNParams, LineParams, ZParams,
-    GreybodyParams, FANNParams, KinParams
-)
+from bayesed import BayeSEDParams, SEDInference
 from bayesed.model import SEDModel
-from bayesed.data import SEDObservation
-from bayesed.results import standardize_parameter_names, plot_posterior_comparison
+
+input_file = 'observation/test/gal.txt'  # step 1
+
+galaxy = SEDModel.create_galaxy(
+    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+    sfh_type='exponential',
+    dal_law='calzetti',
+)
+params = BayeSEDParams(
+    input_type=0,
+    input_file=input_file,
+    outdir='tests/output_skill_happy_path',
+    save_sample_par=True,
+)
+params.add_galaxy(galaxy)  # step 2
+
+inference = SEDInference()
+inference.priors_init(params)  # step 3
+# Optional: inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8)
+
+results = inference.run(params)  # step 4 → Results
+
+results.print_summary()  # step 5
+results.plot_bestfit()
+results.plot_posterior_free()
+evidence = results.get_evidence()  # log_evidence, log_evidence_error
+# step 6 optional → model-comparison.md
 ```
 
-## Output File Conventions
+### Branches
 
-- Low-level interface output: `observation/<testname>/output/`
-- High-level interface output: `tests/output_<name>/` or user-specified `outdir`
-- Main result files: `*.hdf5` (posterior samples), `*_bestfit.fits` (best-fit SED)
-- Parameter name format: `param_name[igroup,id]`, e.g. `log(age/yr)[0,1]`
+- **Factory:** `.galaxy()` / `.agn()` then same steps 3–5 → galaxy/agn refs.
+- **Mixed / dust / torus:** `custom-models.md`.
+- **Batch / diagnostics:** `execution = BayeSEDInterface(...).run(params)` then load Results.
+- **Advanced modes / CLI:** `advanced-run-modes.md` / `binary-cli.md`.
+
+## Imports (happy path)
+
+```python
+from bayesed import BayeSEDParams, SEDInference, BayeSEDResults
+from bayesed.model import SEDModel
+```
+
+Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_parameter_names`, `list_catalog_names`: see the reference for that branch.
+
+## Output conventions
+
+- Outdirs: `tests/output_<name>/` or `observation/<testname>/output/`
+- Posteriors: HDF5; best-fit SED: FITS
+- Parameter names: `param_name[igroup,id]` (e.g. `log(age/yr)[0,1]`) — offsets in `custom-models.md`
 
 ## FAQ
 
-**Q: What is the difference between `BayeSEDExecution` and `BayeSEDResults`?**
-`bayesed.run()` returns `BayeSEDExecution` (execution metadata: timing, exit code, paths). Scientific results require constructing `BayeSEDResults(outdir, ...)` separately to read HDF5 files.
+**Execution vs Results?**  
+`inference.run` returns **Results**. `BayeSEDInterface.run` returns **Execution** (exit code, paths, timing); load Results from `outdir` afterward. Analyze posteriors only via Results.
 
-**Q: How to run a quick test?**
-Use `BayeSEDInterface(Ntest=2)` to process only the first 2 objects, or `MultiNestParams(nlive=40)` to reduce sampling points.
+**Why `priors_init` every run?**  
+Happy-path convention: load/generate `.iprior` before fitting. Call it before `set_prior` / `print_priors` / `validate_priors`.
 
-**Q: What does `[0,1]` in parameter names mean?**
-`[igroup, id]` is the component identifier. Galaxies are typically `[0,1]`; AGN components start from `[1,2]` and increment.
+**Quick test?**  
+`Ntest=2` on the interface, or `params.configure_multinest(nlive=40)`.
+
+**Evidence keys?**  
+Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5.

@@ -13,7 +13,7 @@ BayeSED3 is a Bayesian Spectral Energy Distribution (SED) synthesis and analysis
 There are two distinct ways to use BayeSED3, and it's important not to confuse them:
 
 - **Low-level** (`tests/run_test.py` style): Direct construction of parameter objects (`SSPParams`, `SFHParams`, `DALParams`, etc.) and manual assembly into `BayeSEDParams`. Full control, more verbose.
-- **High-level Python API** (all other `tests/test_*.py`): Factory methods like `BayeSEDParams.galaxy()` and `BayeSEDParams.agn()` with sensible defaults, plus `SEDModel` builder.
+- **High-level Python API** (all other `tests/test_*.py`): Prefer `SEDModel` builder (skill canonical path); factory methods `BayeSEDParams.galaxy()` / `.agn()` are shortcuts with sensible defaults.
 
 ### Core Package: `bayesed/`
 - **`core.py`**: `BayeSEDInterface` (runs the binary), `BayeSEDParams` (config/factory methods), `BayeSEDExecution` (execution metadata returned by `run()`). Handles MPI parallelization, config file generation, and binary invocation.
@@ -28,7 +28,8 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 
 ### Key Object Lifecycle
 
-`BayeSEDInterface.run(params)` → returns `BayeSEDExecution` (execution metadata: timing, exit code, paths). To access scientific results, construct `BayeSEDResults(outdir, catalog_name='...', object_id='...')` separately — it reads the HDF5 files written by the binary.
+- **Skill happy path** (see `skills/SKILL.md`): `SEDModel` → `SEDInference.priors_init` → `inference.run(params)` → `BayeSEDResults`.
+- **Batch / diagnostics path**: `BayeSEDInterface.run(params)` → `BayeSEDExecution` (timing, exit code, paths). Load science products with `BayeSEDResults(outdir, catalog_name='...', object_id='...')` separately.
 
 ### Data Directories
 - **`models/`**: Template SED models and pre-trained emulator data (FANN, AKNN, PCA).
@@ -73,11 +74,12 @@ Use `BayeSEDInterface(Ntest=2)` to limit processing to the first N objects — u
 
 ## Key Patterns
 
-- **Parameter construction**: `BayeSEDParams.galaxy()` or `BayeSEDParams.agn()` for quick setup; construct individual `SSPParams`, `SFHParams`, `DALParams`, etc. manually for full control.
-- **Result loading**: `BayeSEDResults(output_dir, catalog_name='...', object_id='...')` reads HDF5 files. Results are cached via `_lazy_load_hdf5()`.
+- **Skill canonical path**: Build with `SEDModel`, always `SEDInference.priors_init`, optional `set_prior`, then `inference.run` → Results. Details and decision tree in `skills/SKILL.md` (ADR: `docs/adr/0001-skill-happy-path-sedmodel-inference.md`).
+- **Parameter construction**: Default `SEDModel.create_galaxy` / `create_agn`; shortcuts `BayeSEDParams.galaxy()` / `.agn()`; low-level `SSPParams` / `SFHParams` / `DALParams` for full control.
+- **Result loading**: Prefer Results from `inference.run`; or `BayeSEDResults(output_dir, catalog_name='...', object_id='...')` after an Execution. Results are cached via `_lazy_load_hdf5()`.
 - **Observation creation**: `SEDObservation` converts numpy arrays to BayeSED input catalogs via `.to_bayesed_input()`.
 - **Prior management**: `SEDInference.priors_init(params)` then `set_prior(name, ...)` with regex pattern support — avoids manual `.iprior` file editing.
-- **Model comparison**: Run multiple models on same data, use `from bayesed.results import standardize_parameter_names, plot_posterior_comparison`, then compare Bayesian evidence via `results.get_evidence()`.
+- **Model comparison**: Run multiple model configurations on same data, use `from bayesed.results import standardize_parameter_names, plot_posterior_comparison`, then compare Bayesian evidence via `results.get_evidence()`.
 
 ## File Conventions
 
@@ -86,3 +88,17 @@ Use `BayeSEDInterface(Ntest=2)` to limit processing to the first N objects — u
 - Filter references follow `PROVIDER/FILTER_NAME` format (e.g., `SLOAN/SDSS.g`).
 - Posterior samples stored as HDF5; best-fit SEDs as FITS files.
 - Version follows date format: `YYYY.MM.DD` (e.g., `2026.01.31`).
+
+## Agent skills
+
+### BayeSED3 workflow skill
+
+Canonical copy: repo [`skills/`](skills/) (`SKILL.md` + `references/`). Sync-overwrite to `~/.agents/skills/bayesed3/` after skill edits. Domain glossary: [`CONTEXT.md`](CONTEXT.md).
+
+### Issue tracker
+
+Issues tracked as local markdown under `.scratch/<feature-slug>/` (spec + one file per ticket). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` + `docs/adr/` at the repo root, created lazily. See `docs/agents/domain.md`.
