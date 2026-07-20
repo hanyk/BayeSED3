@@ -33,5 +33,5 @@ Bayesian evidence for a model configuration (`get_evidence()` → `log_evidence`
 _Avoid_: Treating raw `INSlogZ` as the only public key name
 
 **Priors**:
-The prior lifecycle for a model configuration — load/generate/edit/save of `.iprior` specifications (`Priors`).
-_Avoid_: Treating `PriorManager` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors
+The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type).
+_Avoid_: Treating `PriorManager` or `PriorEditor` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors

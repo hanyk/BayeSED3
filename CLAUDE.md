@@ -24,8 +24,8 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 - **`data.py`**: `SEDObservation`, `PhotometryObservation`, `SpectrumObservation` — convert numpy arrays to BayeSED input catalog format via `.to_bayesed_input()`.
 - **`results/`**: Subpackage. `BayeSEDResults` is a thin facade (ADR-0003) over `ResultsProducts` (HDF5/table/evidence/samples) and `ResultsPresentation` (GetDist, plots, corr/stats). `standardize_parameter_names()` / `plot_posterior_comparison()` in `utils.py`.
 - **`inference.py`**: `SEDInference` — sampler settings and `run()`; prior UX via thin facades (`priors_init` / `set_prior`, …) onto `Priors`.
-- **`priors.py`**: `Priors` — prior lifecycle (load/generate/edit/validate `.iprior`); holds `PriorManager` internally (ADR-0002).
-- **`prior.py` / `prior_manager.py`**: `Prior` value object (Uniform, Gaussian, …); `PriorManager` is the `.iprior` I/O adapter (not the public entry).
+- **`priors.py`**: `Priors` — prior lifecycle (load/generate/validate `.iprior`); holds `PriorManager` + `PriorEditor` internally (ADR-0002, ADR-0006).
+- **`prior.py` / `prior_manager.py` / `prior_editor.py`**: `Prior` value object; `PriorManager` is `.iprior` I/O; `PriorEditor` is interactive set/print/tables (neither is the public entry).
 - **`plotting.py`**: `plot_bestfit()` and related visualization helpers.
 - **`utils.py`**: Filter management (SVO download), `create_input_catalog()`, filter calibration constants (`FILTER_TYPE_ENERGY`, `FILTER_CALIB_STANDARD`, etc.).
 
