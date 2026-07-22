@@ -53,7 +53,8 @@ Repository = "https://github.com/hanyk/BayeSED3"
 Issues = "https://github.com/hanyk/BayeSED3/issues"
 
 [project.scripts]
-BayeSED3_GUI = "bayesed_gui:main"
+bayesed3 = "bayesed.__main__:main"
+bayesed3-gui = "bayesed_gui:main"
 
 [tool.setuptools.packages.find]
 # Only find packages in the root, and exclude everything else
