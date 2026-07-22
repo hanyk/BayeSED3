@@ -26,11 +26,6 @@ def test_to_cli_args_galaxy_includes_core_flags():
     assert '--dal' in args
 
 
-def test_to_cli_args_passthrough_list():
-    raw = ['-i', 'foo.txt', '--outdir', 'out']
-    assert to_cli_args(raw) == raw
-
-
 def test_sfr_over_argv_variable_length():
     assert _format_SFR_over_params(SFROverParams()) == '10.0,100.0'
     assert (
@@ -54,6 +49,5 @@ def test_sfr_over_argv_variable_length():
 
 if __name__ == '__main__':
     test_to_cli_args_galaxy_includes_core_flags()
-    test_to_cli_args_passthrough_list()
     test_sfr_over_argv_variable_length()
     print('test_cli_args: OK')

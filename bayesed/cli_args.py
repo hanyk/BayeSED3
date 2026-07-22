@@ -110,9 +110,6 @@ def _format_template_params(template_params):
     return f"{template_params.igroup},{template_params.id},{template_params.name},{template_params.iscalable}"
 
 def to_cli_args(params):
-    if isinstance(params, list):
-        return params
-
     args = []
 
     if params.help:

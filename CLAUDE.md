@@ -16,9 +16,10 @@ There are two distinct ways to use BayeSED3, and it's important not to confuse t
 - **High-level Python API** (all other `tests/test_*.py`): Prefer `SEDModel` builder (skill canonical path); factory methods `BayeSEDParams.galaxy()` / `.agn()` are shortcuts with sensible defaults.
 
 ### Core Package: `bayesed/`
-- **`core.py`**: `BayeSEDInterface` (runs the binary), `BayeSEDParams` (config/factory methods), `BayeSEDExecution` (execution metadata returned by `run()`). Subprocess run path; CLI argv via `cli_args` (ADR-0004); OpenMPI/binary bootstrap via `runtime` (ADR-0005).
+- **`core.py`**: `BayeSEDInterface` (runs the binary), `BayeSEDParams` (config/factory methods), `BayeSEDExecution` (execution metadata returned by `run()`). Subprocess run path; CLI argv via `cli_args` (ADR-0004); OpenMPI/binary bootstrap via `runtime` (ADR-0005, ADR-0007).
 - **`cli_args.py`**: Internal adapter — `BayeSEDParams` → binary argv (not a public export).
-- **`runtime.py`**: Internal adapter — OpenMPI / process count / executable path (not a public export).
+- **`runtime.py`**: Internal adapter — OpenMPI / process count / executable / data-root cwd / MPI command assembly (ADR-0005, ADR-0007).
+- **`launcher.py`**: Launcher — `bayesed3` / `python -m bayesed` thin shell over `runtime` + binary argv (ADR-0007); not the Python analysis API.
 - **`params.py`**: Dataclasses for every component (SSP, SFH, DAL, AGN, MultiNest, cosmology, etc.). These generate `.iprior` and config files consumed by the C/Fortran backend.
 - **`model.py`**: `SEDModel` — high-level builder with `create_galaxy()` / `create_agn()` and `add_dust_emission()`.
 - **`data.py`**: `SEDObservation`, `PhotometryObservation`, `SpectrumObservation` — convert numpy arrays to BayeSED input catalog format via `.to_bayesed_input()`.

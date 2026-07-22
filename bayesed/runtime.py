@@ -1,9 +1,9 @@
 """
-Runtime bootstrap for BayeSEDInterface.
+Runtime bootstrap for BayeSEDInterface and the Launcher.
 
-Internal adapter: OpenMPI / process count / binary path (ADR-0005).
-Not part of the public bayesed package export; BayeSEDInterface calls
-resolve_* helpers at init and when MPI mode changes.
+Internal adapter: OpenMPI / process count / binary path (ADR-0005);
+data-root cwd, path absolutization, and MPI command assembly (ADR-0007).
+Not part of the public bayesed package export.
 """
 
 import multiprocessing
@@ -18,7 +18,7 @@ import tarfile
 import requests
 from tqdm import tqdm
 
-from .utils import _get_resource_path
+from .utils import _ensure_absolute_path, _get_bayesed3_root, _get_resource_path
 
 OPENMPI_VERSION = "4.1.6"
 _64BIT_ARCHS = frozenset({"x86_64", "amd64", "arm64", "aarch64"})
@@ -409,3 +409,139 @@ def resolve_executable(mpi_mode, os_name, arch):
     arch_dir = _ARCH_DIR_MAP.get(arch, "x86")
     relative_path = os.path.join("bin", platform_dir, arch_dir, executable)
     return _get_resource_path(relative_path)
+
+
+def build_mpi_command(mpi_cmd, num_processes, executable_path, args, ntest=None):
+    """
+    Assemble ``mpirun … executable … args`` (ADR-0007).
+
+    Uses PBS_NODEFILE as ``--machinefile`` when present; otherwise
+    ``--use-hwthread-cpus -np``.
+    """
+    cmd = [mpi_cmd]
+    pbs_nodefile = os.environ.get('PBS_NODEFILE')
+    if pbs_nodefile and os.path.exists(pbs_nodefile):
+        cmd.extend(['--machinefile', pbs_nodefile])
+        cmd.extend(['-np', str(num_processes)])
+    else:
+        cmd.extend(['--use-hwthread-cpus', '-np', str(num_processes)])
+    cmd.append(executable_path)
+    cmd.extend(list(args))
+    if ntest is not None:
+        cmd.extend(['--Ntest', str(ntest)])
+    return cmd
+
+
+def resolve_binary_cwd():
+    """
+    Data-root directory for binary ``Popen(cwd=…)``, or ``None`` if unknown.
+
+    Relative user paths must be absolutized against the caller's cwd before
+    using this as subprocess cwd.
+    """
+    try:
+        return _get_bayesed3_root()
+    except FileNotFoundError:
+        return None
+
+
+def absolutize_params_paths(params, base_dir=None):
+    """Absolutize known path fields on ``BayeSEDParams`` in place."""
+    for attr in (
+        'input_file',
+        'outdir',
+        'filters',
+        'filters_selected',
+        'export',
+        'cl',
+    ):
+        value = getattr(params, attr, None)
+        if value and not os.path.isabs(value):
+            setattr(params, attr, _ensure_absolute_path(value, base_dir=base_dir))
+
+    import_files = getattr(params, 'import_files', None)
+    if import_files:
+        params.import_files = [
+            _ensure_absolute_path(p, base_dir=base_dir)
+            if p and not os.path.isabs(p) else p
+            for p in import_files
+        ]
+
+    line_list = getattr(params, 'LineList', None)
+    if line_list is not None and getattr(line_list, 'file', None):
+        if not os.path.isabs(line_list.file):
+            line_list.file = _ensure_absolute_path(
+                line_list.file, base_dir=base_dir
+            )
+    return params
+
+
+_CLI_PATH_FLAGS = frozenset({
+    '--outdir',
+    '--filters',
+    '--filters_selected',
+    '--export',
+    '--import',
+    '--cl',
+})
+
+
+def _absolutize_comma_path_prefix(value, base_dir):
+    """Absolutize the path before the first comma (``type,path`` or ``path,type``)."""
+    if ',' not in value:
+        if value and not os.path.isabs(value):
+            return _ensure_absolute_path(value, base_dir=base_dir)
+        return value
+    first, rest = value.split(',', 1)
+    if first and not os.path.isabs(first):
+        first = _ensure_absolute_path(first, base_dir=base_dir)
+    return f"{first},{rest}"
+
+
+def _absolutize_input_value(value, base_dir):
+    """Absolutize the path part of ``-i type,path`` (path after comma)."""
+    if ',' not in value:
+        if value and not os.path.isabs(value):
+            return _ensure_absolute_path(value, base_dir=base_dir)
+        return value
+    input_type, path = value.split(',', 1)
+    if path and not os.path.isabs(path):
+        path = _ensure_absolute_path(path, base_dir=base_dir)
+    return f"{input_type},{path}"
+
+
+def absolutize_cli_path_args(args, base_dir=None):
+    """
+    Return a copy of binary argv with known path values made absolute.
+
+    Absolute paths are left unchanged. ``base_dir`` defaults to ``os.getcwd()``
+    (the caller's cwd before switching to the data root).
+    """
+    if base_dir is None:
+        base_dir = os.getcwd()
+
+    out = []
+    i = 0
+    while i < len(args):
+        token = args[i]
+        if token == '-i' and i + 1 < len(args):
+            out.append(token)
+            out.append(_absolutize_input_value(args[i + 1], base_dir))
+            i += 2
+            continue
+        if token == '--LineList' and i + 1 < len(args):
+            out.append(token)
+            out.append(_absolutize_comma_path_prefix(args[i + 1], base_dir))
+            i += 2
+            continue
+        if token in _CLI_PATH_FLAGS and i + 1 < len(args):
+            out.append(token)
+            path = args[i + 1]
+            if path and not os.path.isabs(path):
+                path = _ensure_absolute_path(path, base_dir=base_dir)
+            out.append(path)
+            i += 2
+            continue
+        out.append(token)
+        i += 1
+    return out

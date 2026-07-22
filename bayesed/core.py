@@ -37,6 +37,9 @@ from .utils import (
 
 from .cli_args import to_cli_args
 from .runtime import (
+    absolutize_params_paths,
+    build_mpi_command,
+    resolve_binary_cwd,
     resolve_executable,
     resolve_mpirun,
     resolve_num_processes,
@@ -1888,12 +1891,15 @@ class BayeSEDInterface:
 
     def run(self, params, validate=True, auto_select_mpi_mode=None):
         """
-        Run BayeSED analysis.
+        Run BayeSED analysis from a ``BayeSEDParams`` model configuration.
+
+        For raw binary argv (CLI), use the Launcher (``bayesed3`` /
+        ``python -m bayesed``) — not this method (ADR-0007).
 
         Parameters
         ----------
-        params : BayeSEDParams or list
-            Parameters for the analysis, or list of CLI arguments
+        params : BayeSEDParams
+            Parameters for the analysis
         validate : bool
             Whether to validate parameters before execution (default: True)
         auto_select_mpi_mode : bool, optional
@@ -1911,35 +1917,38 @@ class BayeSEDInterface:
             - output_text: complete captured output
         """
         if isinstance(params, list):
-            args = params
-        else:
-            # Auto-select MPI mode if requested
-            if auto_select_mpi_mode is None:
-                auto_select_mpi_mode = self.auto_select_mpi_mode
+            raise TypeError(
+                "BayeSEDInterface.run accepts BayeSEDParams only; "
+                "for CLI argv use the Launcher (bayesed3 / python -m bayesed)."
+            )
 
-            if auto_select_mpi_mode:
-                selected_mode = self._select_mpi_mode(params)
-                if selected_mode != self.mpi_mode.replace('mn_', ''):
-                    print(f"Auto-selected MPI mode: '{selected_mode}' "
-                          f"(based on sample size and model complexity)")
-                    # Temporarily change mode for this run
-                    original_mode = self.mpi_mode
-                    original_executable = self.executable_path
-                    self.mpi_mode = f"mn_{selected_mode}"
-                    # Update executable path
-                    self.executable_path = resolve_executable(
-                        self.mpi_mode, self.os, self.arch
-                    )
-                    try:
-                        return self._run_with_params(params, validate)
-                    finally:
-                        # Restore original mode
-                        self.mpi_mode = original_mode
-                        self.executable_path = original_executable
-                else:
+        # Auto-select MPI mode if requested
+        if auto_select_mpi_mode is None:
+            auto_select_mpi_mode = self.auto_select_mpi_mode
+
+        if auto_select_mpi_mode:
+            selected_mode = self._select_mpi_mode(params)
+            if selected_mode != self.mpi_mode.replace('mn_', ''):
+                print(f"Auto-selected MPI mode: '{selected_mode}' "
+                      f"(based on sample size and model complexity)")
+                # Temporarily change mode for this run
+                original_mode = self.mpi_mode
+                original_executable = self.executable_path
+                self.mpi_mode = f"mn_{selected_mode}"
+                # Update executable path
+                self.executable_path = resolve_executable(
+                    self.mpi_mode, self.os, self.arch
+                )
+                try:
                     return self._run_with_params(params, validate)
+                finally:
+                    # Restore original mode
+                    self.mpi_mode = original_mode
+                    self.executable_path = original_executable
             else:
                 return self._run_with_params(params, validate)
+        else:
+            return self._run_with_params(params, validate)
 
     def _run_with_params(self, params, validate=True):
         """
@@ -1980,65 +1989,24 @@ class BayeSEDInterface:
             print(f"  {e}")
             raise  # Re-raise validation errors
 
-        args = to_cli_args(params)
-
         # Set TMPDIR environment variable
         os.environ['TMPDIR'] = '/tmp'
 
-        # Set working directory to BayeSED3 root so binary can find data files (data/, models/, nets/)
-        # Convert relative paths to absolute paths for both conda and repository installations
-        from .utils import _is_conda_installation, _get_bayesed3_root, _ensure_absolute_path
-
-        cwd = None
-        try:
-            # Get BayeSED3 root directory (works for both conda and repository installations)
-            bayesed3_root = _get_bayesed3_root()
-            # Set working directory to BayeSED3 root so binary can find data files
-            cwd = bayesed3_root
-
-            # Convert relative paths to absolute paths before changing directory
-            # This ensures user's paths work correctly regardless of working directory
-            if params.input_file and not os.path.isabs(params.input_file):
-                params.input_file = _ensure_absolute_path(params.input_file)
-
-            if params.outdir and not os.path.isabs(params.outdir):
-                params.outdir = _ensure_absolute_path(params.outdir)
-
-            if params.filters and not os.path.isabs(params.filters):
-                params.filters = _ensure_absolute_path(params.filters)
-
-            if params.filters_selected and not os.path.isabs(params.filters_selected):
-                params.filters_selected = _ensure_absolute_path(params.filters_selected)
-
-            # Rebuild args with updated paths
-            args = to_cli_args(params)
-        except FileNotFoundError as e:
-            # Gracefully handle if BayeSED3 root cannot be determined
-            print(f"Warning: Could not determine BayeSED3 root directory: {e}")
+        # Data-root cwd + path absolutization + MPI command (runtime, ADR-0007)
+        absolutize_params_paths(params)
+        cwd = resolve_binary_cwd()
+        if cwd is None:
+            print("Warning: Could not determine BayeSED3 root directory.")
             print("Binary may not be able to find data files (data/, models/, nets/).")
-            cwd = None
 
-        # Build MPI command - handle PBS/qsub environment
-        cmd = [self.mpi_cmd]
-
-        # For PBS/Torque: use PBS_NODEFILE if available (better for multi-node jobs)
-        pbs_nodefile = os.environ.get('PBS_NODEFILE')
-        if pbs_nodefile and os.path.exists(pbs_nodefile):
-            # Use machinefile/hostfile for multi-node PBS jobs
-            # This ensures mpirun uses the correct nodes allocated by PBS
-            cmd.extend(['--machinefile', pbs_nodefile])
-            # Still need -np to specify number of processes
-            cmd.extend(['-np', str(self.num_processes)])
-        else:
-            # Standard mpirun for single-node or non-PBS environments
-            cmd.extend(['--use-hwthread-cpus', '-np', str(self.num_processes)])
-
-        cmd.append(self.executable_path)
-        cmd.extend(args)
-
-        # Add Ntest if specified
-        if self.Ntest is not None:
-            cmd.extend(['--Ntest', str(self.Ntest)])
+        args = to_cli_args(params)
+        cmd = build_mpi_command(
+            self.mpi_cmd,
+            self.num_processes,
+            self.executable_path,
+            args,
+            ntest=self.Ntest,
+        )
 
         # Progress indicator: Execution
         print("\nStep 2/3: Running BayeSED analysis...")

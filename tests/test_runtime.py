@@ -5,6 +5,8 @@ import os
 from unittest.mock import patch
 
 from bayesed.runtime import (
+    absolutize_cli_path_args,
+    build_mpi_command,
     resolve_executable,
     resolve_num_processes,
     resolve_system_info,
@@ -75,7 +77,68 @@ def test_resolve_system_info_rejects_bad_arch():
             raise AssertionError('expected ValueError')
 
 
+def test_build_mpi_command_standard():
+    cmd = build_mpi_command(
+        '/path/mpirun', 4, '/path/bayesed_mn_1', ['-h'],
+    )
+    assert cmd == [
+        '/path/mpirun', '--use-hwthread-cpus', '-np', '4',
+        '/path/bayesed_mn_1', '-h',
+    ]
+
+
+def test_build_mpi_command_pbs_machinefile(tmp_path):
+    nodefile = tmp_path / 'nodes'
+    nodefile.write_text('host1\nhost2\n')
+    with patch.dict(os.environ, {'PBS_NODEFILE': str(nodefile)}, clear=False):
+        cmd = build_mpi_command(
+            'mpirun', 2, 'bayesed_mn_n', ['-i', '0,cat.txt'],
+        )
+    assert cmd[:5] == [
+        'mpirun', '--machinefile', str(nodefile), '-np', '2',
+    ]
+    assert cmd[5:] == ['bayesed_mn_n', '-i', '0,cat.txt']
+
+
+def test_build_mpi_command_appends_ntest():
+    cmd = build_mpi_command(
+        'mpirun', 1, 'exe', ['--outdir', 'out'], ntest=3,
+    )
+    assert cmd[-2:] == ['--Ntest', '3']
+
+
+def test_absolutize_cli_path_args_known_flags(tmp_path):
+    base = str(tmp_path)
+    args = absolutize_cli_path_args(
+        [
+            '-i', '0,obs.txt',
+            '--outdir', 'out',
+            '--filters', 'filters/f.txt',
+            '-v', '1',
+            '--help',
+        ],
+        base_dir=base,
+    )
+    assert args[0:2] == ['-i', f'0,{os.path.join(base, "obs.txt")}']
+    assert args[2:4] == ['--outdir', os.path.join(base, 'out')]
+    assert args[4:6] == ['--filters', os.path.join(base, 'filters', 'f.txt')]
+    assert args[6:] == ['-v', '1', '--help']
+
+
+def test_absolutize_cli_path_args_leaves_absolute():
+    abs_in = '/abs/catalog.txt'
+    abs_out = '/abs/out'
+    args = absolutize_cli_path_args(
+        ['-i', f'1,{abs_in}', '--outdir', abs_out],
+        base_dir='/somewhere',
+    )
+    assert args == ['-i', f'1,{abs_in}', '--outdir', abs_out]
+
+
 if __name__ == '__main__':
+    import tempfile
+    from pathlib import Path
+
     test_resolve_num_processes_explicit_override()
     test_resolve_num_processes_pbs_ncpus()
     test_resolve_num_processes_slurm()
@@ -83,4 +146,10 @@ if __name__ == '__main__':
     test_resolve_executable_darwin_arm()
     test_resolve_executable_unsupported_os()
     test_resolve_system_info_rejects_bad_arch()
+    test_build_mpi_command_standard()
+    with tempfile.TemporaryDirectory() as td:
+        test_build_mpi_command_pbs_machinefile(Path(td))
+        test_absolutize_cli_path_args_known_flags(Path(td))
+    test_build_mpi_command_appends_ntest()
+    test_absolutize_cli_path_args_leaves_absolute()
     print('test_runtime: OK')

@@ -35,3 +35,7 @@ _Avoid_: Treating raw `INSlogZ` as the only public key name
 **Priors**:
 The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type).
 _Avoid_: Treating `PriorManager` or `PriorEditor` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors
+
+**Launcher**:
+The platform-independent, fully capable simple interface to the compiled BayeSED binary, invoked as `bayesed3` (and `python -m bayesed`): it resolves OpenMPI / OS-arch binary / process count, then runs the binary with the remaining argv. Equivalent in capability to calling the binary directly. Coexists with `BayeSEDInterface` (Python Params → Execution); they share internal `runtime` (data-root cwd, path absolutization, and MPI command assembly); each owns its own `Popen` / presentation, not each other.
+_Avoid_: Treating the Launcher as only a `--help` helper; routing Launcher through `BayeSEDInterface.run(list)`; duplicating cwd/path/`mpirun` assembly outside `runtime`; folding Interface Step/progress into `runtime`; treating it as Observation / SED model / Priors / Results workflow; conflating package name `bayesed3` with the Launcher when meaning the Python happy path
