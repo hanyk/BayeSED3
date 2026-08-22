@@ -133,11 +133,11 @@ conda build purge
 
 1. SDSS spectroscopic SED analysis
    ```
-   python tests/run_test.py gal plot
-   python tests/run_test.py qso plot
+   python tests/run_test.py gal plot --Ntest 1
+   python tests/run_test.py qso plot --Ntest 1
    ```
 ![Best-fit gal](observation/test/output/gal/spec-0285-51930-0184_GALAXY_STARFORMING/0Stellar+Nebular_2dal8_10_sys_err0_bestfit.fits.png)
-![Best-fit qso](observation/test/output/qso/spec-2091-53447-0584_QSO_BROADLINE/0Stellar+Nebular_2dal8_10_1bbb_2dal7_15_2BLR_kin_eml3_13_3FeII_kin_con2_6_4NLR_kin_eml2_13_sys_err0_bestfit.fits.png)
+![Best-fit qso](observation/test/output/qso/spec-1008-52707-0558_QSO_BROADLINE/0Stellar+Nebular_2dal8_10_1bbb_2dal7_15_2BLR_kin_eml3_13_3FeII_kin_con2_6_4NLR_kin_eml2_13_sys_err0_bestfit.fits.png)
 
 2. photometric SED analysis
    ```
