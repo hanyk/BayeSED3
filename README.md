@@ -545,4 +545,10 @@ For more information about [MultiNest](https://github.com/farhanferoz/MultiNest)
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hanyk/BayeSED3&type=Date)](https://star-history.com/#hanyk/BayeSED3&Date)
+<a href="https://www.star-history.com/?type=date&repos=hanyk%2FBayeSED3">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=hanyk/BayeSED3&type=date&theme=dark&legend=top-left&sealed_token=dNEvweIhMPBlQ_n_I0Ne6I3M9C3259pvWhHsUt0maGR0OJfrLp_I-kBNHnQnlccWDwTX831KJPy25BIxqGDAsEcUSmSgtjcIeFTiJtXJXunqCu8-k3ecVnMLdrHnLcJxAzqeyQp9krtuYSeu-k_4ZbGsxdaivLOy_NQAyfISQno9P8aQ06TfWpnD03Od" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=hanyk/BayeSED3&type=date&legend=top-left&sealed_token=dNEvweIhMPBlQ_n_I0Ne6I3M9C3259pvWhHsUt0maGR0OJfrLp_I-kBNHnQnlccWDwTX831KJPy25BIxqGDAsEcUSmSgtjcIeFTiJtXJXunqCu8-k3ecVnMLdrHnLcJxAzqeyQp9krtuYSeu-k_4ZbGsxdaivLOy_NQAyfISQno9P8aQ06TfWpnD03Od" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=hanyk/BayeSED3&type=date&legend=top-left&sealed_token=dNEvweIhMPBlQ_n_I0Ne6I3M9C3259pvWhHsUt0maGR0OJfrLp_I-kBNHnQnlccWDwTX831KJPy25BIxqGDAsEcUSmSgtjcIeFTiJtXJXunqCu8-k3ecVnMLdrHnLcJxAzqeyQp9krtuYSeu-k_4ZbGsxdaivLOy_NQAyfISQno9P8aQ06TfWpnD03Od" />
+ </picture>
+</a>
