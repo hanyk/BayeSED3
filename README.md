@@ -58,6 +58,7 @@ pip install git+https://github.com/hanyk/BayeSED3.git              # latest (mai
 pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.23  # release
 
 git clone https://github.com/hanyk/BayeSED3.git && cd BayeSED3
+# wget https://github.com/hanyk/BayeSED3/archive/refs/tags/v2026.08.23.zip && unzip v2026.08.23.zip && cd BayeSED3-v2026.08.23
 pip install -e .                                                   # editable
 pip install .                                                      # non-editable
 pip install -e '.[gui]'                                            # GUI
