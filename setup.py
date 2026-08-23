@@ -36,7 +36,7 @@ def get_data_files():
             f"{'='*70}\n"
             f"Supported platforms:\n"
             f"  - Linux (x86_64)\n"
-            f"  - macOS (x86_64 and ARM64 via Rosetta 2)\n"
+            f"  - macOS (x86_64 and ARM64)\n"
             f"\n"
             f"Windows users: Please install via Windows Subsystem for Linux (WSL):\n"
             f"  1. Install WSL: https://docs.microsoft.com/en-us/windows/wsl/install\n"

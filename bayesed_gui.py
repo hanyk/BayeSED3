@@ -2343,7 +2343,7 @@ class BayeSEDGUI:
             "BayeSED3 is built with a hybrid architecture, combining Python's flexibility with C++'s performance. "
             "It leverages OpenMPI for distributed computing, supporting both single-object and multi-object analysis modes. "
             "The software employs the MultiNest algorithm for efficient exploration of high-dimensional parameter spaces. "
-            "BayeSED3 is compatible with Linux and macOS (x86_64 and ARM via Rosetta 2), with Windows support through WSL. "
+            "BayeSED3 is compatible with Linux and macOS (x86_64 and ARM64), with Windows support through WSL. "
             "Its modular design allows for easy integration of new models and analysis techniques."
         )
         ttk.Label(content_frame, text="Technical Details", font=("Helvetica", 16, "bold")).pack(anchor="w", pady=(10, 5))

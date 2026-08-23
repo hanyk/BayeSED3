@@ -118,7 +118,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 **Platform support:**
 - Linux x86_64
-- macOS (x86_64 and ARM64 via Rosetta 2)
+- macOS (x86_64 and ARM64)
 - Windows (via WSL - uses Linux binaries)
 
 ### Quick Start (No Installation Required)

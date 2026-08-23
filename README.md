@@ -28,7 +28,7 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 
 ## Installation
 
-**Platforms:** Linux x86_64 · macOS (x86_64 and ARM64 via Rosetta 2) · Windows via WSL (Linux binaries)
+**Platforms:** Linux x86_64 · macOS (x86_64 and ARM64) · Windows via WSL (Linux binaries)
 
 ### OpenMPI 4.1.6
 
@@ -62,7 +62,7 @@ pip install -e .                                                   # editable
 pip install .                                                      # non-editable
 pip install -e '.[gui]'                                            # GUI
 
-bayesed3                                                           # CLI; also: python -m bayesed
+bayesed3                                                           # CLI
 pip uninstall bayesed3
 ```
 
