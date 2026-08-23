@@ -55,10 +55,10 @@ make install
 
 ```bash
 pip install git+https://github.com/hanyk/BayeSED3.git              # latest (main)
-pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.23  # release
+#pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.23  # release
 
-git clone https://github.com/hanyk/BayeSED3.git && cd BayeSED3
-# wget https://github.com/hanyk/BayeSED3/archive/refs/tags/v2026.08.23.zip && unzip v2026.08.23.zip && cd BayeSED3-v2026.08.23
+git clone https://github.com/hanyk/BayeSED3.git && cd BayeSED3                                    # latest (main)
+# wget -O BayeSED3-2026.08.23.zip https://github.com/hanyk/BayeSED3/archive/refs/tags/v2026.08.23.zip && unzip BayeSED3-2026.08.23.zip && cd BayeSED3-2026.08.23
 pip install -e .                                                   # editable
 pip install .                                                      # non-editable
 pip install -e '.[gui]'                                            # GUI
