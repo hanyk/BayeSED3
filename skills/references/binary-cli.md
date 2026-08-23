@@ -4,13 +4,15 @@
 
 Escape hatch for raw binary flags. Prefer the Python happy path (`SEDModel` + `SEDInference`) in `SKILL.md`. For Python equivalents of phot/spec-only, NNLM/RDF, MultiNest tuning, and AB mag catalogs, use `advanced-run-modes.md` first.
 
-Run `./bin/linux/bayesed_mn_1 --help` for the authoritative reference.
+Prefer the **Launcher** (`bayesed3` / `python -m bayesed`, ADR-0007) over calling `./bin/...` yourself. It resolves OpenMPI, OS-arch binary, process count, and data-root cwd. It owns only `--mpi` and `--np`; all other argv (including `-h`/`--help`) is forwarded to the compiled binary.
+
+Run `bayesed3 --help` (or `./bin/linux/bayesed_mn_1 --help`) for the authoritative flag list.
 
 ## Invoking the Binary
 
 ```bash
-# Single process (Linux)
-./bin/linux/bayesed_mn_1 -v 2 -i 0,observation/test/gal.txt \
+# Launcher — preferred. Forwards remaining argv to the binary.
+bayesed3 -v 2 -i 0,observation/test/gal.txt \
   --outdir observation/test/output/gal \
   --ssp 0,0,bc2003_hr_stelib_chab_neb_2000r,1,1,1,0,0,1,0,0 \
   --sfh 0,2,0,0 \
@@ -18,12 +20,13 @@ Run `./bin/linux/bayesed_mn_1 --help` for the authoritative reference.
   --multinest 1,0,0,400,0.1,0.5,1000,-1e90,1,2,0,0,-1e90,100000,0.01 \
   --save_sample_par
 
-# MPI parallel (Linux)
-mpirun -np 4 ./bin/linux/bayesed_mn_n -v 2 -i 0,observation/test/gal.txt ...
+# MPI across objects (mode n) with 4 processes
+bayesed3 --mpi n --np 4 -v 2 -i 0,observation/test/gal.txt ...
 
+# Direct binary (escape hatch if you already know the platform paths)
+./bin/linux/bayesed_mn_1 -v 2 -i 0,observation/test/gal.txt ...
+mpirun -np 4 ./bin/linux/bayesed_mn_n -v 2 -i 0,observation/test/gal.txt ...
 # macOS: replace bin/linux/ with bin/mac/
-./bin/mac/bayesed_mn_1 ...
-mpirun -np 4 ./bin/mac/bayesed_mn_n ...
 ```
 
 ## Passing Options via File (--import) from Python
@@ -324,9 +327,15 @@ Key: `-i 1,...` for AB magnitude input; `--no_spectra_fit` skips spectral data; 
 
 ### MPI Parallel Execution
 
-Replace `bayesed_mn_1` with `bayesed_mn_n` and prepend `mpirun`:
+Replace `bayesed_mn_1` with `bayesed_mn_n` via the Launcher, or prepend `mpirun` to the direct binary:
 
 ```bash
+bayesed3 --mpi n --np 4 -v 2 \
+  -i 0,observation/test/gal.txt \
+  --outdir observation/test/output/gal \
+  ... (same options as single-process)
+
+# Direct binary:
 mpirun --use-hwthread-cpus ./bin/linux/bayesed_mn_n -v 2 \
   -i 0,observation/test/gal.txt \
   --outdir observation/test/output/gal \

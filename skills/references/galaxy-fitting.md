@@ -108,7 +108,7 @@ AB mag, phot/spec-only, NNLM/RDF: `advanced-run-modes.md`.
 | 6 | `'lmc'`, `'lmc_fitzpatrick'`, `'fitzpatrick_lmc'` | LMC (Fitzpatrick+86, hyperz) |
 | 7 | `'smc'`, `'smc_fitzpatrick'`, `'fitzpatrick_smc'` | SMC (Fitzpatrick+86, hyperz) |
 | 8 | `'calzetti'`, `'calzetti2000'`, `'starburst_calzetti2000'` | SB (Calzetti2000, hyperz) |
-| 9 | `'star_forming_reddy'`, `'reddy'`, `'reddy2015'` | Star-forming (Reddy+2015) |
+| 9 | `'star_forming_reddy'`, `'reddy'` | Star-forming (Reddy+2015) |
 
 String→int mapping for `SEDModel.create_galaxy`: also in `custom-models.md`.
 

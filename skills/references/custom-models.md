@@ -62,7 +62,7 @@ inference.priors_init(params)
 results = inference.run(params)
 ```
 
-`add_galaxy()` / `add_agn()` default to `auto_assign_ids=True`: if the instance still has default IDs (`igroup=0, id=0`) or would collide with something already added, they're renumbered automatically via `get_next_galaxy_ids()` / `get_next_agn_ids()`. Pass `auto_assign_ids=False` to keep manually assigned IDs (needed when you construct multiple AGN instances yourself and want explicit control — see `add_agn3` example below).
+`add_galaxy()` / `add_agn()` default to `auto_assign_ids=True`: if the instance still has default IDs (`igroup=0, id=0`) or would collide with something already added, they're renumbered automatically via `get_next_galaxy_ids()` / `get_next_agn_ids()`. Pass `auto_assign_ids=False` to keep manually assigned IDs (needed when you construct multiple AGN instances yourself and want explicit control — see `add_agn(..., auto_assign_ids=False)` below).
 
 ## GalaxyInstance
 
@@ -102,7 +102,7 @@ SEDModel.create_galaxy(
 | `star_forming`/`salim` | 3 | `calzetti`/`calzetti2000` | 8 |
 | `mw_allen`/`allen` | 4 | `star_forming_reddy`/`reddy` | 9 |
 
-Any unrecognized string is passed through `int()` as a last resort; unmappable values raise `ValueError`.
+Any unrecognized string is passed through `int()` as a last resort; unmappable values raise `ValueError`. Complete alias lists (including `'instantaneous_burst'`, `'double_power_law'`, `'starburst_calzetti'`, …) are in `galaxy-fitting.md`.
 
 ### `add_dust_emission()`
 

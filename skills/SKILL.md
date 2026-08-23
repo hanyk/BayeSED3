@@ -25,7 +25,7 @@ Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills
    → Batch/diagnostics: Interface.run → Execution, then BayeSEDResults(outdir)
 6. Analyze → results-analysis.md
 7. Compare model configurations → model-comparison.md
-8. CLI / --import → binary-cli.md
+8. CLI / Launcher (`bayesed3`) / --import → binary-cli.md
 ```
 
 ## Reference Files
@@ -40,7 +40,7 @@ Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills
 | `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF, MultiNest |
 | `references/results-analysis.md` | Load Results, stats, plots, GetDist |
 | `references/model-comparison.md` | Evidence ranking, posterior comparison |
-| `references/binary-cli.md` | Binary flags and `--import` |
+| `references/binary-cli.md` | Launcher (`bayesed3`) and binary flags / `--import` |
 
 ## Happy-path steps
 
@@ -87,7 +87,7 @@ params.add_galaxy(galaxy)  # step 2
 
 inference = SEDInference()
 inference.priors_init(params)  # step 3
-# Optional: inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8)
+# Optional: inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, confirm=False)
 
 results = inference.run(params)  # step 4 → Results
 
@@ -103,7 +103,7 @@ evidence = results.get_evidence()  # log_evidence, log_evidence_error
 - **Factory:** `.galaxy()` / `.agn()` then same steps 3–5 → galaxy/agn refs.
 - **Mixed / dust / torus:** `custom-models.md`.
 - **Batch / diagnostics:** `execution = BayeSEDInterface(...).run(params)` then load Results.
-- **Advanced modes / CLI:** `advanced-run-modes.md` / `binary-cli.md`.
+- **Advanced modes / CLI:** `advanced-run-modes.md` / `binary-cli.md` (Launcher: `bayesed3`).
 
 ## Imports (happy path)
 
@@ -129,7 +129,7 @@ Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_paramete
 Happy-path convention: load/generate `.iprior` before fitting. Call it before `set_prior` / `print_priors` / `validate_priors`.
 
 **Quick test?**  
-`Ntest=2` on the interface, or `params.configure_multinest(nlive=40)`.
+`inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`.
 
 **Evidence keys?**  
 Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5.

@@ -21,7 +21,7 @@ galaxy = SEDModel.create_galaxy(
 )
 params = BayeSEDParams(
     input_type=1,  # AB magnitude catalog
-    input_file='observation/test1/obs_COSMOS.txt',
+    input_file='observation/test1/test_inoise1.txt',
     outdir='observation/test1/output',
     filters='observation/test1/filters_COSMOS_CSST_Euclid_LSST_WFIRST.txt',
     filters_selected='observation/test1/filters_COSMOS_seleted.txt',
@@ -114,7 +114,7 @@ inference.priors_init(params)
 results = inference.run(params)
 ```
 
-Also available on `SEDInference`: `gsl()`, `nnlm()`, `ndumper()`, `set_logzero` — see method docstrings in `bayesed/inference.py`.
+Also available on `SEDInference`: `gsl()`, `nnlm()`, `ndumper()`, `set_logzero()`, `set_unweighted_samples()`, `set_nsample()`, `set_niteration()` — see method docstrings in `bayesed/inference.py`. Happy-path quick test: `inference.run(params, Ntest=2)`.
 
 ## Batch Path: Execution then Results
 
@@ -132,4 +132,4 @@ results = BayeSEDResults(params.outdir, catalog_name='...')
 
 - Input catalogs and filters: `data-preparation.md`
 - SEDModel assembly: `custom-models.md`
-- Binary CLI / `--import`: `binary-cli.md`
+- Binary CLI / Launcher / `--import`: `binary-cli.md`

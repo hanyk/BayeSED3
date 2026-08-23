@@ -8,7 +8,7 @@
   <small>- Attributed to John von Neumann</small>
 </p>
 
-BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs Bayesian parameter estimation using posteriori probability distributions (PDFs) and Bayesian SED model comparison using Bayesian evidence. BayeSED3 supports various built-in SED models and can emulate other SED models using machine learning techniques.
+BayeSED3 is a general and sophisticated tool for the full Bayesian interpretation of spectral energy distributions (SEDs) of galaxies and AGNs. It performs Bayesian parameter estimation using posterior probability distributions (PDFs) and Bayesian SED model comparison using Bayesian evidence. BayeSED3 supports various built-in SED models and can emulate other SED models using machine learning techniques.
 
 ## Key Features
 
@@ -26,98 +26,47 @@ BayeSED3 is a general and sophisticated tool for the full Bayesian interpretatio
 - Parallel processing support for improved performance
 - User-friendly CLI, Python script and GUI interfaces
 
-## Installation Instructions
+## Installation
 
-**Platform support:**
-- Linux x86_64
-- macOS (x86_64 and ARM64 via Rosetta 2)
-- Windows (via WSL - uses Linux binaries)
+**Platforms:** Linux x86_64 · macOS (x86_64 and ARM64 via Rosetta 2) · Windows via WSL (Linux binaries)
 
-### Prerequisites
+### OpenMPI 4.1.6
 
-**1. Clone the repository:**
+Required. pip does not install it. BayeSED3 looks for conda, system, or a local build; if none is found it will try to compile OpenMPI 4.1.6 itself.
+
 ```bash
-git clone https://github.com/hanyk/BayeSED3.git
-cd BayeSED3
+conda install -c conda-forge openmpi=4.1.6
 ```
 
-**2. Install OpenMPI 4.1.6** (required for all installation methods):
+Or a system package: Ubuntu/Debian `sudo apt-get install openmpi-bin openmpi-common libopenmpi-dev` · Fedora `sudo dnf install openmpi openmpi-devel` · macOS `brew install openmpi`.
 
-   **Via conda (recommended):**
-   ```bash
-   conda install -c conda-forge openmpi=4.1.6
-   ```
-   
-   **Via system package manager:**
-   - Ubuntu/Debian: `sudo apt-get install openmpi-bin openmpi-common libopenmpi-dev`
-   - Fedora: `sudo dnf install openmpi openmpi-devel`
-   - macOS (Homebrew): `brew install openmpi`
-   
-   **Or compile from source:**
-   ```bash
-   wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
-   tar xzvf openmpi-4.1.6.tar.gz
-   cd openmpi-4.1.6
-   ./configure --prefix=$PWD/../openmpi
-   make
-   make install
-   ```
-**Note:** BayeSED3 automatically detects OpenMPI from conda, system, or local installation. If none is found, it will auto-compile OpenMPI 4.1.6.
+Compile from source (optional):
 
-
-### Pip Installation (System-Level) ⭐ Recommended for Convenience
-
-**System-level installation using pip** - allows you to use BayeSED3 from any directory.
-
-**Prerequisites:** Complete the [Prerequisites](#prerequisites) section above.
-
-**Installation:**
 ```bash
-# Install BayeSED3 (run from repository root)
-pip install .          # Regular install (for production use)
-pip install -e .      # Editable install (for development - changes immediately visible)
+wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.6.tar.gz
+tar xzvf openmpi-4.1.6.tar.gz
+cd openmpi-4.1.6
+./configure --prefix=$PWD/../openmpi
+make
+make install
 ```
 
-**Uninstall:**
+### pip
+
 ```bash
+pip install git+https://github.com/hanyk/BayeSED3.git              # latest (main)
+pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.22  # release
+
+git clone https://github.com/hanyk/BayeSED3.git && cd BayeSED3
+pip install -e .                                                   # editable
+pip install .                                                      # non-editable
+pip install -e '.[gui]'                                            # GUI
+
+bayesed3                                                           # CLI; also: python -m bayesed
 pip uninstall bayesed3
-# Dependencies (OpenMPI, matplotlib, etc.) stay installed
 ```
 
-**Note:** 
-- **Regular install** (`pip install .`): Copies files to site-packages. Use for production.
-- **Editable install** (`pip install -e .`): Links to source directory. Changes are immediately visible without reinstalling. Ideal for development.
-
-### Conda Installation (System-Level, Automatic Dependencies)
-
-**System-level installation using conda** - automatically handles all dependencies including OpenMPI. Note: BayeSED3 is not yet available on conda-forge. You must build it locally.
-
-**Prerequisites:** Clone the repository (step 1 from [Prerequisites](#prerequisites)). OpenMPI will be handled automatically by conda.
-
-**Installation:**
-```bash
-# Build conda package from source (run from repository root)
-conda build conda/
-
-# Install the locally built package
-conda install --use-local bayesed3
-```
-
-**Uninstall:**
-```bash
-# Remove BayeSED3 (also removes dependencies like OpenMPI, matplotlib, etc.)
-conda remove bayesed3
-
-# Optional: Clean package cache
-conda clean --packages -y
-
-# Optional: Clean build cache (if you built it locally)
-conda build purge
-```
-
-**Note:** BayeSED3 will be available on conda-forge in the future for easier installation.
-
-### Optional Components
+### Optional components
 
 **HDF5 utilities** (optional):
 - Ubuntu/Debian: `sudo apt-get install h5utils`
@@ -130,6 +79,8 @@ conda build purge
 - macOS (with Homebrew): `brew install python-tk`
 
 ## Usage examples
+
+Run from the repository root.
 
 1. SDSS spectroscopic SED analysis
    ```
@@ -158,36 +109,33 @@ conda build purge
 ![Best-fit csst_mock_both](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/0csp_sfh201_bc2003_hr_stelib_chab_neb_300r_i0100_rdf0_2dal8_10_z_both_bestfit.fits.png)
 ![pdftree csst_mock_all](observation/test3/output/seedcat2_0_STARFORMING_inoise2/8144596/pdftree.png)
 
-4. [ A new approach to constraining properties of AGN host galaxies by combining image and SED decomposition](https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract)
+4. [A new approach to constraining properties of AGN host galaxies by combining image and SED decomposition](https://ui.adsabs.harvard.edu/abs/2024arXiv241005857Y/abstract)
 
 jupyter-notebook [observation/agn_host_decomp/demo.ipynb](observation/agn_host_decomp/demo.ipynb)
 
 ### Python Interface
 
-BayeSED3 provides a high-level Python interface for programmatic SED analysis. The interface simplifies configuration, data preparation, and result access while maintaining full access to all BayeSED3 capabilities.
-
 **Quick Start Examples:**
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults
+from bayesed import BayeSEDParams, SEDInference, BayeSEDInterface, BayeSEDResults
 
-# Initialize interface
-bayesed = BayeSEDInterface(mpi_mode='auto')
-
-# Simple galaxy fitting
 params = BayeSEDParams.galaxy(
     input_file='observation/test/gal.txt',
     outdir='tests/output_quick_start',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
-    dal_law='calzetti'
+    dal_law='calzetti',
+    save_sample_par=True,  # needed for posterior plots
 )
 
-# Run analysis
-result = bayesed.run(params)
+inference = SEDInference()
+inference.priors_init(params)
+# Optional: inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, confirm=False)
+results = inference.run(params, Ntest=2)  # Results: posteriors, evidence, plots
+# execution = BayeSEDInterface(Ntest=2).run(params)  # Execution: stdout, parameter list, returncode
+# results = BayeSEDResults(params.outdir, catalog_name='gal')
 
-# Load and analyze results
-results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
 results.print_summary()
 
 # Access parameters and objects
@@ -223,7 +171,7 @@ results.plot_posterior(params=['log(age/yr)[0,1]', 'log(Z/Zsun)[0,1]', 'log(Msta
 # Object-level analysis
 if available_objects:
     object_id = available_objects[0]
-    object_results = BayeSEDResults('tests/output_quick_start', object_id=object_id,catalog_name='gal')
+    object_results = BayeSEDResults('tests/output_quick_start', object_id=object_id, catalog_name='gal')
     object_results.plot_bestfit()
 
     object_results.set_parameter_labels(custom_labels)
@@ -235,22 +183,22 @@ if available_objects:
 **AGN Fitting:**
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams
+from bayesed import BayeSEDParams, SEDInference
 
-# Initialize interface with Ntest for quick testing (optional)
-bayesed = BayeSEDInterface(mpi_mode='auto', Ntest=2)  # Process only first 2 objects
-
-# AGN with all components (includes galaxy host)
 params = BayeSEDParams.agn(
     input_file='observation/test/qso.txt',
     outdir='tests/output_agn_fitting',
     ssp_model='bc2003_hr_stelib_chab_neb_2000r',
     sfh_type='exponential',
     dal_law='calzetti',
-    agn_components=['dsk', 'blr', 'nlr', 'feii']  # Disk, BLR, NLR, FeII
+    agn_components=['dsk', 'blr', 'nlr', 'feii'],  # Disk, BLR, NLR, FeII
+    save_sample_par=True,
 )
 
-bayesed.run(params)
+inference = SEDInference()
+inference.priors_init(params)
+results = inference.run(params, Ntest=2)  # first 2 objects; drop Ntest for a full catalog
+results.print_summary()
 ```
 
 ## Advanced Features
@@ -269,31 +217,29 @@ params = BayeSEDParams.galaxy(input_file='observation/test/gal.txt', outdir='tes
 inference = SEDInference()
 inference.priors_init(params)
 
-# View and modify priors
+# View and modify priors (confirm=False for scripts; default True prompts on stdin)
 inference.print_priors()
-inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60)
+inference.set_prior('log(age/yr)', min_val=8.5, max_val=9.8, nbin=60, confirm=False)
 
 # List all available prior types
-inference.list_prior_types()  # Shows: Uniform, Gaussian, Gamma, Beta, Student's t, Weibull, etc.
+inference.list_prior_types()  # Uniform, Gaussian, Gamma, Beta, StudentT, Weibull, …
 
-# Use different prior types (Uniform, Gaussian, Gamma, Beta, etc.)
-inference.set_prior('log(age/yr)', prior_type='Gaussian', 
-                   min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0])
+# Use different prior types (Uniform, Gaussian, Gamma, Beta, StudentT, …)
+inference.set_prior('log(age/yr)', prior_type='Gaussian',
+                   min_val=8.0, max_val=12.0, hyperparameters=[10.0, 1.0],
+                   confirm=False)
 
-# Regex patterns (with confirmation)
-inference.set_prior('^Av_.*', prior_type='Gaussian', hyperparameters=[1.0, 0.3])
-
-# Partial matching
-inference.set_prior('age', min_val=8.0, max_val=10.0)  # Matches 'log(age/yr)', etc.
+# Regex / substring matches (also pass confirm=False in scripts)
+inference.set_prior('^Av_.*', prior_type='Gaussian', hyperparameters=[1.0, 0.3],
+                   confirm=False)
+inference.set_prior('age', min_val=8.0, max_val=10.0, confirm=False)  # matches log(age/yr), …
 
 # Query without modifying
 inference.set_prior('age')  # Shows all parameters containing 'age'
 
-# Reset a single parameter to its default prior
-inference.set_prior('log(age/yr)', reset_to_default=True)
-
-# Reset multiple parameters using patterns
-inference.set_prior('Av_.*', reset_to_default=True)  # Reset all Av parameters
+# Reset to auto-generated defaults (flag on set_prior, not a separate method)
+inference.set_prior('log(age/yr)', reset_to_default=True, confirm=False)
+inference.set_prior('Av_.*', reset_to_default=True, confirm=False)  # all Av parameters
 ```
 
 ### Working with Data Arrays
@@ -301,7 +247,7 @@ inference.set_prior('Av_.*', reset_to_default=True)  # Reset all Av parameters
 ```python
 import numpy as np
 import os
-from bayesed import BayeSEDInterface, BayeSEDParams
+from bayesed import BayeSEDInterface, BayeSEDParams, SEDInference
 from bayesed.data import SEDObservation
 
 # Create observations from arrays (synthetic data for demonstration)
@@ -331,18 +277,19 @@ params = BayeSEDParams.galaxy(
     input_file=input_file,
     outdir='tests/output_data_arrays',
     filters=filter_files['filters_file'],
-    filters_selected=filter_files['filters_selected_file']
+    filters_selected=filter_files['filters_selected_file'],
+    save_sample_par=True,
 )
-bayesed.run(params)
+inference = SEDInference()
+inference.priors_init(params)
+results = inference.run(params)
 ```
 
 ### Custom Model Configuration
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams
+from bayesed import BayeSEDParams, SEDInference
 from bayesed.model import SEDModel
-
-bayesed = BayeSEDInterface(mpi_mode='auto')
 
 # Create galaxy instance with dust emission (using real data from observation/test2/)
 galaxy = SEDModel.create_galaxy(
@@ -366,47 +313,37 @@ params = BayeSEDParams(
 )
 params.add_galaxy(galaxy)
 params.add_agn(agn)
-bayesed.run(params)
+
+inference = SEDInference()
+inference.priors_init(params)
+results = inference.run(params)
 ```
 
 ### Multi-Model Comparison
 
 
 ```python
-from bayesed import BayeSEDInterface, BayeSEDParams, BayeSEDResults
+from bayesed import BayeSEDParams, SEDInference
 from bayesed.results import standardize_parameter_names, plot_posterior_comparison
-from bayesed.model import SEDModel
-
-bayesed = BayeSEDInterface(mpi_mode='auto')
 
 # Same input data, different models
 input_file = 'observation/test/gal.txt'
 
-# Model 1: Exponential SFH with Calzetti dust law
-params1 = BayeSEDParams.galaxy(
-    input_file=input_file,
-    outdir='tests/output_model1_exp_calzetti',
-    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
-    sfh_type='exponential',
-    dal_law='calzetti',
-    save_sample_par=True
-)
-bayesed.run(params1)
+def run_config(outdir, sfh_type, dal_law):
+    params = BayeSEDParams.galaxy(
+        input_file=input_file,
+        outdir=outdir,
+        ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+        sfh_type=sfh_type,
+        dal_law=dal_law,
+        save_sample_par=True,
+    )
+    inference = SEDInference()
+    inference.priors_init(params)
+    return inference.run(params)  # Results
 
-# Model 2: Delayed SFH with SMC dust law
-params2 = BayeSEDParams.galaxy(
-    input_file=input_file,
-    outdir='tests/output_model2_delayed_smc',
-    ssp_model='bc2003_hr_stelib_chab_neb_2000r',
-    sfh_type='delayed',
-    dal_law='smc',
-    save_sample_par=True
-)
-bayesed.run(params2)
-
-# Compare results for the same object with different models
-results1 = BayeSEDResults('tests/output_model1_exp_calzetti')
-results2 = BayeSEDResults('tests/output_model2_delayed_smc')
+results1 = run_config('tests/output_model1_exp_calzetti', 'exponential', 'calzetti')
+results2 = run_config('tests/output_model2_delayed_smc', 'delayed', 'smc')
 
 # Standardize parameter names across models for comparison
 results_list = [results1, results2]
@@ -419,11 +356,11 @@ plot_posterior_comparison(
     output_file='model_comparison.png'
 )
 
-# Compare Bayesian evidence to determine which model is preferred
+# Compare Bayesian evidence (prefer log_evidence; raw INSlogZ is only present when INS wrote it)
 evidence1 = results1.get_evidence()
 evidence2 = results2.get_evidence()
-delta_logZ = evidence1['INSlogZ'] - evidence2['INSlogZ']
-delta_logZ_err = (evidence1['INSlogZerr']**2 + evidence2['INSlogZerr']**2)**0.5
+delta_logZ = evidence1['log_evidence'] - evidence2['log_evidence']
+delta_logZ_err = (evidence1['log_evidence_error']**2 + evidence2['log_evidence_error']**2)**0.5
 ```
 
 ### Advanced Analytics
@@ -435,7 +372,7 @@ from bayesed import BayeSEDResults
 
 # Load results with intelligent configuration detection
 # Note: If multiple catalogs exist, specify catalog_name explicitly
-results = BayeSEDResults('tests/output_quick_start',catalog_name='gal')
+results = BayeSEDResults('tests/output_quick_start', catalog_name='gal')
 
 # Get available parameter names (with component IDs like [0,1])
 free_params = results.get_free_parameters()
@@ -472,11 +409,11 @@ For more detailed documentation and advanced usage, see [docs/BayeSED3.md](docs/
 
 ### Graphical User Interface (GUI)
 
-Launch the GUI:
+```bash
+bayesed3-gui
 ```
-python bayesed_gui.py
-```
-The GUI provides an intuitive way to set up complex SED analysis scenarios with meaningful defaults.
+
+From a clone without install: `python bayesed_gui.py`.
 
 ![BayeSED3 GUI](BayeSED3_GUI.png)
 
@@ -484,7 +421,9 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 
 - [`bayesed/`](bayesed/): Python package providing high-level interface to BayeSED3
   - [`core.py`](bayesed/core.py): Main interface classes (`BayeSEDInterface`, `BayeSEDParams`, `BayeSEDExecution`)
-  - [`results/`](bayesed/results/): **Enhanced BayeSEDResults** with intelligent scope management, 2-5x performance improvements, advanced plotting (`plot_posterior_free`, `plot_posterior_derived`, `plot_bestfit`), analytics (`compute_parameter_correlations`, `get_parameter_statistics`), and comprehensive error handling
+  - [`launcher.py`](bayesed/launcher.py): CLI Launcher (`bayesed3` / `python -m bayesed`); owns `--mpi` / `--np`
+  - [`runtime.py`](bayesed/runtime.py): Internal OpenMPI / binary / cwd helpers shared by Interface and Launcher
+  - [`results/`](bayesed/results/): `BayeSEDResults` — HDF5 products, plots, correlations, GetDist
   - [`model.py`](bayesed/model.py): Model configuration classes (`SEDModel`)
   - [`data.py`](bayesed/data.py): Data handling classes (`SEDObservation`, `PhotometryObservation`, `SpectrumObservation`)
   - [`params.py`](bayesed/params.py): Parameter configuration classes
@@ -505,6 +444,7 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
   - [`test_custom_model.py`](tests/test_custom_model.py): Custom model configuration and advanced setup
   - [`test_multi_model_comparison.py`](tests/test_multi_model_comparison.py): Comparing multiple models using Bayesian evidence
   - [`test_advanced_analytics.py`](tests/test_advanced_analytics.py): Advanced posterior analysis and GetDist integration
+  - [`test_prior_management.py`](tests/test_prior_management.py): Prior initialization and `set_prior`
   - [`test_bayesed_bagpipes_comparison.py`](tests/test_bayesed_bagpipes_comparison.py): Comparison between BayeSED3 and BAGPIPES results
 - [`observation/test/`](observation/test/): Contains test data and configuration files
 - [`bin/`](bin/): Contains BayeSED3 executables for different platforms
@@ -514,13 +454,7 @@ The GUI provides an intuitive way to set up complex SED analysis scenarios with 
 - [`data/`](data/): Other data files used by BayeSED3 (extinction curves, emission line templates)
 - [`docs/`](docs/): Detailed documentation
 - [`papers/`](papers/): Related publications in markdown format
-- [`conda/`](conda/): Conda packaging scripts and configuration
-
-## System Compatibility
-
-- Linux: x86_64 architecture
-- macOS: x86_64 architecture (ARM supported via Rosetta 2)
-- Windows: Supported through Windows Subsystem for Linux (WSL)
+- [`conda/`](conda/): Conda packaging (local `conda build`; not on conda-forge yet)
 
 ## License
 

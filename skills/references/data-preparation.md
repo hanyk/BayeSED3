@@ -94,7 +94,7 @@ Use `bayesed.prepare_filters_selected(filters_file=..., selected_indices=[...])`
 
 ### Filter calibration constants
 
-`bayesed/utils.py` exposes two constants used when building filter files manually: `FILTER_TYPE_ENERGY` (itype=0, energy-unit response; itype=1 is photon-counting, the default) and `FILTER_CALIB_STANDARD` (icalib=0, B_ν = constant — the default calibration). These matter only if constructing filter definition files by hand rather than via SVO download.
+`bayesed/utils.py` exposes filter-file constants: `FILTER_TYPE_ENERGY` (itype=0) and `FILTER_TYPE_PHOTON` (itype=1, the default); `FILTER_CALIB_STANDARD` (icalib=0, B_ν = constant — the default). Other `FILTER_CALIB_*` names (IRAC, SUBMM, BLACKBODY, MIPS, SCUBA) exist for hand-built filter files. These matter only if constructing filter definition files by hand rather than via SVO download.
 
 ## Low-level: create_input_catalog
 

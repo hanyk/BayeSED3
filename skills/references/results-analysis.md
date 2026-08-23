@@ -145,6 +145,9 @@ results.set_parameter_labels(custom_labels)
 # Best-fit SED plot
 results.plot_bestfit()
 
+# Best-fit spectrum arrays (wavelength / flux), not a plot
+# spec = results.get_bestfit_spectrum()
+
 # Free parameter posterior distributions (corner plot)
 results.plot_posterior_free()
 
@@ -158,6 +161,9 @@ results.plot_posterior(params=[
     'log(Mstar)[0,1]',
     'log(SFR_{100Myr}/[M_{sun}/yr])[0,1]'
 ])
+
+# Scatter of two parameters (or arrays)
+# results.plot_parameter_scatter('log(Mstar)[0,1]', 'log(age/yr)[0,1]')
 ```
 
 ### Per-Object Analysis
