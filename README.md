@@ -55,7 +55,7 @@ make install
 
 ```bash
 pip install git+https://github.com/hanyk/BayeSED3.git              # latest (main)
-pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.22  # release
+pip install git+https://github.com/hanyk/BayeSED3.git@v2026.08.23  # release
 
 git clone https://github.com/hanyk/BayeSED3.git && cd BayeSED3
 pip install -e .                                                   # editable
