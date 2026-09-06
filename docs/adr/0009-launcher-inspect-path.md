@@ -1,0 +1,5 @@
+# Launcher first-token inspect path
+
+ADR-0007 made `bayesed3` a thin binary forwarder and forbade treating it as a Results / Priors workflow. We now split on the first token: `results`, `plot`, and `priors` present existing products; every other argv (including `-h` / `--help`) stays the binary path. Inspect commands are `outdir` then one or more verbs then an optional name; they call existing `BayeSEDResults` / `list_prior_types` / `PriorManager.load_prior_file` + `PriorEditor.print_priors` — not a new `.iprior` parser, not fit, not `priors_init`.
+
+We rejected a second console script (easy to miss), a named-fit / YAML surface (a second option language), and `priors init` on this path (needs a Model configuration the binary already accepts via `--priors_only`).

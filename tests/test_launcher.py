@@ -37,6 +37,9 @@ def test_usage_mentions_help_and_owned_flags():
     assert '--mpi' in text
     assert '--np' in text
     assert 'bayesed3 --help' in text
+    assert 'results' in text
+    assert 'plot' in text
+    assert 'priors' in text
 
 
 def test_run_launcher_empty_argv_prints_usage():

@@ -1,14 +1,16 @@
 """
-Platform-independent Launcher for the compiled BayeSED binary (ADR-0007).
+Platform-independent Launcher for the compiled BayeSED binary (ADR-0007, ADR-0009).
 
-Invoked as ``bayesed3`` / ``python -m bayesed``. Owns only ``--mpi`` and
-``--np``; remaining argv is forwarded to the binary via ``runtime``.
-Not a public analysis API — not Observation / SED model / Priors / Results.
+Invoked as ``bayesed3`` / ``python -m bayesed``. First-token ``results`` /
+``plot`` / ``priors`` present existing products. Otherwise owns only
+``--mpi`` and ``--np``; remaining argv is forwarded to the binary via
+``runtime``.
 """
 
 import subprocess
 import sys
 
+from .inspect_cli import INSPECT_TOKENS, run_inspect
 from .runtime import (
     absolutize_cli_path_args,
     build_mpi_command,
@@ -23,11 +25,15 @@ from .runtime import (
 def usage_text(prog='bayesed3'):
     return (
         f"Usage: {prog} [--mpi MODE] [--np NPROC] [BayeSED arguments...]\n"
+        f"       {prog} results <outdir> <cmd> [<cmd>...] [name]\n"
+        f"       {prog} plot <outdir> <cmd> [<cmd>...] [name]\n"
+        f"       {prog} priors list [dir]\n"
         "\n"
         "Options:\n"
         "  --mpi MODE    MPI mode: '1' (within objects) or 'n' (across objects)\n"
         "  --np NPROC    Number of MPI processes (default: auto-detect)\n"
         "\n"
+        "Inspect existing Results or Priors: results, plot, priors.\n"
         "All other arguments are passed directly to the BayeSED binary.\n"
         f"For binary help: {prog} --help\n"
     )
@@ -89,6 +95,9 @@ def run_launcher(argv=None, prog='bayesed3'):
     if not argv:
         sys.stderr.write(usage_text(prog))
         return 1
+
+    if argv[0] in INSPECT_TOKENS:
+        return run_inspect(argv, prog=prog)
 
     try:
         mpi_mode, np_override, binary_args = parse_launcher_argv(argv)
