@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from bayesed.inspect_cli import (
     PLOT_VERBS,
     RESULTS_VERBS,
+    format_object_listing,
     parse_outdir_verbs_name,
     run_inspect,
 )
@@ -49,12 +50,21 @@ def test_help_still_forwards_to_binary():
 
 
 def test_parse_outdir_then_verbs_then_optional_name():
-    outdir, cmds, name = parse_outdir_verbs_name(
+    outdir, cmds, names = parse_outdir_verbs_name(
         ['out', 'summary', 'evidence', 'gal'], RESULTS_VERBS
     )
     assert outdir == 'out'
     assert cmds == ['summary', 'evidence']
-    assert name == 'gal'
+    assert names == ['gal']
+
+
+def test_parse_catalog_and_object_after_verbs():
+    outdir, cmds, names = parse_outdir_verbs_name(
+        ['out', 'bestfit', 'gal', 'obj-1'], PLOT_VERBS
+    )
+    assert outdir == 'out'
+    assert cmds == ['bestfit']
+    assert names == ['gal', 'obj-1']
 
 
 def test_parse_rejects_name_before_verbs():
@@ -115,14 +125,74 @@ def test_results_evidence_and_params_call_existing_methods():
 
 def test_plot_verbs_call_existing_plot_methods():
     fake = MagicMock()
+    fake.object_id = None
+    fake.list_objects.return_value = ['only']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
         code = run_inspect(['plot', 'out', 'bestfit', 'posterior'])
     assert code == 0
     fake.plot_bestfit.assert_called_once()
     fake.plot_posterior_free.assert_called_once()
-    assert fake.plot_bestfit.call_args.kwargs.get('show') is False
-    assert fake.plot_posterior_free.call_args.kwargs.get('show') is False
+    assert fake.plot_bestfit.call_args.kwargs.get('show') is True
+    assert fake.plot_posterior_free.call_args.kwargs.get('show') is True
+
+
+def test_format_object_listing_omits_middle_when_more_than_ten():
+    ids = [f'o{i:02d}' for i in range(12)]
+    lines = format_object_listing(ids)
+    assert lines[0] == 'Objects (12):'
+    assert lines[1:6] == [f'  o{i:02d}' for i in range(5)]
+    assert lines[6] == '  ...'
+    assert lines[7:] == [f'  o{i:02d}' for i in range(7, 12)]
+    assert 'o05' not in '\n'.join(lines)
+    assert 'o06' not in '\n'.join(lines)
+
+
+def test_format_object_listing_silent_for_one():
+    assert format_object_listing(['only']) == []
+
+
+def test_plot_without_object_lists_then_uses_first():
+    fake = MagicMock()
+    fake.object_id = None
+    fake.list_objects.return_value = ['obj-a', 'obj-b']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['plot', 'out', 'bestfit', 'gal'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'obj-a' in written
+    assert 'obj-b' in written
+    assert 'using first: obj-a' in written
+    assert fake.plot_bestfit.call_args.kwargs.get('object_id') == 'obj-a'
+
+
+def test_plot_with_object_does_not_list():
+    fake = MagicMock()
+    fake.object_id = 'obj-b'
+    fake.list_objects.return_value = ['obj-a', 'obj-b']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['plot', 'out', 'bestfit', 'gal', 'obj-b'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'using first' not in written
+    fake.plot_bestfit.assert_called_once()
+
+
+def test_plot_bestfit_passes_catalog_and_object():
+    fake = MagicMock()
+    fake.object_id = 'obj-1'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
+        code = run_inspect(['plot', 'out', 'bestfit', 'gal', 'obj-1'])
+    assert code == 0
+    ctor.assert_called_once_with('out', catalog_name='gal', object_id='obj-1')
+    fake.plot_bestfit.assert_called_once()
+    assert fake.plot_bestfit.call_args.kwargs.get('show') is True
+    assert fake.plot_bestfit.call_args.kwargs.get('object_id') == 'obj-1'
 
 
 def test_priors_list_without_dir_lists_types():
@@ -192,12 +262,18 @@ if __name__ == '__main__':
     test_plot_without_verbs_lists_commands()
     test_help_still_forwards_to_binary()
     test_parse_outdir_then_verbs_then_optional_name()
+    test_parse_catalog_and_object_after_verbs()
     test_parse_rejects_name_before_verbs()
     test_results_summary_uses_bayesed_results()
     test_results_name_is_catalog_when_listed()
     test_results_name_is_object_when_not_catalog()
     test_results_evidence_and_params_call_existing_methods()
     test_plot_verbs_call_existing_plot_methods()
+    test_format_object_listing_omits_middle_when_more_than_ten()
+    test_format_object_listing_silent_for_one()
+    test_plot_without_object_lists_then_uses_first()
+    test_plot_with_object_does_not_list()
+    test_plot_bestfit_passes_catalog_and_object()
     test_priors_list_without_dir_lists_types()
     test_priors_list_dir_uses_existing_loader_and_printer()
     test_results_help_does_not_forward_to_binary()

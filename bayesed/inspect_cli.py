@@ -26,8 +26,8 @@ _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
 
 def inspect_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [name]\n"
-        f"       {prog} plot <outdir> <cmd> [<cmd>...] [name]\n"
+        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"       {prog} priors list [dir]\n"
         "\n"
         f"results commands: {', '.join(RESULTS_VERBS)}\n"
@@ -38,14 +38,14 @@ def inspect_usage(prog='bayesed3'):
 
 def results_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [name]\n"
+        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"Commands: {', '.join(RESULTS_VERBS)}\n"
     )
 
 
 def plot_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} plot <outdir> <cmd> [<cmd>...] [name]\n"
+        f"Usage: {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"Commands: {', '.join(PLOT_VERBS)}\n"
     )
 
@@ -59,9 +59,10 @@ def priors_usage(prog='bayesed3'):
 
 def parse_outdir_verbs_name(tokens, verbs):
     """
-    Parse ``<outdir> <cmd> [<cmd>...] [name]``.
+    Parse ``<outdir> <cmd> [<cmd>...] [catalog] [object]``.
 
     ``verbs`` is an iterable of allowed command names.
+    Trailing names are after all commands; at most two.
     """
     verb_set = frozenset(verbs)
     if not tokens:
@@ -73,29 +74,35 @@ def parse_outdir_verbs_name(tokens, verbs):
         if tokens[i] not in cmds:
             cmds.append(tokens[i])
         i += 1
-    name = None
-    if i < len(tokens):
-        name = tokens[i]
-        i += 1
-    if i < len(tokens):
-        extra = tokens[i]
-        if extra in verb_set:
+    names = []
+    while i < len(tokens):
+        if tokens[i] in verb_set:
             raise ValueError(
-                f"name must come after commands, not before '{extra}'"
+                f"name must come after commands, not before '{tokens[i]}'"
             )
-        raise ValueError(f"unexpected argument '{extra}'")
+        names.append(tokens[i])
+        i += 1
+    if len(names) > 2:
+        raise ValueError('at most catalog and object after commands')
     if not cmds:
         raise ValueError('missing command')
-    return outdir, cmds, name
+    return outdir, cmds, names
 
 
-def _load_results(outdir, name):
+def _load_results(outdir, names):
     catalogs = list_catalog_names(outdir)
-    if name is None:
+    if not names:
         return BayeSEDResults(outdir)
-    if name in catalogs:
-        return BayeSEDResults(outdir, catalog_name=name)
-    return BayeSEDResults(outdir, object_id=name)
+    if len(names) == 1:
+        if names[0] in catalogs:
+            return BayeSEDResults(outdir, catalog_name=names[0])
+        return BayeSEDResults(outdir, object_id=names[0])
+    catalog, object_id = names
+    if catalog not in catalogs:
+        raise ValueError(
+            f"Unknown catalog '{catalog}'. Available catalogs: {catalogs}"
+        )
+    return BayeSEDResults(outdir, catalog_name=catalog, object_id=object_id)
 
 
 def _print_evidence(results):
@@ -105,6 +112,41 @@ def _print_evidence(results):
         print(f"log_evidence: {evidence['log_evidence']} ± {err}")
         return
     print(evidence)
+
+
+def format_object_listing(object_ids):
+    """
+    Lines listing object IDs. Empty when there is nothing to choose
+    (zero or one). More than ten: first five, ``...``, last five.
+    """
+    n = len(object_ids)
+    if n <= 1:
+        return []
+    lines = [f'Objects ({n}):']
+    if n <= 10:
+        for item in object_ids:
+            lines.append(f'  {item}')
+        return lines
+    for item in object_ids[:5]:
+        lines.append(f'  {item}')
+    lines.append('  ...')
+    for item in object_ids[-5:]:
+        lines.append(f'  {item}')
+    return lines
+
+
+def _announce_plot_objects(results):
+    if results.object_id:
+        return results.object_id
+    object_ids = results.list_objects()
+    for line in format_object_listing(object_ids):
+        print(line)
+    if not object_ids:
+        return None
+    first = object_ids[0]
+    if len(object_ids) > 1:
+        print(f'using first: {first}')
+    return first
 
 
 def _print_params(results):
@@ -120,13 +162,13 @@ def _run_results_plot(kind, rest, prog):
     verbs = _RESULTS_VERB_SET if kind == 'results' else _PLOT_VERB_SET
     usage = results_usage if kind == 'results' else plot_usage
     try:
-        outdir, cmds, name = parse_outdir_verbs_name(rest, verbs)
+        outdir, cmds, names = parse_outdir_verbs_name(rest, verbs)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(usage(prog))
         return 1
     try:
-        results = _load_results(outdir, name)
+        results = _load_results(outdir, names)
         if kind == 'results':
             for cmd in cmds:
                 if cmd == 'summary':
@@ -139,11 +181,15 @@ def _run_results_plot(kind, rest, prog):
                     for item in results.list_objects():
                         print(item)
         else:
+            plot_kw = {'show': True}
+            chosen = _announce_plot_objects(results)
+            if chosen:
+                plot_kw['object_id'] = chosen
             for cmd in cmds:
                 if cmd == 'bestfit':
-                    results.plot_bestfit(show=False)
+                    results.plot_bestfit(**plot_kw)
                 elif cmd == 'posterior':
-                    results.plot_posterior_free(show=False)
+                    results.plot_posterior_free(**plot_kw)
     except (ValueError, FileNotFoundError) as e:
         sys.stderr.write(f"Error: {e}\n")
         return 1
