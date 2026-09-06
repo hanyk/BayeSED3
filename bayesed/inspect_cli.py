@@ -17,16 +17,18 @@ from .results import BayeSEDResults
 from .results.utils import list_catalog_names
 
 INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
-RESULTS_VERBS = ('summary', 'evidence', 'params', 'objects')
+RESULTS_VERBS = ('summary', 'evidence', 'par_names', 'objects', 'par_values')
 PLOT_VERBS = ('bestfit', 'posterior')
 _RESULTS_VERB_SET = frozenset(RESULTS_VERBS)
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
 _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
+_PAR_VALUES_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--par': 'par'}
 
 
 def inspect_usage(prog='bayesed3'):
     return (
         f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
         f"       {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"       {prog} priors list [dir]\n"
         "\n"
@@ -39,6 +41,7 @@ def inspect_usage(prog='bayesed3'):
 def results_usage(prog='bayesed3'):
     return (
         f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
         f"Commands: {', '.join(RESULTS_VERBS)}\n"
     )
 
@@ -55,6 +58,48 @@ def priors_usage(prog='bayesed3'):
         f"Usage: {prog} priors list [dir]\n"
         "Commands: list\n"
     )
+
+
+def loose_match_mode(pattern):
+    """``regex`` when ``pattern`` compiles; otherwise ``contains``."""
+    try:
+        re.compile(pattern)
+    except re.error:
+        return 'contains'
+    return 'regex'
+
+
+def parse_par_values(tokens):
+    """
+    Parse ``<outdir> par_values [--cat C] [--obj O] --par P``.
+
+    ``par_values`` is the only command. No leftover positionals.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'par_values':
+        if 'par_values' in rest:
+            raise ValueError('par_values cannot be combined with other commands')
+        raise ValueError('missing command')
+    flags = {'cat': None, 'obj': None, 'par': None}
+    i = 1
+    while i < len(rest):
+        tok = rest[i]
+        key = _PAR_VALUES_FLAGS.get(tok)
+        if key is not None:
+            if i + 1 >= len(rest):
+                raise ValueError(f'{tok} requires a value')
+            flags[key] = rest[i + 1]
+            i += 2
+            continue
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    if flags['par'] is None:
+        raise ValueError('--par is required')
+    return outdir, flags['cat'], flags['obj'], flags['par']
 
 
 def parse_outdir_verbs_name(tokens, verbs):
@@ -149,7 +194,35 @@ def _announce_plot_objects(results):
     return first
 
 
-def _print_params(results):
+def _run_par_values(rest, prog):
+    try:
+        outdir, cat, obj, par = parse_par_values(rest)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(results_usage(prog))
+        return 1
+    try:
+        if cat is not None:
+            catalogs = list_catalog_names(outdir)
+            if catalogs and cat not in catalogs:
+                raise ValueError(
+                    f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
+                )
+            results = BayeSEDResults(outdir, catalog_name=cat)
+        else:
+            results = BayeSEDResults(outdir)
+        kwargs = {'param_match_mode': loose_match_mode(par)}
+        if obj is not None:
+            kwargs['object_ids'] = obj
+            kwargs['object_match_mode'] = loose_match_mode(obj)
+        print(results.get_parameter_values(par, **kwargs))
+    except (ValueError, FileNotFoundError) as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+    return 0
+
+
+def _print_par_names(results):
     print('Free parameters:')
     for item in results.get_free_parameters():
         print(f"  {item}")
@@ -158,7 +231,20 @@ def _print_params(results):
         print(f"  {item}")
 
 
+def _results_has_par_values(rest):
+    for tok in rest[1:]:
+        if tok.startswith('-'):
+            return False
+        if tok == 'par_values':
+            return True
+        if tok not in _RESULTS_VERB_SET:
+            return False
+    return False
+
+
 def _run_results_plot(kind, rest, prog):
+    if kind == 'results' and _results_has_par_values(rest):
+        return _run_par_values(rest, prog)
     verbs = _RESULTS_VERB_SET if kind == 'results' else _PLOT_VERB_SET
     usage = results_usage if kind == 'results' else plot_usage
     try:
@@ -175,8 +261,8 @@ def _run_results_plot(kind, rest, prog):
                     results.print_summary()
                 elif cmd == 'evidence':
                     _print_evidence(results)
-                elif cmd == 'params':
-                    _print_params(results)
+                elif cmd == 'par_names':
+                    _print_par_names(results)
                 elif cmd == 'objects':
                     for item in results.list_objects():
                         print(item)

@@ -106,7 +106,7 @@ def test_results_name_is_object_when_not_catalog():
     ctor.assert_called_once_with('out', object_id='obj-1')
 
 
-def test_results_evidence_and_params_call_existing_methods():
+def test_results_evidence_and_par_names_call_existing_methods():
     fake = MagicMock()
     fake.get_evidence.return_value = {
         'log_evidence': 1.0,
@@ -116,7 +116,7 @@ def test_results_evidence_and_params_call_existing_methods():
     fake.get_derived_parameters.return_value = ['log(Mstar)']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
-        code = run_inspect(['results', 'out', 'evidence', 'params'])
+        code = run_inspect(['results', 'out', 'evidence', 'par_names'])
     assert code == 0
     fake.get_evidence.assert_called_once()
     fake.get_free_parameters.assert_called_once()
@@ -249,6 +249,155 @@ def test_priors_list_dir_load_error_exits_one():
     assert 'bad iprior' in written
 
 
+def test_par_values_requires_par_flag():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'par_values'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert '--par' in written
+
+
+def test_par_values_prints_parameter_table():
+    fake = MagicMock()
+    fake.get_parameter_values.return_value = 'ID age_median\nobj-1 9.5'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'par_values', '--par', 'age'])
+    assert code == 0
+    ctor.assert_called_once_with('out')
+    fake.get_parameter_values.assert_called_once_with(
+        'age', param_match_mode='regex'
+    )
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'ID age_median' in written
+    assert 'obj-1 9.5' in written
+
+
+def test_par_values_cat_loads_catalog_not_object():
+    fake = MagicMock()
+    fake.get_parameter_values.return_value = 'table'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--cat', 'gal', '--par', 'age',
+        ])
+    assert code == 0
+    ctor.assert_called_once_with('out', catalog_name='gal')
+    assert 'object_id' not in ctor.call_args.kwargs
+
+
+def test_par_values_obj_filters_via_get_parameter_values():
+    fake = MagicMock()
+    fake.get_parameter_values.return_value = 'table'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'age',
+            '--obj', 'STARFORMING',
+        ])
+    assert code == 0
+    ctor.assert_called_once_with('out')
+    assert 'object_id' not in ctor.call_args.kwargs
+    fake.get_parameter_values.assert_called_once_with(
+        'age',
+        param_match_mode='regex',
+        object_ids='STARFORMING',
+        object_match_mode='regex',
+    )
+
+
+def test_par_values_invalid_regex_uses_contains():
+    fake = MagicMock()
+    fake.get_parameter_values.return_value = 'table'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'log(age',
+            '--obj', 'spec-(',
+        ])
+    assert code == 0
+    fake.get_parameter_values.assert_called_once_with(
+        'log(age',
+        param_match_mode='contains',
+        object_ids='spec-(',
+        object_match_mode='contains',
+    )
+
+
+def test_par_values_rejects_leftover_positionals():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'par_values', 'gal', '--par', 'age',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'unexpected' in written.lower() or 'argument' in written.lower()
+
+
+def test_par_values_rejects_mix_with_other_commands():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'summary', 'par_values', '--par', 'age',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'combined' in written or 'par_values' in written
+
+
+def test_par_values_empty_match_exits_one():
+    fake = MagicMock()
+    fake.get_parameter_values.side_effect = ValueError(
+        "No columns found matching 'nope' with mode 'regex'"
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'par_values', '--par', 'nope'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'No columns found matching' in written
+
+
+def test_par_values_missing_outdir_is_not_unknown_catalog():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=[]), \
+         patch(
+             'bayesed.inspect_cli.BayeSEDResults',
+             side_effect=FileNotFoundError("No such directory: missing"),
+         ), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'missing', 'par_values', '--cat', 'gal', '--par', 'age',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'No such directory' in written
+    assert 'Unknown catalog' not in written
+
+
+def test_par_values_unknown_catalog_exits_one():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--cat', 'qso', '--par', 'age',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'qso' in written
+    assert 'gal' in written
+
+
+def test_params_verb_is_removed():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'params'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'par_names' in written or 'missing command' in written
+    assert 'params' not in RESULTS_VERBS
+
+
 def test_priors_without_list_prints_usage():
     with patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect(['priors'])
@@ -267,7 +416,7 @@ if __name__ == '__main__':
     test_results_summary_uses_bayesed_results()
     test_results_name_is_catalog_when_listed()
     test_results_name_is_object_when_not_catalog()
-    test_results_evidence_and_params_call_existing_methods()
+    test_results_evidence_and_par_names_call_existing_methods()
     test_plot_verbs_call_existing_plot_methods()
     test_format_object_listing_omits_middle_when_more_than_ten()
     test_format_object_listing_silent_for_one()
@@ -279,5 +428,16 @@ if __name__ == '__main__':
     test_results_help_does_not_forward_to_binary()
     test_priors_init_is_rejected()
     test_priors_list_dir_load_error_exits_one()
+    test_par_values_requires_par_flag()
+    test_par_values_prints_parameter_table()
+    test_par_values_cat_loads_catalog_not_object()
+    test_par_values_obj_filters_via_get_parameter_values()
+    test_par_values_invalid_regex_uses_contains()
+    test_par_values_rejects_leftover_positionals()
+    test_par_values_rejects_mix_with_other_commands()
+    test_par_values_empty_match_exits_one()
+    test_par_values_missing_outdir_is_not_unknown_catalog()
+    test_par_values_unknown_catalog_exits_one()
+    test_params_verb_is_removed()
     test_priors_without_list_prints_usage()
     print('test_inspect_cli: OK')

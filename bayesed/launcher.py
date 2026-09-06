@@ -26,6 +26,7 @@ def usage_text(prog='bayesed3'):
     return (
         f"Usage: {prog} [--mpi MODE] [--np NPROC] [BayeSED arguments...]\n"
         f"       {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
         f"       {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"       {prog} priors list [dir]\n"
         "\n"
