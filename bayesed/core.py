@@ -11,6 +11,7 @@ import subprocess
 import sys
 import shlex
 from dataclasses import dataclass, field
+from difflib import get_close_matches
 from typing import List, Optional, Union
 import numpy as np
 from astropy.table import Table
@@ -280,6 +281,21 @@ class BayeSEDParams:
     priors_only: bool = False
 
     export: Optional[str] = None
+
+    def __setattr__(self, name, value):
+        fields = type(self).__dataclass_fields__
+        if name not in fields:
+            lower_map = {key.lower(): key for key in fields}
+            if name.lower() in lower_map:
+                suggestions = [lower_map[name.lower()]]
+            else:
+                close = get_close_matches(name.lower(), lower_map.keys(), n=3, cutoff=0.6)
+                suggestions = [lower_map[key] for key in close]
+            hint = f" Did you mean {suggestions[0]!r}?" if suggestions else ""
+            raise AttributeError(
+                f"BayeSEDParams has no field {name!r}.{hint}"
+            )
+        object.__setattr__(self, name, value)
 
     def validate(self, check_files=True):
         """
@@ -1014,7 +1030,7 @@ class BayeSEDParams:
 
         # Apply model settings if they were set
         if model._igm is not None:
-            self.igm = model._igm
+            self.IGM = model._igm
         if model._cosmology is not None:
             self.cosmology = model._cosmology
         if model._redshift_prior is not None:
@@ -1030,7 +1046,7 @@ class BayeSEDParams:
                 self.luminosity = []
             self.luminosity.append(model._luminosity)
         if model._sfr_over is not None:
-            self.sfr_over = model._sfr_over
+            self.SFR_over = model._sfr_over
         if model._lw_max is not None:
             self.lw_max = model._lw_max
         if model._line_list is not None:
