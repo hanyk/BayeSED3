@@ -398,6 +398,108 @@ def test_params_verb_is_removed():
     assert 'params' not in RESULTS_VERBS
 
 
+def test_results_catalogs_lists_names_without_loading_results():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']) as listed, \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'catalogs'])
+    assert code == 0
+    listed.assert_called_once_with('out')
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.splitlines() == ['gal', 'qso']
+
+
+def test_results_catalogs_rejects_trailing_name():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'catalogs', 'gal'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'unexpected' in written.lower()
+
+
+def test_results_catalogs_rejects_mix_with_summary():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']), \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'catalogs', 'summary'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'combined' in written
+
+
+def test_results_model_configs_prints_configs_for_catalog():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']), \
+         patch(
+             'bayesed.inspect_cli.list_model_configs',
+             return_value=['0Stellar+Nebular_2dal8_10_sys_err0'],
+         ) as listed, \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'model_configs', 'gal'])
+    assert code == 0
+    ctor.assert_not_called()
+    listed.assert_called_once_with('out', 'gal')
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.splitlines() == ['0Stellar+Nebular_2dal8_10_sys_err0']
+
+
+def test_results_model_configs_needs_catalog_when_several():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']), \
+         patch('bayesed.inspect_cli.list_model_configs') as listed, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'model_configs'])
+    assert code == 1
+    listed.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'gal' in written
+    assert 'qso' in written
+    assert 'catalog_name' not in written
+    assert 'model_configs gal' in written
+
+
+def test_results_model_configs_uses_sole_catalog():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch(
+             'bayesed.inspect_cli.list_model_configs',
+             return_value=['cfg0'],
+         ) as listed, \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'model_configs'])
+    assert code == 0
+    ctor.assert_not_called()
+    listed.assert_called_once_with('out', 'gal')
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.splitlines() == ['cfg0']
+
+
+def test_results_model_configs_errors_when_no_catalogs():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=[]), \
+         patch('bayesed.inspect_cli.list_model_configs') as listed, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'model_configs'])
+    assert code == 1
+    listed.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'No catalogs' in written
+
+
+def test_results_model_configs_unknown_catalog_exits_one():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.list_model_configs') as listed, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'model_configs', 'qso'])
+    assert code == 1
+    listed.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'qso' in written
+    assert 'Unknown catalog' in written
+
+
 def test_priors_without_list_prints_usage():
     with patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect(['priors'])
@@ -439,5 +541,13 @@ if __name__ == '__main__':
     test_par_values_missing_outdir_is_not_unknown_catalog()
     test_par_values_unknown_catalog_exits_one()
     test_params_verb_is_removed()
+    test_results_catalogs_lists_names_without_loading_results()
+    test_results_catalogs_rejects_trailing_name()
+    test_results_catalogs_rejects_mix_with_summary()
+    test_results_model_configs_prints_configs_for_catalog()
+    test_results_model_configs_needs_catalog_when_several()
+    test_results_model_configs_uses_sole_catalog()
+    test_results_model_configs_errors_when_no_catalogs()
+    test_results_model_configs_unknown_catalog_exits_one()
     test_priors_without_list_prints_usage()
     print('test_inspect_cli: OK')

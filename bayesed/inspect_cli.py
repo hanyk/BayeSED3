@@ -14,10 +14,14 @@ from .inference import SEDInference
 from .prior_editor import PriorEditor
 from .prior_manager import PriorManager
 from .results import BayeSEDResults
-from .results.utils import list_catalog_names
+from .results.utils import list_catalog_names, list_model_configs
 
 INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
-RESULTS_VERBS = ('summary', 'evidence', 'par_names', 'objects', 'par_values')
+RESULTS_VERBS = (
+    'summary', 'evidence', 'par_names', 'objects', 'par_values',
+    'catalogs', 'model_configs',
+)
+_DISCOVERY_VERBS = frozenset({'catalogs', 'model_configs'})
 PLOT_VERBS = ('bestfit', 'posterior')
 _RESULTS_VERB_SET = frozenset(RESULTS_VERBS)
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
@@ -28,6 +32,8 @@ _PAR_VALUES_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--par': 'par'}
 def inspect_usage(prog='bayesed3'):
     return (
         f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> catalogs\n"
+        f"       {prog} results <outdir> model_configs [catalog]\n"
         f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
         f"       {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
         f"       {prog} priors list [dir]\n"
@@ -41,6 +47,8 @@ def inspect_usage(prog='bayesed3'):
 def results_usage(prog='bayesed3'):
     return (
         f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> catalogs\n"
+        f"       {prog} results <outdir> model_configs [catalog]\n"
         f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
         f"Commands: {', '.join(RESULTS_VERBS)}\n"
     )
@@ -134,6 +142,25 @@ def parse_outdir_verbs_name(tokens, verbs):
     return outdir, cmds, names
 
 
+def _catalog_for_discovery(outdir, names):
+    catalogs = list_catalog_names(outdir)
+    if names:
+        catalog = names[0]
+        if catalog not in catalogs:
+            raise ValueError(
+                f"Unknown catalog '{catalog}'. Available catalogs: {catalogs}"
+            )
+        return catalog
+    if len(catalogs) == 1:
+        return catalogs[0]
+    if not catalogs:
+        raise ValueError(f'No catalogs in {outdir}')
+    raise ValueError(
+        'Multiple catalogs found. Specify a catalog after the command, '
+        f"e.g. model_configs {catalogs[0]}. Available catalogs: {catalogs}"
+    )
+
+
 def _load_results(outdir, names):
     catalogs = list_catalog_names(outdir)
     if not names:
@@ -222,6 +249,31 @@ def _run_par_values(rest, prog):
     return 0
 
 
+def _run_discovery(outdir, cmds, names, prog):
+    try:
+        if len(cmds) != 1:
+            raise ValueError(
+                'catalogs and model_configs cannot be combined with other commands'
+            )
+        cmd = cmds[0]
+        if cmd == 'catalogs':
+            if names:
+                raise ValueError(f"unexpected argument '{names[0]}'")
+            for item in list_catalog_names(outdir):
+                print(item)
+            return 0
+        if len(names) > 1:
+            raise ValueError(f"unexpected argument '{names[1]}'")
+        catalog = _catalog_for_discovery(outdir, names)
+        for item in list_model_configs(outdir, catalog):
+            print(item)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(results_usage(prog))
+        return 1
+    return 0
+
+
 def _print_par_names(results):
     print('Free parameters:')
     for item in results.get_free_parameters():
@@ -253,6 +305,8 @@ def _run_results_plot(kind, rest, prog):
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(usage(prog))
         return 1
+    if kind == 'results' and any(cmd in _DISCOVERY_VERBS for cmd in cmds):
+        return _run_discovery(outdir, cmds, names, prog)
     try:
         results = _load_results(outdir, names)
         if kind == 'results':
