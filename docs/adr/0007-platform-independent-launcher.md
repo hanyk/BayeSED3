@@ -1,6 +1,6 @@
 # Platform-independent Launcher beside BayeSEDInterface
 
-Superseded in part by ADR-0009: first-token `results` / `plot` / `priors` present existing products; the binary-forwarder rules below still apply to every other argv.
+Superseded in part by ADR-0009: first-token `results` / `plot` / `priors` present existing products; first-token `run` is the binary path (`--mpi` / `--np` after `run`); empty argv and top-level `--help` are Launcher overview (not binary USAGE). The `runtime` / Interface coexistence rules below still apply on the `run` path.
 
 `bayesed3` (and `python -m bayesed`) is the **Launcher**: a thin, platform-independent shell that is fully capable relative to the compiled binary — not a second Python analysis API and not Observation / SED model / fitting. It owns only `--mpi` and `--np` (plus a short usage message when invoked with no args); all other argv, including `-h`/`--help`, is forwarded to the binary. Empty argv → short usage that points at `bayesed3 --help`; help flags → binary USAGE. I/O is streamed; the process exit code is the binary/mpirun return code — no Interface Step/progress/`BayeSEDExecution` summary.
 
