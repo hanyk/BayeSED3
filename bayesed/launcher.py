@@ -1,16 +1,16 @@
 """
 Platform-independent Launcher for the compiled BayeSED binary (ADR-0007, ADR-0009).
 
-Invoked as ``bayesed3`` / ``python -m bayesed``. First-token ``results`` /
-``plot`` / ``priors`` present existing products. Otherwise owns only
-``--mpi`` and ``--np``; remaining argv is forwarded to the binary via
-``runtime``.
+Invoked as ``bayesed3`` / ``python -m bayesed``. First token selects the path:
+``results`` / ``plot`` / ``priors`` present existing products; ``run`` forwards
+remaining argv to the binary via ``runtime`` (``--mpi`` / ``--np`` only after
+``run``). Empty argv and top-level ``--help`` / ``-h`` print Launcher overview.
 """
 
 import subprocess
 import sys
 
-from .inspect_cli import INSPECT_TOKENS, inspect_usage_lines, run_inspect
+from .inspect_cli import INSPECT_TOKENS, run_inspect
 from .runtime import (
     absolutize_cli_path_args,
     build_mpi_command,
@@ -23,18 +23,23 @@ from .runtime import (
 
 
 def usage_text(prog='bayesed3'):
-    inspect_block = ''.join(f"       {line}\n" for line in inspect_usage_lines(prog))
     return (
-        f"Usage: {prog} [--mpi MODE] [--np NPROC] [BayeSED arguments...]\n"
-        + inspect_block
-        + "\n"
-        "Options:\n"
-        "  --mpi MODE    MPI mode: '1' (within objects) or 'n' (across objects)\n"
-        "  --np NPROC    Number of MPI processes (default: auto-detect)\n"
+        f"{prog} — Launcher: fit with the compiled program, or inspect existing "
+        f"Results / Priors.\n"
         "\n"
-        "Inspect existing Results or Priors: results, plot, priors.\n"
-        "All other arguments are passed directly to the BayeSED binary.\n"
-        f"For binary help: {prog} --help\n"
+        "Inspect:\n"
+        f"  {prog} results <outdir> …   query HDF5 Results\n"
+        f"  {prog} plot <outdir> …      bestfit / posterior plots\n"
+        f"  {prog} priors list [dir]    list prior files\n"
+        "\n"
+        "Run:\n"
+        f"  {prog} run [--mpi 1|n] [--np N] [BayeSED arguments…]\n"
+        f"  {prog} run                  compiled-program options (same as {prog} run --help)\n"
+        "\n"
+        "More:\n"
+        f"  {prog} results              results usage\n"
+        f"  {prog} plot                 plot usage\n"
+        f"  {prog} priors               priors usage\n"
     )
 
 
@@ -84,30 +89,7 @@ def parse_launcher_argv(argv):
     return f'mn_{mpi_digit}', num_processes, binary_args
 
 
-def run_launcher(argv=None, prog='bayesed3'):
-    """
-    Run the Launcher. Returns a process exit code (0 = success).
-    """
-    if argv is None:
-        argv = sys.argv[1:]
-
-    if not argv:
-        sys.stderr.write(usage_text(prog))
-        return 1
-
-    if argv[0] in INSPECT_TOKENS:
-        return run_inspect(argv, prog=prog)
-
-    try:
-        mpi_mode, np_override, binary_args = parse_launcher_argv(argv)
-    except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        return 1
-
-    if not binary_args:
-        sys.stderr.write(usage_text(prog))
-        return 1
-
+def _forward_binary(binary_args, mpi_mode, np_override):
     os_name, arch = resolve_system_info()
     mpi_cmd = resolve_mpirun()
     num_processes = resolve_num_processes(np_override)
@@ -128,6 +110,46 @@ def run_launcher(argv=None, prog='bayesed3'):
 
     process = subprocess.Popen(cmd, **popen_kwargs)
     return process.wait()
+
+
+def _rewrite_as_run(prog, argv):
+    quoted = ' '.join(argv)
+    return (
+        f"Error: unknown command '{argv[0]}'. To fit with the compiled program, use:\n"
+        f"  {prog} run {quoted}\n"
+        f"Launcher overview: {prog} --help\n"
+    )
+
+
+def run_launcher(argv=None, prog='bayesed3'):
+    """
+    Run the Launcher. Returns a process exit code (0 = success).
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if not argv or argv[0] in ('--help', '-h'):
+        sys.stderr.write(usage_text(prog))
+        return 0
+
+    if argv[0] in INSPECT_TOKENS:
+        return run_inspect(argv, prog=prog)
+
+    if argv[0] == 'run':
+        rest = argv[1:]
+        if not rest or rest == ['--help'] or rest == ['-h']:
+            rest = ['--help']
+        try:
+            mpi_mode, np_override, binary_args = parse_launcher_argv(rest)
+        except ValueError as e:
+            sys.stderr.write(f"Error: {e}\n")
+            return 1
+        if not binary_args:
+            binary_args = ['--help']
+        return _forward_binary(binary_args, mpi_mode, np_override)
+
+    sys.stderr.write(_rewrite_as_run(prog, argv))
+    return 1
 
 
 def main(argv=None):

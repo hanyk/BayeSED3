@@ -3,6 +3,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
+
 from bayesed.inspect_cli import (
     PLOT_VERBS,
     RESULTS_VERBS,
@@ -32,20 +34,173 @@ def test_plot_without_verbs_lists_commands():
         assert verb in written
 
 
-def test_help_still_forwards_to_binary():
-    fake_proc = MagicMock()
-    fake_proc.wait.return_value = 0
-    with patch('bayesed.launcher.resolve_system_info', return_value=('darwin', 'arm64')), \
-         patch('bayesed.launcher.resolve_mpirun', return_value='/mpi/mpirun'), \
-         patch('bayesed.launcher.resolve_num_processes', return_value=4), \
-         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
-         patch('bayesed.launcher.resolve_binary_cwd', return_value='/data/root'), \
-         patch('bayesed.launcher.absolutize_cli_path_args', side_effect=lambda a, base_dir=None: a), \
-         patch('bayesed.launcher.build_mpi_command', return_value=['cmd']), \
-         patch('bayesed.launcher.subprocess.Popen', return_value=fake_proc) as mock_popen:
+def test_top_level_help_is_overview_not_binary():
+    with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
+         patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err:
         code = run_launcher(['--help'])
     assert code == 0
-    mock_popen.assert_called_once()
+    mock_popen.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'bayesed3 run' in written
+
+
+def test_results_outdir_only_lists_catalogs():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']) as list_cat, \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out'])
+    assert code == 0
+    list_cat.assert_called_once_with('out')
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'gal' in written
+    assert 'qso' in written
+
+
+def test_results_outdir_json_lists_catalogs():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', '--json'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.strip() == '["gal"]' or '"gal"' in written
+
+
+def test_results_objects_json():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'objects', '--json'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'obj-1' in written
+    assert written.strip().startswith('[')
+
+
+def test_results_evidence_json():
+    fake = MagicMock()
+    fake.get_evidence.return_value = {
+        'log_evidence': 1.5, 'log_evidence_error': 0.1,
+    }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'evidence', '--json'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'log_evidence' in written
+    assert '1.5' in written
+
+
+def test_results_summary_json():
+    fake = MagicMock()
+    fake.output_dir = 'out'
+    fake.catalog_name = 'gal'
+    fake.object_id = None
+    fake._hdf5_file = 'out/gal.h5'
+    fake.get_parameter_names.return_value = ['a', 'b']
+    fake.get_free_parameters.return_value = ['a']
+    fake.get_derived_parameters.return_value = ['b']
+    fake.list_objects.return_value = ['obj-1']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'summary', '--json'])
+    assert code == 0
+    fake.print_summary.assert_not_called()
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'catalog' in written
+    assert 'gal' in written
+
+
+def test_results_par_values_json():
+    fake = MagicMock()
+    table = pd.DataFrame({'z': [1.0]})
+    fake.get_parameter_values.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'z', '--json',
+        ])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'z' in written
+
+
+def test_results_catalogs_json():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'catalogs', '--json'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert '"gal"' in written
+
+
+def test_results_model_configs_json():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch(
+             'bayesed.inspect_cli.list_model_configs', return_value=['cfg0'],
+         ), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'model_configs', '--cat', 'gal', '--json',
+        ])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert '"cfg0"' in written
+
+
+def test_missing_cfg_appends_model_configs_hint():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch(
+             'bayesed.inspect_cli.BayeSEDResults',
+             side_effect=ValueError(
+                 "Multiple model configurations found for catalog 'gal'. "
+                 "Please specify model_config parameter. "
+                 "Available configs: ['cfg0', 'cfg1']"
+             ),
+         ), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'summary', '--cat', 'gal'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Multiple model configurations' in written
+    assert 'bayesed3 results out model_configs --cat gal' in written
+    assert '[--json]' not in written
+
+
+def test_plot_missing_cfg_appends_hint():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch(
+             'bayesed.inspect_cli.BayeSEDResults',
+             side_effect=ValueError(
+                 "Multiple model configurations found for catalog 'gal'. "
+                 "Please specify model_config parameter. "
+                 "Available configs: ['cfg0', 'cfg1']"
+             ),
+         ), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'bestfit', '--cat', 'gal'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'bayesed3 results out model_configs --cat gal' in written
+
+
+def test_unknown_catalog_appends_catalogs_hint():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'summary', '--cat', 'qso',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Unknown catalog' in written or 'qso' in written
+    assert 'bayesed3 results out catalogs' in written
 
 
 def test_results_summary_uses_bayesed_results():
@@ -847,7 +1002,18 @@ def test_plot_posterior_unknown_catalog_exits_one():
 if __name__ == '__main__':
     test_results_without_verbs_lists_commands_and_skips_binary()
     test_plot_without_verbs_lists_commands()
-    test_help_still_forwards_to_binary()
+    test_top_level_help_is_overview_not_binary()
+    test_results_outdir_only_lists_catalogs()
+    test_results_outdir_json_lists_catalogs()
+    test_results_objects_json()
+    test_results_evidence_json()
+    test_results_summary_json()
+    test_results_par_values_json()
+    test_results_catalogs_json()
+    test_results_model_configs_json()
+    test_missing_cfg_appends_model_configs_hint()
+    test_plot_missing_cfg_appends_hint()
+    test_unknown_catalog_appends_catalogs_hint()
     test_results_summary_uses_bayesed_results()
     test_results_cat_flag_loads_catalog()
     test_results_obj_flag_loads_object()

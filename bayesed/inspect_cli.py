@@ -6,6 +6,7 @@ Not a public package export; ``run_launcher`` dispatches here.
 """
 
 import glob
+import json
 import os
 import re
 import sys
@@ -34,17 +35,19 @@ _PLOT_BESTFIT_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
 _PLOT_POSTERIOR_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
 }
+_JSON_BOOL = {'--json': 'json'}
 _DERIVED_DEFAULT_MAX = 10
 
 
 def results_usage_lines(prog='bayesed3'):
     return (
         f"{prog} results <outdir> <cmd> [<cmd>...] "
-        f"[--cat catalog] [--cfg config] [--obj object]",
-        f"{prog} results <outdir> catalogs",
-        f"{prog} results <outdir> model_configs [--cat catalog]",
+        f"[--cat catalog] [--cfg config] [--obj object] [--json]",
+        f"{prog} results <outdir> [--json]",
+        f"{prog} results <outdir> catalogs [--json]",
+        f"{prog} results <outdir> model_configs [--cat catalog] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
-        f"[--cat catalog] [--cfg config] [--obj object]",
+        f"[--cat catalog] [--cfg config] [--obj object] [--json]",
     )
 
 
@@ -120,17 +123,24 @@ def _flag_value(tokens, i, flag_map):
     return key, tokens[i + 1], i + 2
 
 
-def _parse_flag_pairs(tokens, start, flag_map):
-    """Parse ``tokens[start:]`` as ``--flag value`` pairs. Last write wins."""
+def _parse_flag_pairs(tokens, start, flag_map, bool_flags=None):
+    """Parse ``tokens[start:]`` as flags. Last write wins for valued flags."""
     values = {name: None for name in flag_map.values()}
+    if bool_flags:
+        for name in bool_flags.values():
+            values[name] = False
     i = start
     while i < len(tokens):
+        tok = tokens[i]
+        if bool_flags and tok in bool_flags:
+            values[bool_flags[tok]] = True
+            i += 1
+            continue
         got = _flag_value(tokens, i, flag_map)
         if got is not None:
             key, value, i = got
             values[key] = value
             continue
-        tok = tokens[i]
         if tok.startswith('-'):
             raise ValueError(f'unknown option {tok}')
         raise ValueError(f"unexpected argument '{tok}'")
@@ -148,7 +158,7 @@ def loose_match_mode(pattern):
 
 def parse_par_values(tokens):
     """
-    Parse ``<outdir> par_values [--cat C] [--cfg CFG] [--obj O] --par P``.
+    Parse ``<outdir> par_values [--cat C] [--cfg CFG] [--obj O] --par P [--json]``.
 
     ``par_values`` is the only command. No leftover positionals.
     """
@@ -160,15 +170,20 @@ def parse_par_values(tokens):
         if 'par_values' in rest:
             raise ValueError('par_values cannot be combined with other commands')
         raise ValueError('missing command')
-    flags = _parse_flag_pairs(rest, 1, _PAR_VALUES_FLAGS)
+    flags = _parse_flag_pairs(
+        rest, 1, _PAR_VALUES_FLAGS, bool_flags=_JSON_BOOL,
+    )
     if flags['par'] is None:
         raise ValueError('--par is required')
-    return outdir, flags['cat'], flags['obj'], flags['par'], flags['cfg']
+    return (
+        outdir, flags['cat'], flags['obj'], flags['par'], flags['cfg'],
+        flags['json'],
+    )
 
 
 def parse_results_query(tokens):
     """
-    Parse ``<outdir> <query>... [--cat C] [--cfg CFG] [--obj O]``.
+    Parse ``<outdir> <query>... [--cat C] [--cfg CFG] [--obj O] [--json]``.
 
     Query verbs are ``summary`` / ``evidence`` / ``par_names`` / ``objects``.
     Flags only after all verbs. No leftover positionals.
@@ -185,13 +200,15 @@ def parse_results_query(tokens):
         i += 1
     if not cmds:
         raise ValueError('missing command')
-    flags = _parse_flag_pairs(rest, i, _RESULTS_QUERY_FLAGS)
-    return outdir, cmds, flags['cat'], flags['obj'], flags['cfg']
+    flags = _parse_flag_pairs(
+        rest, i, _RESULTS_QUERY_FLAGS, bool_flags=_JSON_BOOL,
+    )
+    return outdir, cmds, flags['cat'], flags['obj'], flags['cfg'], flags['json']
 
 
 def parse_model_configs(tokens):
     """
-    Parse ``<outdir> model_configs [--cat C]``.
+    Parse ``<outdir> model_configs [--cat C] [--json]``.
 
     ``model_configs`` is the only command. No leftover positionals.
     """
@@ -205,12 +222,14 @@ def parse_model_configs(tokens):
                 'model_configs cannot be combined with other commands'
             )
         raise ValueError('missing command')
-    flags = _parse_flag_pairs(rest, 1, _MODEL_CONFIGS_FLAGS)
-    return outdir, flags['cat']
+    flags = _parse_flag_pairs(
+        rest, 1, _MODEL_CONFIGS_FLAGS, bool_flags=_JSON_BOOL,
+    )
+    return outdir, flags['cat'], flags['json']
 
 
 def parse_catalogs(tokens):
-    """Parse ``<outdir> catalogs``. No flags or leftover positionals."""
+    """Parse ``<outdir> catalogs [--json]``. No leftover positionals."""
     if not tokens:
         raise ValueError('missing outdir')
     outdir = tokens[0]
@@ -219,9 +238,17 @@ def parse_catalogs(tokens):
         if 'catalogs' in rest:
             raise ValueError('catalogs cannot be combined with other commands')
         raise ValueError('missing command')
-    if len(rest) > 1:
-        raise ValueError(f"unexpected argument '{rest[1]}'")
-    return outdir
+    flags = _parse_flag_pairs(rest, 1, {}, bool_flags=_JSON_BOOL)
+    return outdir, flags['json']
+
+
+def parse_results_discovery(tokens):
+    """Parse ``<outdir> [--json]`` with no results verb."""
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    flags = _parse_flag_pairs(tokens, 1, {}, bool_flags=_JSON_BOOL)
+    return outdir, flags['json']
 
 
 def parse_plot_bestfit(tokens):
@@ -355,8 +382,50 @@ def _load_results_flags(outdir, cat, obj, cfg=None):
     return BayeSEDResults(outdir, **kwargs)
 
 
-def _print_evidence(results):
+def _print_json(data):
+    print(json.dumps(data, default=str))
+
+
+def _emit_load_error(exc, prog, outdir, cat=None):
+    sys.stderr.write(f"Error: {exc}\n")
+    msg = str(exc).lower()
+    if 'model configuration' in msg:
+        hint = f"List configs: {prog} results {outdir} model_configs"
+        if cat is not None:
+            hint += f" --cat {cat}"
+        sys.stderr.write(hint + "\n")
+    elif 'catalog' in msg:
+        sys.stderr.write(
+            f"List catalogs: {prog} results {outdir} catalogs\n"
+        )
+
+
+def _summary_payload(results):
+    payload = {
+        'output_dir': results.output_dir,
+        'catalog': results.catalog_name,
+        'hdf5': str(getattr(results, '_hdf5_file', '')),
+    }
+    if results.object_id:
+        payload['object_id'] = results.object_id
+    try:
+        payload['n_hdf5_columns'] = len(results.get_parameter_names())
+        payload['free'] = list(results.get_free_parameters())
+        payload['derived'] = list(results.get_derived_parameters())
+    except Exception as e:
+        payload['parameter_summary_error'] = str(e)
+    try:
+        payload['objects'] = list(results.list_objects())
+    except Exception as e:
+        payload['object_summary_error'] = str(e)
+    return payload
+
+
+def _print_evidence(results, as_json=False):
     evidence = results.get_evidence()
+    if as_json:
+        _print_json(evidence)
+        return
     if isinstance(evidence, dict) and 'log_evidence' in evidence:
         err = evidence.get('log_evidence_error')
         print(f"log_evidence: {evidence['log_evidence']} ± {err}")
@@ -401,7 +470,7 @@ def _announce_plot_objects(results):
 
 def _run_par_values(rest, prog):
     try:
-        outdir, cat, obj, par, cfg = parse_par_values(rest)
+        outdir, cat, obj, par, cfg, as_json = parse_par_values(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
@@ -412,41 +481,69 @@ def _run_par_values(rest, prog):
         if obj is not None:
             kwargs['object_ids'] = obj
             kwargs['object_match_mode'] = loose_match_mode(obj)
-        print(results.get_parameter_values(par, **kwargs))
+        table = results.get_parameter_values(par, **kwargs)
+        if as_json:
+            if hasattr(table, 'to_dict'):
+                _print_json(table.to_dict(orient='records'))
+            else:
+                _print_json(table)
+        else:
+            print(table)
     except (ValueError, FileNotFoundError) as e:
-        sys.stderr.write(f"Error: {e}\n")
+        _emit_load_error(e, prog, outdir, cat)
         return 1
     return 0
 
 
+def _print_name_list(items, as_json):
+    if as_json:
+        _print_json(list(items))
+    else:
+        for item in items:
+            print(item)
+
+
 def _run_catalogs(rest, prog):
     try:
-        outdir = parse_catalogs(rest)
+        outdir, as_json = parse_catalogs(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
         return 1
-    for item in list_catalog_names(outdir):
-        print(item)
+    _print_name_list(list_catalog_names(outdir), as_json)
+    return 0
+
+
+def _run_results_discovery(rest, prog):
+    try:
+        outdir, as_json = parse_results_discovery(rest)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(results_usage(prog))
+        return 1
+    _print_name_list(list_catalog_names(outdir), as_json)
     return 0
 
 
 def _run_model_configs(rest, prog):
     try:
-        outdir, cat = parse_model_configs(rest)
-        catalog = _catalog_for_discovery(outdir, cat)
-        for item in list_model_configs(outdir, catalog):
-            print(item)
+        outdir, cat, as_json = parse_model_configs(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
+        return 1
+    try:
+        catalog = _catalog_for_discovery(outdir, cat)
+        _print_name_list(list_model_configs(outdir, catalog), as_json)
+    except ValueError as e:
+        _emit_load_error(e, prog, outdir, cat)
         return 1
     return 0
 
 
 def _run_results_query(rest, prog):
     try:
-        outdir, cmds, cat, obj, cfg = parse_results_query(rest)
+        outdir, cmds, cat, obj, cfg, as_json = parse_results_query(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
@@ -455,26 +552,33 @@ def _run_results_query(rest, prog):
         results = _load_results_flags(outdir, cat, obj, cfg)
         for cmd in cmds:
             if cmd == 'summary':
-                results.print_summary()
+                if as_json:
+                    _print_json(_summary_payload(results))
+                else:
+                    results.print_summary()
             elif cmd == 'evidence':
-                _print_evidence(results)
+                _print_evidence(results, as_json=as_json)
             elif cmd == 'par_names':
-                _print_par_names(results)
+                _print_par_names(results, as_json=as_json)
             elif cmd == 'objects':
-                for item in results.list_objects():
-                    print(item)
+                _print_name_list(results.list_objects(), as_json)
     except (ValueError, FileNotFoundError) as e:
-        sys.stderr.write(f"Error: {e}\n")
+        _emit_load_error(e, prog, outdir, cat)
         return 1
     return 0
 
 
-def _print_par_names(results):
+def _print_par_names(results, as_json=False):
+    free = list(results.get_free_parameters())
+    derived = list(results.get_derived_parameters())
+    if as_json:
+        _print_json({'free': free, 'derived': derived})
+        return
     print('Free parameters:')
-    for item in results.get_free_parameters():
+    for item in free:
         print(f"  {item}")
     print('Derived parameters:')
-    for item in results.get_derived_parameters():
+    for item in derived:
         print(f"  {item}")
 
 
@@ -537,7 +641,7 @@ def _run_plot_bestfit(rest, prog):
             plot_kw['object_id'] = chosen
         results.plot_bestfit(**plot_kw)
     except (ValueError, FileNotFoundError) as e:
-        sys.stderr.write(f"Error: {e}\n")
+        _emit_load_error(e, prog, outdir, cat)
         return 1
     return 0
 
@@ -569,18 +673,23 @@ def _run_plot_posterior(rest, prog):
                 results.set_parameter_labels(dict(zip(pars, labels)))
             results.plot_posterior(params=pars, **plot_kw)
     except (ValueError, FileNotFoundError) as e:
-        sys.stderr.write(f"Error: {e}\n")
+        _emit_load_error(e, prog, outdir, cat)
         return 1
     return 0
 
 
 def _run_results_plot(kind, rest, prog):
+    if kind == 'results' and (not rest or rest[0].startswith('-')):
+        sys.stderr.write(results_usage(prog))
+        return 1
     if kind == 'results' and _results_has_par_values(rest):
         return _run_par_values(rest, prog)
     if kind == 'results' and _results_has_catalogs(rest):
         return _run_catalogs(rest, prog)
     if kind == 'results' and _results_has_model_configs(rest):
         return _run_model_configs(rest, prog)
+    if kind == 'results' and _first_results_verb(rest) is None:
+        return _run_results_discovery(rest, prog)
     if kind == 'results':
         return _run_results_query(rest, prog)
     if kind == 'plot' and _plot_has_posterior(rest):
