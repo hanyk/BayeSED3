@@ -21,21 +21,34 @@ RESULTS_VERBS = (
     'summary', 'evidence', 'par_names', 'objects', 'par_values',
     'catalogs', 'model_configs',
 )
-_DISCOVERY_VERBS = frozenset({'catalogs', 'model_configs'})
+_QUERY_VERBS = frozenset({'summary', 'evidence', 'par_names', 'objects'})
 PLOT_VERBS = ('bestfit', 'posterior')
-_RESULTS_VERB_SET = frozenset(RESULTS_VERBS)
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
 _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
-_PAR_VALUES_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--par': 'par'}
+_PAR_VALUES_FLAGS = {
+    '--cat': 'cat', '--obj': 'obj', '--par': 'par', '--cfg': 'cfg',
+}
+_RESULTS_QUERY_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
+_MODEL_CONFIGS_FLAGS = {'--cat': 'cat'}
+_PLOT_BESTFIT_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
+_PLOT_POSTERIOR_FLAGS = {
+    '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
+}
+_DERIVED_DEFAULT_MAX = 10
 
 
 def inspect_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] "
+        f"[--cat catalog] [--cfg config] [--obj object]\n"
         f"       {prog} results <outdir> catalogs\n"
-        f"       {prog} results <outdir> model_configs [catalog]\n"
-        f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
-        f"       {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"       {prog} results <outdir> model_configs [--cat catalog]\n"
+        f"       {prog} results <outdir> par_values --par PATTERN "
+        f"[--cat catalog] [--cfg config] [--obj object]\n"
+        f"       {prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]\n"
         f"       {prog} priors list [dir]\n"
         "\n"
         f"results commands: {', '.join(RESULTS_VERBS)}\n"
@@ -46,17 +59,22 @@ def inspect_usage(prog='bayesed3'):
 
 def results_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] "
+        f"[--cat catalog] [--cfg config] [--obj object]\n"
         f"       {prog} results <outdir> catalogs\n"
-        f"       {prog} results <outdir> model_configs [catalog]\n"
-        f"       {prog} results <outdir> par_values --par PATTERN [--cat catalog] [--obj object]\n"
+        f"       {prog} results <outdir> model_configs [--cat catalog]\n"
+        f"       {prog} results <outdir> par_values --par PATTERN "
+        f"[--cat catalog] [--cfg config] [--obj object]\n"
         f"Commands: {', '.join(RESULTS_VERBS)}\n"
     )
 
 
 def plot_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} plot <outdir> <cmd> [<cmd>...] [catalog] [object]\n"
+        f"Usage: {prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]\n"
+        f"       {prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]\n"
         f"Commands: {', '.join(PLOT_VERBS)}\n"
     )
 
@@ -79,7 +97,7 @@ def loose_match_mode(pattern):
 
 def parse_par_values(tokens):
     """
-    Parse ``<outdir> par_values [--cat C] [--obj O] --par P``.
+    Parse ``<outdir> par_values [--cat C] [--cfg CFG] [--obj O] --par P``.
 
     ``par_values`` is the only command. No leftover positionals.
     """
@@ -91,7 +109,7 @@ def parse_par_values(tokens):
         if 'par_values' in rest:
             raise ValueError('par_values cannot be combined with other commands')
         raise ValueError('missing command')
-    flags = {'cat': None, 'obj': None, 'par': None}
+    flags = {'cat': None, 'obj': None, 'par': None, 'cfg': None}
     i = 1
     while i < len(rest):
         tok = rest[i]
@@ -107,74 +125,237 @@ def parse_par_values(tokens):
         raise ValueError(f"unexpected argument '{tok}'")
     if flags['par'] is None:
         raise ValueError('--par is required')
-    return outdir, flags['cat'], flags['obj'], flags['par']
+    return outdir, flags['cat'], flags['obj'], flags['par'], flags['cfg']
 
 
-def parse_outdir_verbs_name(tokens, verbs):
+def parse_results_query(tokens):
     """
-    Parse ``<outdir> <cmd> [<cmd>...] [catalog] [object]``.
+    Parse ``<outdir> <query>... [--cat C] [--cfg CFG] [--obj O]``.
 
-    ``verbs`` is an iterable of allowed command names.
-    Trailing names are after all commands; at most two.
+    Query verbs are ``summary`` / ``evidence`` / ``par_names`` / ``objects``.
+    Flags only after all verbs. No leftover positionals.
     """
-    verb_set = frozenset(verbs)
     if not tokens:
         raise ValueError('missing outdir')
     outdir = tokens[0]
+    rest = tokens[1:]
     cmds = []
-    i = 1
-    while i < len(tokens) and tokens[i] in verb_set:
-        if tokens[i] not in cmds:
-            cmds.append(tokens[i])
+    i = 0
+    while i < len(rest) and rest[i] in _QUERY_VERBS:
+        if rest[i] not in cmds:
+            cmds.append(rest[i])
         i += 1
-    names = []
-    while i < len(tokens):
-        if tokens[i] in verb_set:
-            raise ValueError(
-                f"name must come after commands, not before '{tokens[i]}'"
-            )
-        names.append(tokens[i])
-        i += 1
-    if len(names) > 2:
-        raise ValueError('at most catalog and object after commands')
     if not cmds:
         raise ValueError('missing command')
-    return outdir, cmds, names
+    flags = {'cat': None, 'obj': None, 'cfg': None}
+    while i < len(rest):
+        tok = rest[i]
+        key = _RESULTS_QUERY_FLAGS.get(tok)
+        if key is not None:
+            if i + 1 >= len(rest):
+                raise ValueError(f'{tok} requires a value')
+            flags[key] = rest[i + 1]
+            i += 2
+            continue
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    return outdir, cmds, flags['cat'], flags['obj'], flags['cfg']
 
 
-def _catalog_for_discovery(outdir, names):
-    catalogs = list_catalog_names(outdir)
-    if names:
-        catalog = names[0]
-        if catalog not in catalogs:
+def parse_model_configs(tokens):
+    """
+    Parse ``<outdir> model_configs [--cat C]``.
+
+    ``model_configs`` is the only command. No leftover positionals.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'model_configs':
+        if 'model_configs' in rest:
             raise ValueError(
-                f"Unknown catalog '{catalog}'. Available catalogs: {catalogs}"
+                'model_configs cannot be combined with other commands'
             )
-        return catalog
+        raise ValueError('missing command')
+    cat = None
+    i = 1
+    while i < len(rest):
+        tok = rest[i]
+        key = _MODEL_CONFIGS_FLAGS.get(tok)
+        if key is not None:
+            if i + 1 >= len(rest):
+                raise ValueError(f'{tok} requires a value')
+            cat = rest[i + 1]
+            i += 2
+            continue
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    return outdir, cat
+
+
+def parse_catalogs(tokens):
+    """Parse ``<outdir> catalogs``. No flags or leftover positionals."""
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'catalogs':
+        if 'catalogs' in rest:
+            raise ValueError('catalogs cannot be combined with other commands')
+        raise ValueError('missing command')
+    if len(rest) > 1:
+        raise ValueError(f"unexpected argument '{rest[1]}'")
+    return outdir
+
+
+def parse_plot_bestfit(tokens):
+    """
+    Parse ``<outdir> bestfit [--cat C] [--obj O]``.
+
+    ``bestfit`` is the only command. No leftover positionals.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'bestfit':
+        if 'bestfit' in rest:
+            raise ValueError('bestfit cannot be combined with other commands')
+        raise ValueError('missing command')
+    flags = {'cat': None, 'obj': None, 'cfg': None}
+    i = 1
+    while i < len(rest):
+        tok = rest[i]
+        key = _PLOT_BESTFIT_FLAGS.get(tok)
+        if key is not None:
+            if i + 1 >= len(rest):
+                raise ValueError(f'{tok} requires a value')
+            flags[key] = rest[i + 1]
+            i += 2
+            continue
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    return outdir, flags['cat'], flags['obj'], flags['cfg']
+
+
+def parse_plot_posterior(tokens):
+    """
+    Parse ``<outdir> posterior (free | derived | --par NAME [--lab TEXT] ...)``.
+
+    ``posterior`` is the only command. Catalog, object, and model config
+    via ``--cat`` / ``--obj`` / ``--cfg``. ``--lab`` must immediately
+    follow the matching ``--par``.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'posterior':
+        if 'posterior' in rest:
+            raise ValueError('posterior cannot be combined with other commands')
+        raise ValueError('missing command')
+    kind = None
+    cat = None
+    obj = None
+    cfg = None
+    max_n = None
+    pars = []
+    labs = []
+    i = 1
+    while i < len(rest):
+        tok = rest[i]
+        if tok in ('free', 'derived'):
+            if kind is not None:
+                raise ValueError('free and derived cannot be combined')
+            kind = tok
+            i += 1
+            continue
+        if tok in _PLOT_POSTERIOR_FLAGS:
+            if i + 1 >= len(rest):
+                raise ValueError(f'{tok} requires a value')
+            value = rest[i + 1]
+            key = _PLOT_POSTERIOR_FLAGS[tok]
+            if key == 'max':
+                try:
+                    max_n = int(value)
+                except ValueError:
+                    raise ValueError('--max requires a positive integer') from None
+                if max_n < 1:
+                    raise ValueError('--max requires a positive integer')
+            elif key == 'cat':
+                cat = value
+            elif key == 'obj':
+                obj = value
+            else:
+                cfg = value
+            i += 2
+            continue
+        if tok == '--par':
+            if i + 1 >= len(rest):
+                raise ValueError('--par requires a value')
+            pars.append(rest[i + 1])
+            i += 2
+            if i < len(rest) and rest[i] == '--lab':
+                if i + 1 >= len(rest):
+                    raise ValueError('--lab requires a value')
+                labs.append(rest[i + 1])
+                i += 2
+            else:
+                labs.append(None)
+            continue
+        if tok == '--lab':
+            raise ValueError('--lab must follow --par')
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    has_lab = any(label is not None for label in labs)
+    if has_lab and any(label is None for label in labs):
+        raise ValueError('--par and --lab must alternate')
+    if kind is not None and pars:
+        raise ValueError(f'{kind} cannot be combined with --par')
+    if kind is None and not pars:
+        raise ValueError('specify free, derived, or --par')
+    if max_n is not None and kind != 'derived':
+        raise ValueError('--max is only valid with derived')
+    return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg
+
+
+def _catalog_for_discovery(outdir, cat):
+    catalogs = list_catalog_names(outdir)
+    if cat is not None:
+        if cat not in catalogs:
+            raise ValueError(
+                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
+            )
+        return cat
     if len(catalogs) == 1:
         return catalogs[0]
     if not catalogs:
         raise ValueError(f'No catalogs in {outdir}')
     raise ValueError(
-        'Multiple catalogs found. Specify a catalog after the command, '
-        f"e.g. model_configs {catalogs[0]}. Available catalogs: {catalogs}"
+        'Multiple catalogs found. Specify a catalog with --cat, '
+        f"e.g. model_configs --cat {catalogs[0]}. Available catalogs: {catalogs}"
     )
 
 
-def _load_results(outdir, names):
-    catalogs = list_catalog_names(outdir)
-    if not names:
-        return BayeSEDResults(outdir)
-    if len(names) == 1:
-        if names[0] in catalogs:
-            return BayeSEDResults(outdir, catalog_name=names[0])
-        return BayeSEDResults(outdir, object_id=names[0])
-    catalog, object_id = names
-    if catalog not in catalogs:
-        raise ValueError(
-            f"Unknown catalog '{catalog}'. Available catalogs: {catalogs}"
-        )
-    return BayeSEDResults(outdir, catalog_name=catalog, object_id=object_id)
+def _load_results_flags(outdir, cat, obj, cfg=None):
+    kwargs = {}
+    if cat is not None:
+        catalogs = list_catalog_names(outdir)
+        if catalogs and cat not in catalogs:
+            raise ValueError(
+                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
+            )
+        kwargs['catalog_name'] = cat
+    if cfg is not None:
+        kwargs['model_config'] = cfg
+    if obj is not None:
+        kwargs['object_id'] = obj
+    return BayeSEDResults(outdir, **kwargs)
 
 
 def _print_evidence(results):
@@ -223,21 +404,13 @@ def _announce_plot_objects(results):
 
 def _run_par_values(rest, prog):
     try:
-        outdir, cat, obj, par = parse_par_values(rest)
+        outdir, cat, obj, par, cfg = parse_par_values(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
         return 1
     try:
-        if cat is not None:
-            catalogs = list_catalog_names(outdir)
-            if catalogs and cat not in catalogs:
-                raise ValueError(
-                    f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
-                )
-            results = BayeSEDResults(outdir, catalog_name=cat)
-        else:
-            results = BayeSEDResults(outdir)
+        results = _load_results_flags(outdir, cat, None, cfg)
         kwargs = {'param_match_mode': loose_match_mode(par)}
         if obj is not None:
             kwargs['object_ids'] = obj
@@ -249,27 +422,52 @@ def _run_par_values(rest, prog):
     return 0
 
 
-def _run_discovery(outdir, cmds, names, prog):
+def _run_catalogs(rest, prog):
     try:
-        if len(cmds) != 1:
-            raise ValueError(
-                'catalogs and model_configs cannot be combined with other commands'
-            )
-        cmd = cmds[0]
-        if cmd == 'catalogs':
-            if names:
-                raise ValueError(f"unexpected argument '{names[0]}'")
-            for item in list_catalog_names(outdir):
-                print(item)
-            return 0
-        if len(names) > 1:
-            raise ValueError(f"unexpected argument '{names[1]}'")
-        catalog = _catalog_for_discovery(outdir, names)
+        outdir = parse_catalogs(rest)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(results_usage(prog))
+        return 1
+    for item in list_catalog_names(outdir):
+        print(item)
+    return 0
+
+
+def _run_model_configs(rest, prog):
+    try:
+        outdir, cat = parse_model_configs(rest)
+        catalog = _catalog_for_discovery(outdir, cat)
         for item in list_model_configs(outdir, catalog):
             print(item)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
+        return 1
+    return 0
+
+
+def _run_results_query(rest, prog):
+    try:
+        outdir, cmds, cat, obj, cfg = parse_results_query(rest)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(results_usage(prog))
+        return 1
+    try:
+        results = _load_results_flags(outdir, cat, obj, cfg)
+        for cmd in cmds:
+            if cmd == 'summary':
+                results.print_summary()
+            elif cmd == 'evidence':
+                _print_evidence(results)
+            elif cmd == 'par_names':
+                _print_par_names(results)
+            elif cmd == 'objects':
+                for item in results.list_objects():
+                    print(item)
+    except (ValueError, FileNotFoundError) as e:
+        sys.stderr.write(f"Error: {e}\n")
         return 1
     return 0
 
@@ -283,57 +481,118 @@ def _print_par_names(results):
         print(f"  {item}")
 
 
+def _first_results_verb(rest):
+    if len(rest) < 2:
+        return None
+    for tok in rest[1:]:
+        if tok.startswith('-'):
+            return None
+        return tok
+    return None
+
+
 def _results_has_par_values(rest):
+    return _first_results_verb(rest) == 'par_values'
+
+
+def _results_has_catalogs(rest):
+    return _first_results_verb(rest) == 'catalogs'
+
+
+def _results_has_model_configs(rest):
+    return _first_results_verb(rest) == 'model_configs'
+
+
+def _plot_has_posterior(rest):
     for tok in rest[1:]:
         if tok.startswith('-'):
             return False
-        if tok == 'par_values':
+        if tok == 'posterior':
             return True
-        if tok not in _RESULTS_VERB_SET:
+        if tok not in _PLOT_VERB_SET:
             return False
     return False
+
+
+def _plot_has_bestfit(rest):
+    for tok in rest[1:]:
+        if tok.startswith('-'):
+            return False
+        if tok == 'bestfit':
+            return True
+        if tok not in _PLOT_VERB_SET:
+            return False
+    return False
+
+
+def _run_plot_bestfit(rest, prog):
+    try:
+        outdir, cat, obj, cfg = parse_plot_bestfit(rest)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(plot_usage(prog))
+        return 1
+    try:
+        results = _load_results_flags(outdir, cat, obj, cfg)
+        plot_kw = {'show': True}
+        chosen = _announce_plot_objects(results)
+        if chosen:
+            plot_kw['object_id'] = chosen
+        results.plot_bestfit(**plot_kw)
+    except (ValueError, FileNotFoundError) as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+    return 0
+
+
+def _run_plot_posterior(rest, prog):
+    try:
+        outdir, kind, cat, obj, pars, labels, max_n, cfg = parse_plot_posterior(
+            rest
+        )
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        sys.stderr.write(plot_usage(prog))
+        return 1
+    try:
+        results = _load_results_flags(outdir, cat, obj, cfg)
+        plot_kw = {'show': True}
+        chosen = _announce_plot_objects(results)
+        if chosen:
+            plot_kw['object_id'] = chosen
+        if kind == 'free':
+            results.plot_posterior_free(**plot_kw)
+        elif kind == 'derived':
+            plot_kw['max_params'] = (
+                _DERIVED_DEFAULT_MAX if max_n is None else max_n
+            )
+            results.plot_posterior_derived(**plot_kw)
+        else:
+            if labels is not None:
+                results.set_parameter_labels(dict(zip(pars, labels)))
+            results.plot_posterior(params=pars, **plot_kw)
+    except (ValueError, FileNotFoundError) as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+    return 0
 
 
 def _run_results_plot(kind, rest, prog):
     if kind == 'results' and _results_has_par_values(rest):
         return _run_par_values(rest, prog)
-    verbs = _RESULTS_VERB_SET if kind == 'results' else _PLOT_VERB_SET
-    usage = results_usage if kind == 'results' else plot_usage
-    try:
-        outdir, cmds, names = parse_outdir_verbs_name(rest, verbs)
-    except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(usage(prog))
-        return 1
-    if kind == 'results' and any(cmd in _DISCOVERY_VERBS for cmd in cmds):
-        return _run_discovery(outdir, cmds, names, prog)
-    try:
-        results = _load_results(outdir, names)
-        if kind == 'results':
-            for cmd in cmds:
-                if cmd == 'summary':
-                    results.print_summary()
-                elif cmd == 'evidence':
-                    _print_evidence(results)
-                elif cmd == 'par_names':
-                    _print_par_names(results)
-                elif cmd == 'objects':
-                    for item in results.list_objects():
-                        print(item)
-        else:
-            plot_kw = {'show': True}
-            chosen = _announce_plot_objects(results)
-            if chosen:
-                plot_kw['object_id'] = chosen
-            for cmd in cmds:
-                if cmd == 'bestfit':
-                    results.plot_bestfit(**plot_kw)
-                elif cmd == 'posterior':
-                    results.plot_posterior_free(**plot_kw)
-    except (ValueError, FileNotFoundError) as e:
-        sys.stderr.write(f"Error: {e}\n")
-        return 1
-    return 0
+    if kind == 'results' and _results_has_catalogs(rest):
+        return _run_catalogs(rest, prog)
+    if kind == 'results' and _results_has_model_configs(rest):
+        return _run_model_configs(rest, prog)
+    if kind == 'results':
+        return _run_results_query(rest, prog)
+    if kind == 'plot' and _plot_has_posterior(rest):
+        return _run_plot_posterior(rest, prog)
+    if kind == 'plot' and _plot_has_bestfit(rest):
+        return _run_plot_bestfit(rest, prog)
+    sys.stderr.write('Error: missing command\n')
+    sys.stderr.write(plot_usage(prog))
+    return 1
 
 
 def _iprior_files(directory):
