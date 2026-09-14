@@ -37,20 +37,49 @@ _PLOT_POSTERIOR_FLAGS = {
 _DERIVED_DEFAULT_MAX = 10
 
 
+def results_usage_lines(prog='bayesed3'):
+    return (
+        f"{prog} results <outdir> <cmd> [<cmd>...] "
+        f"[--cat catalog] [--cfg config] [--obj object]",
+        f"{prog} results <outdir> catalogs",
+        f"{prog} results <outdir> model_configs [--cat catalog]",
+        f"{prog} results <outdir> par_values --par PATTERN "
+        f"[--cat catalog] [--cfg config] [--obj object]",
+    )
+
+
+def plot_usage_lines(prog='bayesed3'):
+    return (
+        f"{prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]",
+        f"{prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]",
+        f"{prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]",
+        f"{prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]",
+    )
+
+
+def priors_usage_line(prog='bayesed3'):
+    return f"{prog} priors list [dir]"
+
+
+def _usage_block(lines):
+    text = f"Usage: {lines[0]}\n"
+    for line in lines[1:]:
+        text += f"       {line}\n"
+    return text
+
+
+def inspect_usage_lines(prog='bayesed3'):
+    return (
+        results_usage_lines(prog)
+        + plot_usage_lines(prog)
+        + (priors_usage_line(prog),)
+    )
+
+
 def inspect_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"       {prog} results <outdir> catalogs\n"
-        f"       {prog} results <outdir> model_configs [--cat catalog]\n"
-        f"       {prog} results <outdir> par_values --par PATTERN "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"       {prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} priors list [dir]\n"
-        "\n"
+        _usage_block(inspect_usage_lines(prog))
+        + "\n"
         f"results commands: {', '.join(RESULTS_VERBS)}\n"
         f"plot commands: {', '.join(PLOT_VERBS)}\n"
         "priors commands: list\n"
@@ -59,31 +88,53 @@ def inspect_usage(prog='bayesed3'):
 
 def results_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} results <outdir> <cmd> [<cmd>...] "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"       {prog} results <outdir> catalogs\n"
-        f"       {prog} results <outdir> model_configs [--cat catalog]\n"
-        f"       {prog} results <outdir> par_values --par PATTERN "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"Commands: {', '.join(RESULTS_VERBS)}\n"
+        _usage_block(results_usage_lines(prog))
+        + f"Commands: {', '.join(RESULTS_VERBS)}\n"
     )
 
 
 def plot_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]\n"
-        f"Commands: {', '.join(PLOT_VERBS)}\n"
+        _usage_block(plot_usage_lines(prog))
+        + f"Commands: {', '.join(PLOT_VERBS)}\n"
     )
 
 
 def priors_usage(prog='bayesed3'):
     return (
-        f"Usage: {prog} priors list [dir]\n"
+        f"Usage: {priors_usage_line(prog)}\n"
         "Commands: list\n"
     )
+
+
+def _flag_value(tokens, i, flag_map):
+    """Return ``(key, value, next_i)`` if ``tokens[i]`` is a mapped flag."""
+    if i >= len(tokens):
+        return None
+    tok = tokens[i]
+    key = flag_map.get(tok)
+    if key is None:
+        return None
+    if i + 1 >= len(tokens):
+        raise ValueError(f'{tok} requires a value')
+    return key, tokens[i + 1], i + 2
+
+
+def _parse_flag_pairs(tokens, start, flag_map):
+    """Parse ``tokens[start:]`` as ``--flag value`` pairs. Last write wins."""
+    values = {name: None for name in flag_map.values()}
+    i = start
+    while i < len(tokens):
+        got = _flag_value(tokens, i, flag_map)
+        if got is not None:
+            key, value, i = got
+            values[key] = value
+            continue
+        tok = tokens[i]
+        if tok.startswith('-'):
+            raise ValueError(f'unknown option {tok}')
+        raise ValueError(f"unexpected argument '{tok}'")
+    return values
 
 
 def loose_match_mode(pattern):
@@ -109,20 +160,7 @@ def parse_par_values(tokens):
         if 'par_values' in rest:
             raise ValueError('par_values cannot be combined with other commands')
         raise ValueError('missing command')
-    flags = {'cat': None, 'obj': None, 'par': None, 'cfg': None}
-    i = 1
-    while i < len(rest):
-        tok = rest[i]
-        key = _PAR_VALUES_FLAGS.get(tok)
-        if key is not None:
-            if i + 1 >= len(rest):
-                raise ValueError(f'{tok} requires a value')
-            flags[key] = rest[i + 1]
-            i += 2
-            continue
-        if tok.startswith('-'):
-            raise ValueError(f'unknown option {tok}')
-        raise ValueError(f"unexpected argument '{tok}'")
+    flags = _parse_flag_pairs(rest, 1, _PAR_VALUES_FLAGS)
     if flags['par'] is None:
         raise ValueError('--par is required')
     return outdir, flags['cat'], flags['obj'], flags['par'], flags['cfg']
@@ -147,19 +185,7 @@ def parse_results_query(tokens):
         i += 1
     if not cmds:
         raise ValueError('missing command')
-    flags = {'cat': None, 'obj': None, 'cfg': None}
-    while i < len(rest):
-        tok = rest[i]
-        key = _RESULTS_QUERY_FLAGS.get(tok)
-        if key is not None:
-            if i + 1 >= len(rest):
-                raise ValueError(f'{tok} requires a value')
-            flags[key] = rest[i + 1]
-            i += 2
-            continue
-        if tok.startswith('-'):
-            raise ValueError(f'unknown option {tok}')
-        raise ValueError(f"unexpected argument '{tok}'")
+    flags = _parse_flag_pairs(rest, i, _RESULTS_QUERY_FLAGS)
     return outdir, cmds, flags['cat'], flags['obj'], flags['cfg']
 
 
@@ -179,21 +205,8 @@ def parse_model_configs(tokens):
                 'model_configs cannot be combined with other commands'
             )
         raise ValueError('missing command')
-    cat = None
-    i = 1
-    while i < len(rest):
-        tok = rest[i]
-        key = _MODEL_CONFIGS_FLAGS.get(tok)
-        if key is not None:
-            if i + 1 >= len(rest):
-                raise ValueError(f'{tok} requires a value')
-            cat = rest[i + 1]
-            i += 2
-            continue
-        if tok.startswith('-'):
-            raise ValueError(f'unknown option {tok}')
-        raise ValueError(f"unexpected argument '{tok}'")
-    return outdir, cat
+    flags = _parse_flag_pairs(rest, 1, _MODEL_CONFIGS_FLAGS)
+    return outdir, flags['cat']
 
 
 def parse_catalogs(tokens):
@@ -225,20 +238,7 @@ def parse_plot_bestfit(tokens):
         if 'bestfit' in rest:
             raise ValueError('bestfit cannot be combined with other commands')
         raise ValueError('missing command')
-    flags = {'cat': None, 'obj': None, 'cfg': None}
-    i = 1
-    while i < len(rest):
-        tok = rest[i]
-        key = _PLOT_BESTFIT_FLAGS.get(tok)
-        if key is not None:
-            if i + 1 >= len(rest):
-                raise ValueError(f'{tok} requires a value')
-            flags[key] = rest[i + 1]
-            i += 2
-            continue
-        if tok.startswith('-'):
-            raise ValueError(f'unknown option {tok}')
-        raise ValueError(f"unexpected argument '{tok}'")
+    flags = _parse_flag_pairs(rest, 1, _PLOT_BESTFIT_FLAGS)
     return outdir, flags['cat'], flags['obj'], flags['cfg']
 
 
@@ -274,11 +274,9 @@ def parse_plot_posterior(tokens):
             kind = tok
             i += 1
             continue
-        if tok in _PLOT_POSTERIOR_FLAGS:
-            if i + 1 >= len(rest):
-                raise ValueError(f'{tok} requires a value')
-            value = rest[i + 1]
-            key = _PLOT_POSTERIOR_FLAGS[tok]
+        got = _flag_value(rest, i, _PLOT_POSTERIOR_FLAGS)
+        if got is not None:
+            key, value, i = got
             if key == 'max':
                 try:
                     max_n = int(value)
@@ -292,7 +290,6 @@ def parse_plot_posterior(tokens):
                 obj = value
             else:
                 cfg = value
-            i += 2
             continue
         if tok == '--par':
             if i + 1 >= len(rest):

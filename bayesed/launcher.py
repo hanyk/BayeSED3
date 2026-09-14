@@ -10,7 +10,7 @@ Invoked as ``bayesed3`` / ``python -m bayesed``. First-token ``results`` /
 import subprocess
 import sys
 
-from .inspect_cli import INSPECT_TOKENS, run_inspect
+from .inspect_cli import INSPECT_TOKENS, inspect_usage_lines, run_inspect
 from .runtime import (
     absolutize_cli_path_args,
     build_mpi_command,
@@ -23,20 +23,11 @@ from .runtime import (
 
 
 def usage_text(prog='bayesed3'):
+    inspect_block = ''.join(f"       {line}\n" for line in inspect_usage_lines(prog))
     return (
         f"Usage: {prog} [--mpi MODE] [--np NPROC] [BayeSED arguments...]\n"
-        f"       {prog} results <outdir> <cmd> [<cmd>...] "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"       {prog} results <outdir> catalogs\n"
-        f"       {prog} results <outdir> model_configs [--cat catalog]\n"
-        f"       {prog} results <outdir> par_values --par PATTERN "
-        f"[--cat catalog] [--cfg config] [--obj object]\n"
-        f"       {prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]\n"
-        f"       {prog} priors list [dir]\n"
-        "\n"
+        + inspect_block
+        + "\n"
         "Options:\n"
         "  --mpi MODE    MPI mode: '1' (within objects) or 'n' (across objects)\n"
         "  --np NPROC    Number of MPI processes (default: auto-detect)\n"
