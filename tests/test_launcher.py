@@ -3,6 +3,8 @@
 
 from unittest.mock import MagicMock, patch
 
+from importlib.metadata import PackageNotFoundError
+
 from bayesed.core import BayeSEDInterface
 from bayesed.launcher import parse_launcher_argv, run_launcher, usage_text
 
@@ -34,14 +36,128 @@ def test_parse_launcher_rejects_bad_mpi():
 
 def test_usage_is_short_overview_without_inspect_flags():
     text = usage_text('bayesed3')
+    assert text.startswith(
+        'bayesed3 - A Bayesian SED synthesis and analysis tool for galaxies '
+        'and AGNs\n'
+    )
     assert 'results' in text
     assert 'plot' in text
     assert 'priors' in text
     assert 'bayesed3 run' in text
     assert '--mpi' in text
+    assert 'version' in text
+    assert 'More:' not in text
     assert '--cat' not in text
     assert '--cfg' not in text
     assert '--obj' not in text
+
+
+def test_run_launcher_version_prints_python_and_binary():
+    banner = (
+        'BayeSED3  (abc, develop, 2026-08-22 14:54:40, Darwin 24.5.0), '
+        'Copyright (C) 2014-2026 Yunkun Han'
+    )
+    help_out = f'noise\n{banner}\nUSAGE: ...\n'
+    completed = MagicMock(stdout=help_out, stderr='')
+    with patch('bayesed.launcher.package_version', return_value='2026.9.14.0.dev11'), \
+         patch('bayesed.launcher.resolve_system_info', return_value=('mac', 'arm')), \
+         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
+         patch('bayesed.launcher.resolve_binary_cwd', return_value=None), \
+         patch('bayesed.launcher.subprocess.run', return_value=completed) as mock_run, \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out, \
+         patch('bayesed.launcher.subprocess.Popen') as mock_popen:
+        code = run_launcher(['version'])
+    assert code == 0
+    mock_popen.assert_not_called()
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0] == ['/bin/bayesed_mn_1', '--help']
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written == (
+        'python  2026.9.14.0.dev11\n'
+        f'binary  {banner}\n'
+    )
+
+
+def test_run_launcher_dash_dash_version_prints_python_and_binary():
+    banner = (
+        'BayeSED3  (abc, develop, 2026-08-22 14:54:40, Darwin 24.5.0), '
+        'Copyright (C) 2014-2026'
+    )
+    completed = MagicMock(stdout=f'{banner}\n', stderr='')
+    with patch('bayesed.launcher.package_version', return_value='2026.9.14.0.dev11'), \
+         patch('bayesed.launcher.resolve_system_info', return_value=('mac', 'arm')), \
+         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
+         patch('bayesed.launcher.resolve_binary_cwd', return_value=None), \
+         patch('bayesed.launcher.subprocess.run', return_value=completed), \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
+        code = run_launcher(['--version'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.startswith('python  2026.9.14.0.dev11\n')
+    assert written.endswith(f'binary  {banner}\n')
+
+
+def test_run_launcher_version_reports_binary_unavailable():
+    with patch('bayesed.launcher.package_version', return_value='2026.9.14.0.dev11'), \
+         patch('bayesed.launcher.resolve_system_info', return_value=('mac', 'arm')), \
+         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
+         patch('bayesed.launcher.resolve_binary_cwd', return_value=None), \
+         patch(
+             'bayesed.launcher.subprocess.run',
+             side_effect=FileNotFoundError('missing binary'),
+         ), \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
+        code = run_launcher(['version'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.startswith('python  2026.9.14.0.dev11\n')
+    assert 'binary  (unavailable:' in written
+    assert 'missing binary' in written
+
+
+def test_run_launcher_version_reports_package_unavailable():
+    completed = MagicMock(
+        stdout='BayeSED3  (hash), Copyright (C) 2014-2026\n',
+        stderr='',
+    )
+    with patch(
+             'bayesed.launcher.package_version',
+             side_effect=PackageNotFoundError('bayesed3'),
+         ), \
+         patch('bayesed.launcher.resolve_system_info', return_value=('mac', 'arm')), \
+         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
+         patch('bayesed.launcher.resolve_binary_cwd', return_value=None), \
+         patch('bayesed.launcher.subprocess.run', return_value=completed), \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
+        code = run_launcher(['version'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.startswith('python  (unavailable:')
+    assert 'binary  BayeSED3  (hash), Copyright (C) 2014-2026\n' in written
+
+
+def test_run_launcher_version_parses_first_bayesed_line_from_help():
+    help_out = (
+        'noise\n'
+        'BayeSED3  (hash, develop, 2026-08-22 14:54:40, Darwin), '
+        'Copyright (C) 2014-2026 Yunkun Han\n'
+        'USAGE: ...\n'
+    )
+    completed = MagicMock(stdout=help_out, stderr='')
+    with patch('bayesed.launcher.package_version', return_value='1.0'), \
+         patch('bayesed.launcher.resolve_system_info', return_value=('mac', 'arm')), \
+         patch('bayesed.launcher.resolve_executable', return_value='/bin/bayesed_mn_1'), \
+         patch('bayesed.launcher.resolve_binary_cwd', return_value=None), \
+         patch('bayesed.launcher.subprocess.run', return_value=completed) as mock_run, \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
+        code = run_launcher(['version'])
+    assert code == 0
+    mock_run.assert_called_once()
+    assert mock_run.call_args.args[0] == ['/bin/bayesed_mn_1', '--help']
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'BayeSED3  (hash, develop' in written
+    assert 'Copyright' in written
+    assert 'USAGE' not in written.split('binary  ', 1)[1]
 
 
 def test_run_launcher_empty_argv_prints_overview_exit_zero():
@@ -155,6 +271,11 @@ if __name__ == '__main__':
     test_parse_launcher_default_mpi()
     test_parse_launcher_rejects_bad_mpi()
     test_usage_is_short_overview_without_inspect_flags()
+    test_run_launcher_version_prints_python_and_binary()
+    test_run_launcher_dash_dash_version_prints_python_and_binary()
+    test_run_launcher_version_reports_binary_unavailable()
+    test_run_launcher_version_reports_package_unavailable()
+    test_run_launcher_version_parses_first_bayesed_line_from_help()
     test_run_launcher_empty_argv_prints_overview_exit_zero()
     test_run_launcher_help_prints_overview_not_binary()
     test_run_launcher_dash_h_prints_overview()

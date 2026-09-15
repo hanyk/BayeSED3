@@ -90,6 +90,10 @@ py-modules = ["bayesed_gui"]
 "*" = []
 
 [tool.setuptools_scm]
+# CalVer: next public version is today's date (built-in; same-day tags get .N).
+# Local: +dirty only when the tree is dirty — no second YYYYMMDD date.
+version_scheme = "calver-by-date"
+local_scheme = "dirty-tag"
 fallback_version = "0.0.0"
 
 # Note: OpenMPI 4.1.6 is required but not a Python package.

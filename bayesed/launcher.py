@@ -2,6 +2,7 @@
 Platform-independent Launcher for the compiled BayeSED binary (ADR-0007, ADR-0009).
 
 Invoked as ``bayesed3`` / ``python -m bayesed``. First token selects the path:
+``version`` / ``--version`` report Package version and Binary banner;
 ``results`` / ``plot`` / ``priors`` present existing products; ``run`` forwards
 remaining argv to the binary via ``runtime`` (``--mpi`` / ``--np`` only after
 ``run``). Empty argv and top-level ``--help`` / ``-h`` print Launcher overview.
@@ -9,6 +10,8 @@ remaining argv to the binary via ``runtime`` (``--mpi`` / ``--np`` only after
 
 import subprocess
 import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 
 from .inspect_cli import INSPECT_TOKENS, run_inspect
 from .runtime import (
@@ -24,22 +27,19 @@ from .runtime import (
 
 def usage_text(prog='bayesed3'):
     return (
-        f"{prog} — Launcher: fit with the compiled program, or inspect existing "
-        f"Results / Priors.\n"
+        f"{prog} - A Bayesian SED synthesis and analysis tool for galaxies "
+        f"and AGNs\n"
+        "\n"
+        "Version:\n"
+        f"  {prog} version | --version\n"
         "\n"
         "Inspect:\n"
-        f"  {prog} results <outdir> …   query HDF5 Results\n"
-        f"  {prog} plot <outdir> …      bestfit / posterior plots\n"
-        f"  {prog} priors list [dir]    list prior files\n"
+        f"  {prog} results <outdir> …\n"
+        f"  {prog} plot <outdir> …\n"
+        f"  {prog} priors list [dir]\n"
         "\n"
         "Run:\n"
-        f"  {prog} run [--mpi 1|n] [--np N] [BayeSED arguments…]\n"
-        f"  {prog} run                  compiled-program options (same as {prog} run --help)\n"
-        "\n"
-        "More:\n"
-        f"  {prog} results              results usage\n"
-        f"  {prog} plot                 plot usage\n"
-        f"  {prog} priors               priors usage\n"
+        f"  {prog} run [--help] [--mpi 1|n] [--np N] [binary options…]\n"
     )
 
 
@@ -112,6 +112,50 @@ def _forward_binary(binary_args, mpi_mode, np_override):
     return process.wait()
 
 
+def _binary_help_banner():
+    """
+    Return ``(banner_line, error)`` from the compiled binary's ``--help``.
+
+    The binary has no dedicated ``--version``; its identity line is the first
+    ``BayeSED3 (...)`` Binary banner on help (includes Copyright). Runs the
+    ``mn_1`` executable directly (no mpirun) so banner probing stays quiet
+    and cheap.
+    """
+    try:
+        os_name, arch = resolve_system_info()
+        executable = resolve_executable('mn_1', os_name, arch)
+        cwd = resolve_binary_cwd()
+        completed = subprocess.run(
+            [executable, '--help'],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+    except (OSError, RuntimeError, ValueError, FileNotFoundError) as exc:
+        return None, str(exc)
+
+    text = (completed.stdout or '') + (completed.stderr or '')
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('BayeSED3'):
+            return stripped, None
+    return None, 'could not parse Binary banner'
+
+
+def _version_text():
+    try:
+        py_ver = package_version('bayesed3')
+    except PackageNotFoundError as exc:
+        py_ver = f'(unavailable: {exc})'
+    lines = [f"python  {py_ver}"]
+    banner, err = _binary_help_banner()
+    if banner is not None:
+        lines.append(f"binary  {banner}")
+    else:
+        lines.append(f"binary  (unavailable: {err})")
+    return '\n'.join(lines) + '\n'
+
+
 def _rewrite_as_run(prog, argv):
     quoted = ' '.join(argv)
     return (
@@ -130,6 +174,10 @@ def run_launcher(argv=None, prog='bayesed3'):
 
     if not argv or argv[0] in ('--help', '-h'):
         sys.stderr.write(usage_text(prog))
+        return 0
+
+    if argv[0] in ('version', '--version'):
+        sys.stdout.write(_version_text())
         return 0
 
     if argv[0] in INSPECT_TOKENS:

@@ -36,6 +36,18 @@ _Avoid_: Treating raw `INSlogZ` as the only public key name
 The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type).
 _Avoid_: Treating `PriorManager` or `PriorEditor` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors
 
+**Prior type**:
+One of the discrete prior distribution families (Uniform, Gaussian, …) with fixed hyperparameter slots. `bayesed3 priors list` with no directory prints the Prior type table; with a directory it loads `.iprior` files there and prints their Priors contents — one `list [dir]` form, two meanings by presence of the directory.
+_Avoid_: Calling `.iprior` file contents a prior type; calling either mode “list prior files”; splitting into separate user-facing verbs when the single optional-directory form is intended
+
 **Launcher**:
-The `bayesed3` / `python -m bayesed` console entry. First token selects the path: `results` / `plot` / `priors` present existing Results or Priors; `run` forwards the rest to the compiled binary (after resolving OpenMPI / OS-arch / process count). Empty argv and top-level `--help` are Launcher overview, not binary help. Coexists with `BayeSEDInterface` (Python Params → Execution); they share internal `runtime`.
-_Avoid_: Treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar
+The `bayesed3` / `python -m bayesed` console entry. First token selects the path: `version` / `--version` report Package version and Binary banner; `results` / `plot` / `priors` present existing Results or Priors; `run` forwards the rest to the compiled binary (after resolving OpenMPI / OS-arch / process count). Empty argv and top-level `--help` are Launcher overview: one product tagline plus Version/Inspect/Run syntax sketches (no per-entry prose), not binary help and not subcommand usage. Coexists with `BayeSEDInterface` (Python Params → Execution); they share internal `runtime`.
+_Avoid_: Treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar; treating Package version and Binary banner as one “version”
+
+**Package version**:
+The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.
+_Avoid_: Python version (the interpreter); binary version; “BayeSED3 version” when only one of the two identities is meant
+
+**Binary banner**:
+The compiled program’s identity line from its help output (commit, branch, build time, OS, Copyright / citations). Not a CalVer package number and not a dedicated binary `--version` flag. Shown as the `binary` line of `bayesed3 version`.
+_Avoid_: Binary version (when implying CalVer); Package version; treating help USAGE as the version identity
