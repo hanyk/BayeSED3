@@ -147,13 +147,29 @@ def _parse_flag_pairs(tokens, start, flag_map, bool_flags=None):
     return values
 
 
-def loose_match_mode(pattern):
-    """``regex`` when ``pattern`` compiles; otherwise ``contains``."""
+def match_names(candidates, pattern):
+    """
+    Inspect loose match: exact, then contains, then regex.
+
+    First non-empty hit list wins. Candidate order is preserved.
+    Invalid regex after empty exact/contains yields no hits.
+    """
+    names = list(candidates)
+    exact = [name for name in names if name == pattern]
+    if exact:
+        return exact
+    contains = [name for name in names if pattern in name]
+    if contains:
+        return contains
     try:
-        re.compile(pattern)
+        compiled = re.compile(pattern)
     except re.error:
-        return 'contains'
-    return 'regex'
+        return []
+    return [name for name in names if compiled.search(name)]
+
+
+def _exact_names_regex(names):
+    return '^(?:' + '|'.join(re.escape(name) for name in names) + ')$'
 
 
 def parse_par_values(tokens):
@@ -510,11 +526,19 @@ def _run_par_values(rest, prog):
         return 1
     try:
         results = _load_results_flags(outdir, cat, None, cfg)
-        kwargs = {'param_match_mode': loose_match_mode(par)}
+        matched = match_names(results.get_parameter_names(), par)
+        if not matched:
+            raise ValueError(f"No parameters found matching '{par}'")
+        kwargs = {
+            'param_match_mode': 'regex',
+        }
         if obj is not None:
-            kwargs['object_ids'] = obj
-            kwargs['object_match_mode'] = loose_match_mode(obj)
-        table = results.get_parameter_values(par, **kwargs)
+            matched_objs = match_names(results.list_objects(), obj)
+            if not matched_objs:
+                raise ValueError(f"No objects found matching '{obj}'")
+            kwargs['object_ids'] = matched_objs
+            kwargs['object_match_mode'] = 'exact'
+        table = results.get_parameter_values(_exact_names_regex(matched), **kwargs)
         if as_json:
             _print_json(_par_values_json_payload(table))
         else:
@@ -688,9 +712,29 @@ def _run_plot_posterior(rest, prog):
             )
             results.plot_posterior_derived(**plot_kw)
         else:
-            if labels is not None:
-                results.set_parameter_labels(dict(zip(pars, labels)))
-            results.plot_posterior(params=pars, **plot_kw)
+            universe = list(dict.fromkeys(
+                list(results.get_free_parameters())
+                + list(results.get_derived_parameters())
+            ))
+            expanded = []
+            label_map = {}
+            lab_list = labels if labels is not None else [None] * len(pars)
+            for par, lab in zip(pars, lab_list):
+                hits = match_names(universe, par)
+                if not hits:
+                    raise ValueError(f"No parameters found matching '{par}'")
+                if lab is not None:
+                    if hits != [par]:
+                        raise ValueError(
+                            '--lab requires an exact unique --par name'
+                        )
+                    label_map[par] = lab
+                for name in hits:
+                    if name not in expanded:
+                        expanded.append(name)
+            if label_map:
+                results.set_parameter_labels(label_map)
+            results.plot_posterior(params=expanded, **plot_kw)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1

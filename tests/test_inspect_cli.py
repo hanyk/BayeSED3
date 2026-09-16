@@ -120,6 +120,7 @@ def test_results_summary_json():
 def test_results_par_values_json():
     fake = MagicMock()
     table = pd.DataFrame({'z': [1.0]})
+    fake.get_parameter_names.return_value = ['z']
     fake.get_parameter_values.return_value = table
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
@@ -135,6 +136,7 @@ def test_results_par_values_json():
 def test_results_par_values_json_from_astropy_table():
     """astropy Table has to_pandas, not to_dict — must still emit records."""
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['log(age/yr)[0,1]_{mean}']
     fake.get_parameter_values.return_value = Table(
         {'ID': ['obj-1'], 'log(age/yr)[0,1]_{mean}': [10.08]},
     )
@@ -648,6 +650,7 @@ def test_par_values_requires_par_flag():
 
 def test_par_values_prints_parameter_table():
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['age_median', 'z']
     fake.get_parameter_values.return_value = 'ID age_median\nobj-1 9.5'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor, \
@@ -656,7 +659,7 @@ def test_par_values_prints_parameter_table():
     assert code == 0
     ctor.assert_called_once_with('out')
     fake.get_parameter_values.assert_called_once_with(
-        'age', param_match_mode='regex'
+        '^(?:age_median)$', param_match_mode='regex'
     )
     written = ''.join(c.args[0] for c in out.write.call_args_list)
     assert 'ID age_median' in written
@@ -665,6 +668,7 @@ def test_par_values_prints_parameter_table():
 
 def test_par_values_cat_loads_catalog_not_object():
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['age_median']
     fake.get_parameter_values.return_value = 'table'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
@@ -678,6 +682,7 @@ def test_par_values_cat_loads_catalog_not_object():
 
 def test_par_values_cfg_passed_to_ctor():
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['age_median']
     fake.get_parameter_values.return_value = 'table'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
@@ -691,12 +696,17 @@ def test_par_values_cfg_passed_to_ctor():
     )
     assert 'object_id' not in ctor.call_args.kwargs
     fake.get_parameter_values.assert_called_once_with(
-        'age', param_match_mode='regex',
+        '^(?:age_median)$', param_match_mode='regex',
     )
 
 
 def test_par_values_obj_filters_via_get_parameter_values():
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['age_median']
+    fake.list_objects.return_value = [
+        'spec-0285-51930-0184_GALAXY_STARFORMING',
+        'other',
+    ]
     fake.get_parameter_values.return_value = 'table'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
@@ -708,15 +718,30 @@ def test_par_values_obj_filters_via_get_parameter_values():
     ctor.assert_called_once_with('out')
     assert 'object_id' not in ctor.call_args.kwargs
     fake.get_parameter_values.assert_called_once_with(
-        'age',
+        '^(?:age_median)$',
         param_match_mode='regex',
-        object_ids='STARFORMING',
-        object_match_mode='regex',
+        object_ids=['spec-0285-51930-0184_GALAXY_STARFORMING'],
+        object_match_mode='exact',
     )
 
 
-def test_par_values_invalid_regex_uses_contains():
+def test_par_values_exact_beats_contains():
     fake = MagicMock()
+    fake.get_parameter_names.return_value = ['z', 'z_err']
+    fake.get_parameter_values.return_value = 'table'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['results', 'out', 'par_values', '--par', 'z'])
+    assert code == 0
+    fake.get_parameter_values.assert_called_once_with(
+        '^(?:z)$', param_match_mode='regex',
+    )
+
+
+def test_par_values_uncompilable_pattern_matches_by_contains():
+    fake = MagicMock()
+    fake.get_parameter_names.return_value = ['log(age/yr)', 'z']
+    fake.list_objects.return_value = ['spec-(foo', 'other']
     fake.get_parameter_values.return_value = 'table'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
@@ -726,10 +751,10 @@ def test_par_values_invalid_regex_uses_contains():
         ])
     assert code == 0
     fake.get_parameter_values.assert_called_once_with(
-        'log(age',
-        param_match_mode='contains',
-        object_ids='spec-(',
-        object_match_mode='contains',
+        r'^(?:log\(age/yr\))$',
+        param_match_mode='regex',
+        object_ids=['spec-(foo'],
+        object_match_mode='exact',
     )
 
 
@@ -755,16 +780,15 @@ def test_par_values_rejects_mix_with_other_commands():
 
 def test_par_values_empty_match_exits_one():
     fake = MagicMock()
-    fake.get_parameter_values.side_effect = ValueError(
-        "No columns found matching 'nope' with mode 'regex'"
-    )
+    fake.get_parameter_names.return_value = ['age_median', 'z']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
          patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect(['results', 'out', 'par_values', '--par', 'nope'])
     assert code == 1
+    fake.get_parameter_values.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert 'No columns found matching' in written
+    assert "No parameters found matching 'nope'" in written
 
 
 def test_par_values_missing_outdir_is_not_unknown_catalog():
@@ -928,10 +952,16 @@ def test_priors_without_list_prints_usage():
     assert 'list' in written
 
 
-def _fake_plot_results(object_id=None, objects=None):
+def _fake_plot_results(object_id=None, objects=None, free=None, derived=None):
     fake = MagicMock()
     fake.object_id = object_id
     fake.list_objects.return_value = objects if objects is not None else ['only']
+    fake.get_free_parameters.return_value = (
+        free if free is not None else ['log(Mstar)[0,1]', 'z']
+    )
+    fake.get_derived_parameters.return_value = (
+        derived if derived is not None else []
+    )
     return fake
 
 
@@ -1017,6 +1047,51 @@ def test_plot_posterior_par_lab_pairs_set_labels():
     ]
     names = [name for name, _, _ in fake.method_calls]
     assert names.index('set_parameter_labels') < names.index('plot_posterior')
+
+
+def test_plot_posterior_par_expands_contains_hits():
+    fake = _fake_plot_results(
+        free=['z'],
+        derived=['log(age/yr)', 'log(ageMW/yr)'],
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'posterior', '--par', 'age'])
+    assert code == 0
+    fake.plot_posterior.assert_called_once()
+    assert fake.plot_posterior.call_args.kwargs.get('params') == [
+        'log(age/yr)', 'log(ageMW/yr)',
+    ]
+    fake.set_parameter_labels.assert_not_called()
+
+
+def test_plot_posterior_par_lab_rejected_when_not_exact_unique():
+    fake = _fake_plot_results(
+        free=['z'],
+        derived=['log(age/yr)', 'log(ageMW/yr)'],
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'plot', 'out', 'posterior', '--par', 'age', '--lab', 'age',
+        ])
+    assert code == 1
+    fake.plot_posterior.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --lab requires an exact unique --par name' in written
+
+
+def test_plot_posterior_par_no_match_exits_one():
+    fake = _fake_plot_results()
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'posterior', '--par', 'nope'])
+    assert code == 1
+    fake.plot_posterior.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert "No parameters found matching 'nope'" in written
 
 
 def test_plot_posterior_grouped_par_then_lab_rejected():
@@ -1219,7 +1294,8 @@ if __name__ == '__main__':
     test_par_values_cat_loads_catalog_not_object()
     test_par_values_cfg_passed_to_ctor()
     test_par_values_obj_filters_via_get_parameter_values()
-    test_par_values_invalid_regex_uses_contains()
+    test_par_values_exact_beats_contains()
+    test_par_values_uncompilable_pattern_matches_by_contains()
     test_par_values_rejects_leftover_positionals()
     test_par_values_rejects_mix_with_other_commands()
     test_par_values_empty_match_exits_one()
@@ -1242,6 +1318,9 @@ if __name__ == '__main__':
     test_plot_posterior_derived_max_flag()
     test_plot_posterior_par_calls_plot_posterior()
     test_plot_posterior_par_lab_pairs_set_labels()
+    test_plot_posterior_par_expands_contains_hits()
+    test_plot_posterior_par_lab_rejected_when_not_exact_unique()
+    test_plot_posterior_par_no_match_exits_one()
     test_plot_posterior_grouped_par_then_lab_rejected()
     test_plot_posterior_lab_without_par_rejected()
     test_plot_posterior_free_with_par_rejected()

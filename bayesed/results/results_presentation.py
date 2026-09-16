@@ -354,14 +354,7 @@ class ResultsPresentation:
                 show_confidence_intervals = False
 
         # Create plotter
-        g = plots.get_subplot_plotter()
-        
-        # Configure publication-ready font sizes for GetDist plots
-        g.settings.figure_legend_frame = True
-        g.settings.legend_fontsize = 14
-        g.settings.axes_fontsize = 16
-        g.settings.lab_fontsize = 16
-        g.settings.axes_labelsize = 16
+        g = self._getdist_subplot_plotter(plots, len(params))
 
         # Create plot based on number of parameters
         is_1d = len(params) == 1
@@ -410,6 +403,20 @@ class ResultsPresentation:
                 logger.warning(f"Could not display plot: {e}")
 
         return g
+
+    def _getdist_subplot_plotter(self, plots_mod, n_params):
+        """GetDist plotter sized so long axis labels fit the panels."""
+        n = max(int(n_params), 1)
+        subplot_size = 3.2 if n <= 2 else max(2.0, 7.0 / n)
+        plotter = plots_mod.get_subplot_plotter(subplot_size=subplot_size)
+        plotter.settings.scaling = False
+        plotter.settings.figure_legend_frame = True
+        plotter.settings.legend_fontsize = 12
+        plotter.settings.axes_fontsize = 12
+        plotter.settings.lab_fontsize = 12
+        plotter.settings.axes_labelsize = 12
+        return plotter
+
     def plot_bestfit(self, object_id: Optional[str] = None,
                     output_file: Optional[str] = None, show: bool = True,
                     filter_file: Optional[str] = None, filter_selection_file: Optional[str] = None,
