@@ -281,8 +281,8 @@ def parse_plot_posterior(tokens):
     Parse ``<outdir> posterior (free | derived | --par NAME [--lab TEXT] ...)``.
 
     ``posterior`` is the only command. Catalog, object, and model config
-    via ``--cat`` / ``--obj`` / ``--cfg``. ``--lab`` must immediately
-    follow the matching ``--par``.
+    via ``--cat`` / ``--obj`` / ``--cfg``. Each ``--lab`` is optional and
+    must immediately follow its ``--par``.
     """
     if not tokens:
         raise ValueError('missing outdir')
@@ -344,8 +344,6 @@ def parse_plot_posterior(tokens):
             raise ValueError(f'unknown option {tok}')
         raise ValueError(f"unexpected argument '{tok}'")
     has_lab = any(label is not None for label in labs)
-    if has_lab and any(label is None for label in labs):
-        raise ValueError('--par and --lab must alternate')
     if kind is not None and pars:
         raise ValueError(f'{kind} cannot be combined with --par')
     if kind is None and not pars:
@@ -724,11 +722,11 @@ def _run_plot_posterior(rest, prog):
                 if not hits:
                     raise ValueError(f"No parameters found matching '{par}'")
                 if lab is not None:
-                    if hits != [par]:
+                    if len(hits) != 1:
                         raise ValueError(
-                            '--lab requires an exact unique --par name'
+                            '--lab requires a unique --par match'
                         )
-                    label_map[par] = lab
+                    label_map[hits[0]] = lab
                 for name in hits:
                     if name not in expanded:
                         expanded.append(name)

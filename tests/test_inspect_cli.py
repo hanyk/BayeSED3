@@ -1065,7 +1065,7 @@ def test_plot_posterior_par_expands_contains_hits():
     fake.set_parameter_labels.assert_not_called()
 
 
-def test_plot_posterior_par_lab_rejected_when_not_exact_unique():
+def test_plot_posterior_par_lab_rejected_when_not_unique():
     fake = _fake_plot_results(
         free=['z'],
         derived=['log(age/yr)', 'log(ageMW/yr)'],
@@ -1079,7 +1079,7 @@ def test_plot_posterior_par_lab_rejected_when_not_exact_unique():
     assert code == 1
     fake.plot_posterior.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert 'Error: --lab requires an exact unique --par name' in written
+    assert 'Error: --lab requires a unique --par match' in written
 
 
 def test_plot_posterior_par_no_match_exits_one():
@@ -1092,6 +1092,47 @@ def test_plot_posterior_par_no_match_exits_one():
     fake.plot_posterior.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert "No parameters found matching 'nope'" in written
+
+
+def test_plot_posterior_par_lab_optional_per_par():
+    fake = _fake_plot_results(
+        object_id='obj-1',
+        free=['Av_2[0,1]', 'z'],
+        derived=['log(age/yr)', 'log(Z/Zsun)'],
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'plot', 'out', 'posterior',
+            '--par', 'Av', '--lab', 'Av',
+            '--par', 'age/yr',
+            '--par', 'Z/Zsun',
+            '--cat', 'gal', '--obj', 'obj-1',
+        ])
+    assert code == 0
+    fake.set_parameter_labels.assert_called_once_with({'Av_2[0,1]': 'Av'})
+    assert fake.plot_posterior.call_args.kwargs.get('params') == [
+        'Av_2[0,1]', 'log(age/yr)', 'log(Z/Zsun)',
+    ]
+
+
+def test_plot_posterior_par_lab_with_unlabeled_multi_expand():
+    fake = _fake_plot_results(
+        free=['Av_2[0,1]', 'z'],
+        derived=['log(age/yr)', 'log(ageMW/yr)'],
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'plot', 'out', 'posterior',
+            '--par', 'Av', '--lab', 'Av',
+            '--par', 'age',
+        ])
+    assert code == 0
+    fake.set_parameter_labels.assert_called_once_with({'Av_2[0,1]': 'Av'})
+    assert fake.plot_posterior.call_args.kwargs.get('params') == [
+        'Av_2[0,1]', 'log(age/yr)', 'log(ageMW/yr)',
+    ]
 
 
 def test_plot_posterior_grouped_par_then_lab_rejected():
@@ -1319,8 +1360,10 @@ if __name__ == '__main__':
     test_plot_posterior_par_calls_plot_posterior()
     test_plot_posterior_par_lab_pairs_set_labels()
     test_plot_posterior_par_expands_contains_hits()
-    test_plot_posterior_par_lab_rejected_when_not_exact_unique()
+    test_plot_posterior_par_lab_rejected_when_not_unique()
     test_plot_posterior_par_no_match_exits_one()
+    test_plot_posterior_par_lab_optional_per_par()
+    test_plot_posterior_par_lab_with_unlabeled_multi_expand()
     test_plot_posterior_grouped_par_then_lab_rejected()
     test_plot_posterior_lab_without_par_rejected()
     test_plot_posterior_free_with_par_rejected()
