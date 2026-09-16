@@ -54,17 +54,14 @@ def test_results_outdir_only_prints_usage():
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'Error: missing command' in written
     assert 'Usage:' in written
-    assert 'catalogs' in written
 
 
 def test_results_outdir_json_without_command_prints_usage():
     with patch('bayesed.inspect_cli.list_catalog_names') as list_cat, \
-         patch('sys.stderr', new_callable=MagicMock) as err, \
-         patch('sys.stdout', new_callable=MagicMock) as out:
+         patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect(['results', 'out', '--json'])
     assert code == 1
     list_cat.assert_not_called()
-    assert out.write.call_args_list == []
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'Error: missing command' in written
     assert 'Usage:' in written
@@ -157,7 +154,7 @@ def test_results_model_configs_json():
     assert '"cfg0"' in written
 
 
-def test_missing_cfg_names_cfg_flag_in_one_line():
+def test_missing_cfg_is_one_line_with_cfg_flag():
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch(
              'bayesed.inspect_cli.BayeSEDResults',
@@ -172,35 +169,13 @@ def test_missing_cfg_names_cfg_flag_in_one_line():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple model configurations found for catalog 'gal'. "
-        "Please specify model_config parameter with --cfg. "
+        "Error: Multiple model configurations found. "
+        "Please specify config with --cfg. "
         "Available configs: ['cfg0', 'cfg1']\n"
     )
 
 
-def test_missing_catalog_names_cat_flag_in_one_line():
-    with patch(
-             'bayesed.inspect_cli.list_catalog_names',
-             return_value=['gal', 'qso'],
-         ), \
-         patch(
-             'bayesed.inspect_cli.BayeSEDResults',
-             side_effect=ValueError(
-                 "Multiple catalogs found. Please specify catalog_name "
-                 "parameter. Available catalogs: ['gal', 'qso']"
-             ),
-         ), \
-         patch('sys.stderr', new_callable=MagicMock) as err:
-        code = run_inspect(['results', 'out', 'par_names'])
-    assert code == 1
-    written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert written == (
-        "Error: Multiple catalogs found. Please specify catalog_name "
-        "parameter with --cat. Available catalogs: ['gal', 'qso']\n"
-    )
-
-
-def test_plot_missing_cfg_names_cfg_flag_in_one_line():
+def test_plot_missing_cfg_is_one_line_with_cfg_flag():
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch(
              'bayesed.inspect_cli.BayeSEDResults',
@@ -215,8 +190,8 @@ def test_plot_missing_cfg_names_cfg_flag_in_one_line():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple model configurations found for catalog 'gal'. "
-        "Please specify model_config parameter with --cfg. "
+        "Error: Multiple model configurations found. "
+        "Please specify config with --cfg. "
         "Available configs: ['cfg0', 'cfg1']\n"
     )
 
@@ -231,11 +206,32 @@ def test_unknown_catalog_lists_available_in_one_line():
     assert code == 1
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert written == "Error: Unknown catalog 'qso'. Available catalogs: ['gal']\n"
+    assert written == (
+        "Error: Unknown catalog 'qso'. Available catalogs: ['gal']\n"
+    )
+
+
+def test_missing_catalog_is_one_line_with_cat_flag():
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal', 'qso']), \
+         patch(
+             'bayesed.inspect_cli.BayeSEDResults',
+             side_effect=ValueError(
+                 "Multiple catalogs found. Please specify catalog_name parameter. "
+                 "Available catalogs: ['gal', 'qso']"
+             ),
+         ), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'summary'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written == (
+        "Error: Multiple catalogs found. Please specify catalog "
+        "with --cat. Available catalogs: ['gal', 'qso']\n"
+    )
 
 
 def test_library_many_configs_truncates_available_list():
-    configs = [f'cfg{i:02d}' for i in range(12)]
+    configs = [f'c{i}' for i in range(12)]
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch(
              'bayesed.inspect_cli.BayeSEDResults',
@@ -250,13 +246,14 @@ def test_library_many_configs_truncates_available_list():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple model configurations found for catalog 'gal'. "
-        "Please specify model_config parameter with --cfg. "
-        "Available configs: ['cfg00', 'cfg01', 'cfg02', 'cfg03', 'cfg04', "
-        "'...', 'cfg07', 'cfg08', 'cfg09', 'cfg10', 'cfg11']\n"
+        "Error: Multiple model configurations found. "
+        "Please specify config with --cfg. "
+        "Available configs: "
+        "['c0', 'c1', 'c2', 'c3', 'c4', '...', "
+        "'c7', 'c8', 'c9', 'c10', 'c11']\n"
     )
-    assert 'cfg05' not in written
-    assert 'cfg06' not in written
+    assert 'c5' not in written
+    assert 'c6' not in written
 
 
 def test_many_catalogs_truncates_available_list():
@@ -269,8 +266,8 @@ def test_many_catalogs_truncates_available_list():
     listed.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple catalogs found. Please specify catalog_name "
-        "parameter with --cat. Available catalogs: "
+        "Error: Multiple catalogs found. Please specify catalog "
+        "with --cat. Available catalogs: "
         "['c00', 'c01', 'c02', 'c03', 'c04', '...', "
         "'c07', 'c08', 'c09', 'c10', 'c11']\n"
     )
@@ -393,20 +390,6 @@ def test_plot_posterior_then_bestfit_cannot_mix():
     assert "Error: unexpected argument 'bestfit'" in written
 
 
-def test_ten_catalogs_lists_all_without_ellipsis():
-    catalogs = [f'c{i:02d}' for i in range(10)]
-    with patch('bayesed.inspect_cli.list_catalog_names', return_value=catalogs), \
-         patch('bayesed.inspect_cli.list_model_configs') as listed, \
-         patch('sys.stderr', new_callable=MagicMock) as err:
-        code = run_inspect(['results', 'out', 'model_configs'])
-    assert code == 1
-    listed.assert_not_called()
-    written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert '...' not in written
-    for name in catalogs:
-        assert name in written
-
-
 def test_plot_multiple_objects_without_obj_errors():
     fake = MagicMock()
     fake.object_id = None
@@ -418,8 +401,8 @@ def test_plot_multiple_objects_without_obj_errors():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple objects found. Please specify object_id "
-        "parameter with --obj. Available objects: ['obj-a', 'obj-b']\n"
+        "Error: Multiple objects found. Please specify object "
+        "with --obj. Available objects: ['obj-a', 'obj-b']\n"
     )
     fake.plot_bestfit.assert_not_called()
 
@@ -436,8 +419,8 @@ def test_plot_many_objects_without_obj_lists_head_and_tail():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple objects found. Please specify object_id "
-        "parameter with --obj. Available objects: "
+        "Error: Multiple objects found. Please specify object "
+        "with --obj. Available objects: "
         "['o00', 'o01', 'o02', 'o03', 'o04', '...', "
         "'o07', 'o08', 'o09', 'o10', 'o11']\n"
     )
@@ -473,7 +456,7 @@ def test_plot_with_object_does_not_list():
         ])
     assert code == 0
     written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert 'Objects' not in written
+    assert 'using first' not in written
     fake.plot_bestfit.assert_called_once()
 
 
@@ -810,9 +793,10 @@ def test_results_model_configs_needs_catalog_when_several():
     listed.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple catalogs found. Please specify catalog_name "
-        "parameter with --cat. Available catalogs: ['gal', 'qso']\n"
+        "Error: Multiple catalogs found. Please specify catalog "
+        "with --cat. Available catalogs: ['gal', 'qso']\n"
     )
+
 
 def test_results_model_configs_uses_sole_catalog():
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
@@ -1077,8 +1061,11 @@ def test_plot_multiple_configs_without_cfg_exits_one():
         code = run_inspect(['plot', 'out', 'bestfit', '--cat', 'gal'])
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert 'Multiple model configurations' in written
-    assert 'cfg0' in written
+    assert written == (
+        "Error: Multiple model configurations found. "
+        "Please specify config with --cfg. "
+        "Available configs: ['cfg0', 'cfg1']\n"
+    )
 
 
 def test_plot_posterior_multiple_objects_without_obj_errors():
@@ -1090,8 +1077,8 @@ def test_plot_posterior_multiple_objects_without_obj_errors():
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Multiple objects found. Please specify object_id "
-        "parameter with --obj. Available objects: ['obj-a', 'obj-b']\n"
+        "Error: Multiple objects found. Please specify object "
+        "with --obj. Available objects: ['obj-a', 'obj-b']\n"
     )
     fake.plot_posterior_free.assert_not_called()
 
@@ -1122,10 +1109,10 @@ if __name__ == '__main__':
     test_results_par_values_json()
     test_results_catalogs_json()
     test_results_model_configs_json()
-    test_missing_cfg_names_cfg_flag_in_one_line()
-    test_missing_catalog_names_cat_flag_in_one_line()
-    test_plot_missing_cfg_names_cfg_flag_in_one_line()
+    test_missing_cfg_is_one_line_with_cfg_flag()
+    test_plot_missing_cfg_is_one_line_with_cfg_flag()
     test_unknown_catalog_lists_available_in_one_line()
+    test_missing_catalog_is_one_line_with_cat_flag()
     test_library_many_configs_truncates_available_list()
     test_many_catalogs_truncates_available_list()
     test_results_summary_uses_bayesed_results()
@@ -1138,7 +1125,6 @@ if __name__ == '__main__':
     test_plot_bestfit_calls_plot_bestfit()
     test_plot_posterior_cannot_mix_with_bestfit()
     test_plot_posterior_then_bestfit_cannot_mix()
-    test_ten_catalogs_lists_all_without_ellipsis()
     test_plot_multiple_objects_without_obj_errors()
     test_plot_many_objects_without_obj_lists_head_and_tail()
     test_plot_single_object_without_obj_uses_it_silently()

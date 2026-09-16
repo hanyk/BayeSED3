@@ -339,6 +339,46 @@ def parse_plot_posterior(tokens):
     return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg
 
 
+def _catalog_for_discovery(outdir, cat):
+    catalogs = list_catalog_names(outdir)
+    if cat is not None:
+        if cat not in catalogs:
+            raise ValueError(
+                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
+            )
+        return cat
+    if len(catalogs) == 1:
+        return catalogs[0]
+    if not catalogs:
+        raise ValueError(f'No catalogs in {outdir}')
+    raise ValueError(_multi_choice_message(
+        'catalogs', 'catalog', '--cat', 'catalogs', catalogs,
+    ))
+
+
+def _load_results_flags(outdir, cat, obj, cfg=None):
+    kwargs = {}
+    if cat is not None:
+        catalogs = list_catalog_names(outdir)
+        if catalogs and cat not in catalogs:
+            raise ValueError(
+                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
+            )
+        kwargs['catalog_name'] = cat
+    if cfg is not None:
+        kwargs['model_config'] = cfg
+    if obj is not None:
+        kwargs['object_id'] = obj
+    try:
+        return BayeSEDResults(outdir, **kwargs)
+    except ValueError as exc:
+        raise ValueError(_cli_wording_for_library_error(exc)) from exc
+
+
+def _print_json(data):
+    print(json.dumps(data, default=str))
+
+
 def _format_available(items):
     """At most ten entries for ``Available …`` lists (first/last five)."""
     items = list(items)
@@ -368,68 +408,37 @@ def _truncate_available_lists(msg):
     return msg
 
 
-def _catalog_for_discovery(outdir, cat):
-    catalogs = list_catalog_names(outdir)
-    if cat is not None:
-        if cat not in catalogs:
-            raise ValueError(
-                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
-            )
-        return cat
-    if len(catalogs) == 1:
-        return catalogs[0]
-    if not catalogs:
-        raise ValueError(f'No catalogs in {outdir}')
-    raise ValueError(
-        'Multiple catalogs found. Please specify catalog_name parameter '
-        f"with --cat. Available catalogs: {catalogs}"
+def _multi_choice_message(things, thing, flag, available_label, items):
+    return (
+        f'Multiple {things} found. Please specify {thing} with {flag}. '
+        f'Available {available_label}: {list(items)}'
     )
 
 
-def _load_results_flags(outdir, cat, obj, cfg=None):
-    kwargs = {}
-    if cat is not None:
-        catalogs = list_catalog_names(outdir)
-        if catalogs and cat not in catalogs:
-            raise ValueError(
-                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
-            )
-        kwargs['catalog_name'] = cat
-    if cfg is not None:
-        kwargs['model_config'] = cfg
-    if obj is not None:
-        kwargs['object_id'] = obj
-    try:
-        return BayeSEDResults(outdir, **kwargs)
-    except ValueError as exc:
-        raise ValueError(_cli_wording_for_library_error(exc)) from exc
-
-
 def _cli_wording_for_library_error(exc):
-    """
-    Map library multi-choice ValueErrors to one-line CLI wording.
-
-    Library messages stay flag-agnostic; the inspect load boundary names
-    ``--cat`` / ``--cfg`` here so stderr does not string-patch later.
-    """
+    """Rewrite library multi-choice ValueErrors to the Inspect one-line form."""
     msg = str(exc)
-    for bare, with_flag in (
+    for needle, things, thing, flag, avail in (
         (
-            'Please specify catalog_name parameter.',
-            'Please specify catalog_name parameter with --cat.',
+            'Multiple catalogs found',
+            'catalogs', 'catalog', '--cat', 'Available catalogs: ',
         ),
         (
-            'Please specify model_config parameter.',
-            'Please specify model_config parameter with --cfg.',
+            'Multiple model configurations found',
+            'model configurations', 'config', '--cfg', 'Available configs: ',
+        ),
+        (
+            'Multiple objects found',
+            'objects', 'object', '--obj', 'Available objects: ',
         ),
     ):
-        if bare in msg:
-            return msg.replace(bare, with_flag, 1)
+        if needle not in msg:
+            continue
+        idx = msg.find(avail)
+        tail = msg[idx:] if idx >= 0 else ''
+        body = f'Multiple {things} found. Please specify {thing} with {flag}.'
+        return f'{body} {tail}'.rstrip()
     return msg
-
-
-def _print_json(data):
-    print(json.dumps(data, default=str))
 
 
 def _emit_load_error(exc):
@@ -478,10 +487,9 @@ def _resolve_plot_object(results):
         return None
     if len(object_ids) == 1:
         return object_ids[0]
-    raise ValueError(
-        'Multiple objects found. Please specify object_id parameter '
-        f'with --obj. Available objects: {object_ids}'
-    )
+    raise ValueError(_multi_choice_message(
+        'objects', 'object', '--obj', 'objects', object_ids,
+    ))
 
 
 def _run_par_values(rest, prog):

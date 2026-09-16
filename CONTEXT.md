@@ -10,7 +10,11 @@ _Avoid_: Calling the on-disk catalog file an observation
 
 **Input catalog**:
 The text file consumed by the binary (one source per line; flux/error columns and filter names).
-_Avoid_: Input (alone), catalog when meaning HDF5 results
+_Avoid_: Input (alone); Results catalog; catalog when meaning HDF5 Results products
+
+**Results catalog**:
+The name that distinguishes one set of Results products under an outdir.
+_Avoid_: Input catalog; catalog when meaning the on-disk text file
 
 **SED model**:
 The physical component assembly used for a fit (`SEDModel` / `*Params` components such as SSP, SFH, DAL, AGN).
