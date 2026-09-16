@@ -40,9 +40,12 @@ def test_usage_is_short_overview_without_inspect_flags():
         'bayesed3 - A Bayesian SED synthesis and analysis tool for galaxies '
         'and AGNs\n'
     )
-    assert 'results' in text
-    assert 'plot' in text
-    assert 'priors' in text
+    assert (
+        'bayesed3 results <outdir> '
+        '[summary|evidence|par_names|objects|par_values|catalogs|model_configs]\n'
+    ) in text
+    assert 'bayesed3 plot <outdir> [bestfit|posterior]\n' in text
+    assert 'bayesed3 priors list [dir]\n' in text
     assert 'bayesed3 run' in text
     assert '--mpi' in text
     assert 'version' in text
@@ -50,6 +53,8 @@ def test_usage_is_short_overview_without_inspect_flags():
     assert '--cat' not in text
     assert '--cfg' not in text
     assert '--obj' not in text
+    assert 'posterior free' not in text
+    assert 'derived' not in text
 
 
 def test_run_launcher_version_prints_python_and_binary():

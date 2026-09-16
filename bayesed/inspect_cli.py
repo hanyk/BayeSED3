@@ -5,6 +5,7 @@ First-token ``results`` / ``plot`` / ``priors`` present existing products.
 Not a public package export; ``run_launcher`` dispatches here.
 """
 
+import ast
 import glob
 import json
 import os
@@ -43,7 +44,6 @@ def results_usage_lines(prog='bayesed3'):
     return (
         f"{prog} results <outdir> <cmd> [<cmd>...] "
         f"[--cat catalog] [--cfg config] [--obj object] [--json]",
-        f"{prog} results <outdir> [--json]",
         f"{prog} results <outdir> catalogs [--json]",
         f"{prog} results <outdir> model_configs [--cat catalog] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
@@ -242,15 +242,6 @@ def parse_catalogs(tokens):
     return outdir, flags['json']
 
 
-def parse_results_discovery(tokens):
-    """Parse ``<outdir> [--json]`` with no results verb."""
-    if not tokens:
-        raise ValueError('missing outdir')
-    outdir = tokens[0]
-    flags = _parse_flag_pairs(tokens, 1, {}, bool_flags=_JSON_BOOL)
-    return outdir, flags['json']
-
-
 def parse_plot_bestfit(tokens):
     """
     Parse ``<outdir> bestfit [--cat C] [--obj O]``.
@@ -348,6 +339,35 @@ def parse_plot_posterior(tokens):
     return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg
 
 
+def _format_available(items):
+    """At most ten entries for ``Available …`` lists (first/last five)."""
+    items = list(items)
+    if len(items) <= 10:
+        return items
+    return items[:5] + ['...'] + items[-5:]
+
+
+def _truncate_available_lists(msg):
+    """Truncate trailing ``Available …: […]`` lists at the stderr boundary."""
+    for label in (
+        'Available catalogs: ',
+        'Available configs: ',
+        'Available objects: ',
+    ):
+        idx = msg.rfind(label)
+        if idx < 0:
+            continue
+        start = idx + len(label)
+        try:
+            items = ast.literal_eval(msg[start:])
+        except (ValueError, SyntaxError):
+            continue
+        if not isinstance(items, list):
+            continue
+        return msg[:start] + str(_format_available(items))
+    return msg
+
+
 def _catalog_for_discovery(outdir, cat):
     catalogs = list_catalog_names(outdir)
     if cat is not None:
@@ -361,8 +381,8 @@ def _catalog_for_discovery(outdir, cat):
     if not catalogs:
         raise ValueError(f'No catalogs in {outdir}')
     raise ValueError(
-        'Multiple catalogs found. Specify a catalog with --cat, '
-        f"e.g. model_configs --cat {catalogs[0]}. Available catalogs: {catalogs}"
+        'Multiple catalogs found. Please specify catalog_name parameter '
+        f"with --cat. Available catalogs: {catalogs}"
     )
 
 
@@ -379,25 +399,41 @@ def _load_results_flags(outdir, cat, obj, cfg=None):
         kwargs['model_config'] = cfg
     if obj is not None:
         kwargs['object_id'] = obj
-    return BayeSEDResults(outdir, **kwargs)
+    try:
+        return BayeSEDResults(outdir, **kwargs)
+    except ValueError as exc:
+        raise ValueError(_cli_wording_for_library_error(exc)) from exc
+
+
+def _cli_wording_for_library_error(exc):
+    """
+    Map library multi-choice ValueErrors to one-line CLI wording.
+
+    Library messages stay flag-agnostic; the inspect load boundary names
+    ``--cat`` / ``--cfg`` here so stderr does not string-patch later.
+    """
+    msg = str(exc)
+    for bare, with_flag in (
+        (
+            'Please specify catalog_name parameter.',
+            'Please specify catalog_name parameter with --cat.',
+        ),
+        (
+            'Please specify model_config parameter.',
+            'Please specify model_config parameter with --cfg.',
+        ),
+    ):
+        if bare in msg:
+            return msg.replace(bare, with_flag, 1)
+    return msg
 
 
 def _print_json(data):
     print(json.dumps(data, default=str))
 
 
-def _emit_load_error(exc, prog, outdir, cat=None):
-    sys.stderr.write(f"Error: {exc}\n")
-    msg = str(exc).lower()
-    if 'model configuration' in msg:
-        hint = f"List configs: {prog} results {outdir} model_configs"
-        if cat is not None:
-            hint += f" --cat {cat}"
-        sys.stderr.write(hint + "\n")
-    elif 'catalog' in msg:
-        sys.stderr.write(
-            f"List catalogs: {prog} results {outdir} catalogs\n"
-        )
+def _emit_load_error(exc):
+    sys.stderr.write(f"Error: {_truncate_available_lists(str(exc))}\n")
 
 
 def _summary_payload(results):
@@ -433,39 +469,19 @@ def _print_evidence(results, as_json=False):
     print(evidence)
 
 
-def format_object_listing(object_ids):
-    """
-    Lines listing object IDs. Empty when there is nothing to choose
-    (zero or one). More than ten: first five, ``...``, last five.
-    """
-    n = len(object_ids)
-    if n <= 1:
-        return []
-    lines = [f'Objects ({n}):']
-    if n <= 10:
-        for item in object_ids:
-            lines.append(f'  {item}')
-        return lines
-    for item in object_ids[:5]:
-        lines.append(f'  {item}')
-    lines.append('  ...')
-    for item in object_ids[-5:]:
-        lines.append(f'  {item}')
-    return lines
-
-
-def _announce_plot_objects(results):
+def _resolve_plot_object(results):
+    """Resolve the single object for plot; require --obj when several exist."""
     if results.object_id:
         return results.object_id
     object_ids = results.list_objects()
-    for line in format_object_listing(object_ids):
-        print(line)
     if not object_ids:
         return None
-    first = object_ids[0]
-    if len(object_ids) > 1:
-        print(f'using first: {first}')
-    return first
+    if len(object_ids) == 1:
+        return object_ids[0]
+    raise ValueError(
+        'Multiple objects found. Please specify object_id parameter '
+        f'with --obj. Available objects: {object_ids}'
+    )
 
 
 def _run_par_values(rest, prog):
@@ -490,7 +506,7 @@ def _run_par_values(rest, prog):
         else:
             print(table)
     except (ValueError, FileNotFoundError) as e:
-        _emit_load_error(e, prog, outdir, cat)
+        _emit_load_error(e)
         return 1
     return 0
 
@@ -514,17 +530,6 @@ def _run_catalogs(rest, prog):
     return 0
 
 
-def _run_results_discovery(rest, prog):
-    try:
-        outdir, as_json = parse_results_discovery(rest)
-    except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(results_usage(prog))
-        return 1
-    _print_name_list(list_catalog_names(outdir), as_json)
-    return 0
-
-
 def _run_model_configs(rest, prog):
     try:
         outdir, cat, as_json = parse_model_configs(rest)
@@ -536,7 +541,7 @@ def _run_model_configs(rest, prog):
         catalog = _catalog_for_discovery(outdir, cat)
         _print_name_list(list_model_configs(outdir, catalog), as_json)
     except ValueError as e:
-        _emit_load_error(e, prog, outdir, cat)
+        _emit_load_error(e)
         return 1
     return 0
 
@@ -563,7 +568,7 @@ def _run_results_query(rest, prog):
             elif cmd == 'objects':
                 _print_name_list(results.list_objects(), as_json)
     except (ValueError, FileNotFoundError) as e:
-        _emit_load_error(e, prog, outdir, cat)
+        _emit_load_error(e)
         return 1
     return 0
 
@@ -636,12 +641,12 @@ def _run_plot_bestfit(rest, prog):
     try:
         results = _load_results_flags(outdir, cat, obj, cfg)
         plot_kw = {'show': True}
-        chosen = _announce_plot_objects(results)
+        chosen = _resolve_plot_object(results)
         if chosen:
             plot_kw['object_id'] = chosen
         results.plot_bestfit(**plot_kw)
     except (ValueError, FileNotFoundError) as e:
-        _emit_load_error(e, prog, outdir, cat)
+        _emit_load_error(e)
         return 1
     return 0
 
@@ -658,7 +663,7 @@ def _run_plot_posterior(rest, prog):
     try:
         results = _load_results_flags(outdir, cat, obj, cfg)
         plot_kw = {'show': True}
-        chosen = _announce_plot_objects(results)
+        chosen = _resolve_plot_object(results)
         if chosen:
             plot_kw['object_id'] = chosen
         if kind == 'free':
@@ -673,7 +678,7 @@ def _run_plot_posterior(rest, prog):
                 results.set_parameter_labels(dict(zip(pars, labels)))
             results.plot_posterior(params=pars, **plot_kw)
     except (ValueError, FileNotFoundError) as e:
-        _emit_load_error(e, prog, outdir, cat)
+        _emit_load_error(e)
         return 1
     return 0
 
@@ -689,7 +694,9 @@ def _run_results_plot(kind, rest, prog):
     if kind == 'results' and _results_has_model_configs(rest):
         return _run_model_configs(rest, prog)
     if kind == 'results' and _first_results_verb(rest) is None:
-        return _run_results_discovery(rest, prog)
+        sys.stderr.write('Error: missing command\n')
+        sys.stderr.write(results_usage(prog))
+        return 1
     if kind == 'results':
         return _run_results_query(rest, prog)
     if kind == 'plot' and _plot_has_posterior(rest):

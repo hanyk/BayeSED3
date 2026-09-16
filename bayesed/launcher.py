@@ -13,7 +13,12 @@ import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 
-from .inspect_cli import INSPECT_TOKENS, run_inspect
+from .inspect_cli import (
+    INSPECT_TOKENS,
+    PLOT_VERBS,
+    RESULTS_VERBS,
+    run_inspect,
+)
 from .runtime import (
     absolutize_cli_path_args,
     build_mpi_command,
@@ -26,6 +31,8 @@ from .runtime import (
 
 
 def usage_text(prog='bayesed3'):
+    results_cmds = '|'.join(RESULTS_VERBS)
+    plot_cmds = '|'.join(PLOT_VERBS)
     return (
         f"{prog} - A Bayesian SED synthesis and analysis tool for galaxies "
         f"and AGNs\n"
@@ -34,8 +41,8 @@ def usage_text(prog='bayesed3'):
         f"  {prog} version | --version\n"
         "\n"
         "Inspect:\n"
-        f"  {prog} results <outdir> …\n"
-        f"  {prog} plot <outdir> …\n"
+        f"  {prog} results <outdir> [{results_cmds}]\n"
+        f"  {prog} plot <outdir> [{plot_cmds}]\n"
         f"  {prog} priors list [dir]\n"
         "\n"
         "Run:\n"
