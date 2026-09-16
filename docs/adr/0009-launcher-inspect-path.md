@@ -15,4 +15,4 @@ They call existing `BayeSEDResults` / `list_prior_types` / `PriorManager.load_pr
 
 We rejected a second console script (easy to miss), a named-fit / YAML surface (a second option language), `priors init` on this path (needs a Model configuration the binary already accepts via `--priors_only`), optional `run` prefix (two equivalent fit spellings), and keeping top-level `--help` as binary help (inspect stayed undiscoverable).
 
-Inspect argv stays hand-written (no argparse / click / typer). Shared `--flag value` walking and usage lines live in `inspect_cli`; `--par` / `--lab` interleaving stays custom.
+Inspect argv stays hand-written (no argparse / click / typer). Shared `--flag value` walking and usage lines live in `inspect_cli`; `--par` / `--lab` interleaving stays custom. Valued Inspect flags (`--cat` / `--cfg` / `--obj` / `--par` / `--lab` / `--max`) require a value: missing at end of argv, or next token starting with `--`, yields `Error: <flag> requires a value` (do not swallow the following flag as the value). A lone leading `-` on a value is still allowed.

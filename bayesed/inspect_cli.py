@@ -118,7 +118,7 @@ def _flag_value(tokens, i, flag_map):
     key = flag_map.get(tok)
     if key is None:
         return None
-    if i + 1 >= len(tokens):
+    if i + 1 >= len(tokens) or tokens[i + 1].startswith('--'):
         raise ValueError(f'{tok} requires a value')
     return key, tokens[i + 1], i + 2
 
@@ -310,12 +310,12 @@ def parse_plot_posterior(tokens):
                 cfg = value
             continue
         if tok == '--par':
-            if i + 1 >= len(rest):
+            if i + 1 >= len(rest) or rest[i + 1].startswith('--'):
                 raise ValueError('--par requires a value')
             pars.append(rest[i + 1])
             i += 2
             if i < len(rest) and rest[i] == '--lab':
-                if i + 1 >= len(rest):
+                if i + 1 >= len(rest) or rest[i + 1].startswith('--'):
                     raise ValueError('--lab requires a value')
                 labs.append(rest[i + 1])
                 i += 2
@@ -445,6 +445,15 @@ def _emit_load_error(exc):
     sys.stderr.write(f"Error: {_truncate_available_lists(str(exc))}\n")
 
 
+def _par_values_json_payload(table):
+    """Serialize ``get_parameter_values`` output as JSON records."""
+    if hasattr(table, 'to_dict'):
+        return table.to_dict(orient='records')
+    if hasattr(table, 'to_pandas'):
+        return table.to_pandas().to_dict(orient='records')
+    return table
+
+
 def _summary_payload(results):
     payload = {
         'output_dir': results.output_dir,
@@ -507,10 +516,7 @@ def _run_par_values(rest, prog):
             kwargs['object_match_mode'] = loose_match_mode(obj)
         table = results.get_parameter_values(par, **kwargs)
         if as_json:
-            if hasattr(table, 'to_dict'):
-                _print_json(table.to_dict(orient='records'))
-            else:
-                _print_json(table)
+            _print_json(_par_values_json_payload(table))
         else:
             print(table)
     except (ValueError, FileNotFoundError) as e:

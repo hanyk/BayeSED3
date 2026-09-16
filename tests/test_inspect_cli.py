@@ -4,6 +4,7 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+from astropy.table import Table
 
 from bayesed.inspect_cli import (
     PLOT_VERBS,
@@ -128,7 +129,27 @@ def test_results_par_values_json():
         ])
     assert code == 0
     written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert 'z' in written
+    assert written.strip() == '[{"z": 1.0}]'
+
+
+def test_results_par_values_json_from_astropy_table():
+    """astropy Table has to_pandas, not to_dict — must still emit records."""
+    fake = MagicMock()
+    fake.get_parameter_values.return_value = Table(
+        {'ID': ['obj-1'], 'log(age/yr)[0,1]_{mean}': [10.08]},
+    )
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'age', '--json',
+        ])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list).strip()
+    assert written.startswith('[')
+    assert 'obj-1' in written
+    assert '10.08' in written
+    assert '\\n' not in written
 
 
 def test_results_catalogs_json():
@@ -501,6 +522,56 @@ def test_plot_bestfit_cfg_requires_value():
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'Error: --cfg requires a value' in written
+
+
+def test_plot_par_missing_value_before_another_flag():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'plot', 'out', 'posterior', '--par', '--cat', 'gal',
+            '--obj', 'obj-1',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written.startswith('Error: --par requires a value\n')
+    assert "unexpected argument 'gal'" not in written
+
+
+def test_plot_cat_missing_value_before_another_flag():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'plot', 'out', 'bestfit', '--cat', '--obj', 'obj-1',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --cat requires a value' in written
+
+
+def test_plot_lab_missing_value_before_another_flag():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'plot', 'out', 'posterior', '--par', 'z', '--lab', '--cat', 'gal',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --lab requires a value' in written
+
+
+def test_results_obj_missing_value_before_another_flag():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'summary', '--obj', '--cat', 'gal',
+        ])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --obj requires a value' in written
 
 
 def test_plot_bestfit_rejects_leftover_positionals():
@@ -1107,6 +1178,7 @@ if __name__ == '__main__':
     test_results_evidence_json()
     test_results_summary_json()
     test_results_par_values_json()
+    test_results_par_values_json_from_astropy_table()
     test_results_catalogs_json()
     test_results_model_configs_json()
     test_missing_cfg_is_one_line_with_cfg_flag()
@@ -1132,6 +1204,10 @@ if __name__ == '__main__':
     test_plot_bestfit_passes_catalog_and_object()
     test_plot_bestfit_cfg_passed_to_results()
     test_plot_bestfit_cfg_requires_value()
+    test_plot_par_missing_value_before_another_flag()
+    test_plot_cat_missing_value_before_another_flag()
+    test_plot_lab_missing_value_before_another_flag()
+    test_results_obj_missing_value_before_another_flag()
     test_plot_bestfit_rejects_leftover_positionals()
     test_priors_list_without_dir_lists_types()
     test_priors_list_dir_uses_existing_loader_and_printer()
