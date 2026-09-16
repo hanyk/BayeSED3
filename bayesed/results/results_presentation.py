@@ -12,6 +12,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Near-zero variance: treat as fixed (same threshold as prior free-plot filter).
+_FIXED_VARIANCE_EPS = 1e-10
+
 
 class ResultsPresentation:
     """Presentation adapter over ResultsProducts (plots + GetDist + analytics)."""
@@ -19,6 +22,36 @@ class ResultsPresentation:
     def __init__(self, products):
         self._products = products
         self._getdist_samples_cache = {}
+
+    @staticmethod
+    def _getdist_param_names(samples) -> List[str]:
+        return [p.name for p in samples.paramNames.names]
+
+    @classmethod
+    def _params_in_samples(
+        cls,
+        samples,
+        names: List[str],
+        *,
+        require_varying: bool = False,
+    ) -> List[str]:
+        """Keep ``names`` that exist on ``samples`` (by name, never by index).
+
+        When ``require_varying`` is true, also drop columns with variance
+        ``<= _FIXED_VARIANCE_EPS`` (ADR-0010).
+        """
+        getdist_names = cls._getdist_param_names(samples)
+        name_to_index = {name: i for i, name in enumerate(getdist_names)}
+        kept: List[str] = []
+        for name in names:
+            idx = name_to_index.get(name)
+            if idx is None:
+                continue
+            if require_varying:
+                if np.var(samples.samples[:, idx]) <= _FIXED_VARIANCE_EPS:
+                    continue
+            kept.append(name)
+        return kept
 
     def __getattr__(self, name):
         # Delegate data/state access to products (not methods defined here).
@@ -202,15 +235,31 @@ class ResultsPresentation:
         # Get samples using GetDist
         samples = self.get_getdist_samples(object_id=object_id)
 
-        # Use default parameters if none specified
+        # ADR-0010: explicit params must all exist on this samples object;
+        # default free list is filtered to present + varying names.
         if params is None:
-            params = self.get_free_parameters()
+            params = self._params_in_samples(
+                samples,
+                list(self.get_free_parameters()),
+                require_varying=True,
+            )
+            if not params:
+                raise ValueError('no parameters available in posterior samples')
+        else:
+            present = set(self._getdist_param_names(samples))
+            missing = [p for p in params if p not in present]
+            if missing:
+                raise ValueError(
+                    'parameter(s) not in posterior samples: '
+                    + ', '.join(missing)
+                )
+            if not params:
+                raise ValueError('no parameters available in posterior samples')
 
         # Import GetDist plotting
         try:
             from getdist import plots
             import matplotlib.pyplot as plt
-            import numpy as np
         except ImportError:
             raise ImportError("GetDist is required for plotting. Install with: pip install getdist")
 
@@ -602,36 +651,18 @@ class ResultsPresentation:
                     else:
                         raise ValueError("No objects available for plotting")
 
-            free_params = self.get_free_parameters()
-
-            # Filter parameters to only include those available and varying in GetDist samples
-            if object_id:
-                try:
-                    samples = self.get_getdist_samples(object_id=object_id)
-                    getdist_names = [p.name for p in samples.paramNames.names]
-
-                    # Filter out missing and fixed parameters
-                    varying_params = []
-                    for param_name in free_params:
-                        if param_name not in getdist_names:
-                            logger.debug(f"Excluding missing parameter: {param_name}")
-                            continue
-
-                        # Check if parameter actually varies
-                        param_index = getdist_names.index(param_name)
-                        param_samples = samples.samples[:, param_index]
-
-                        # Use numpy to check variance more robustly
-                        import numpy as np
-                        if np.var(param_samples) > 1e-10:  # Small threshold for numerical precision
-                            varying_params.append(param_name)
-                        else:
-                            logger.debug(f"Excluding fixed parameter: {param_name} (variance: {np.var(param_samples)})")
-
-                    free_params = varying_params
-                    logger.debug(f"Filtered to {len(free_params)} varying free parameters available in GetDist samples")
-                except Exception as e:
-                    logger.warning(f"Could not filter parameters: {e}")
+            samples = self.get_getdist_samples(object_id=object_id)
+            free_params = self._params_in_samples(
+                samples,
+                list(self.get_free_parameters()),
+                require_varying=True,
+            )
+            if not free_params:
+                raise ValueError('no parameters available in posterior samples')
+            logger.debug(
+                f"Filtered to {len(free_params)} varying free parameters "
+                f"available in GetDist samples"
+            )
 
             return self.plot_posterior(params=free_params, object_id=object_id,
                                      output_file=output_file, show=show,
@@ -694,21 +725,22 @@ class ResultsPresentation:
                     else:
                         raise ValueError("No objects available for plotting")
 
-            derived_params = self.get_derived_parameters()
+            samples = self.get_getdist_samples(object_id=object_id)
+            derived_params = self._params_in_samples(
+                samples,
+                list(self.get_derived_parameters()),
+                require_varying=True,
+            )
+            logger.debug(
+                f"Filtered to {len(derived_params)} varying derived parameters "
+                f"available in GetDist samples"
+            )
 
-            # Filter parameters to only include those available in GetDist samples
-            if object_id:
-                try:
-                    samples = self.get_getdist_samples(object_id=object_id)
-                    getdist_names = [p.name for p in samples.paramNames.names]
-                    derived_params = [p for p in derived_params if p in getdist_names]
-                    logger.debug(f"Filtered to {len(derived_params)} derived parameters available in GetDist samples")
-                except Exception as e:
-                    logger.warning(f"Could not filter parameters: {e}")
-
-            # Limit to max_params if specified
+            # Limit to max_params if specified (after name+variance filter)
             if max_params and len(derived_params) > max_params:
                 derived_params = derived_params[:max_params]
+            if not derived_params:
+                raise ValueError('no parameters available in posterior samples')
 
             return self.plot_posterior(params=derived_params, object_id=object_id,
                                      output_file=output_file, show=show,
