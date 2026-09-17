@@ -48,6 +48,10 @@ _Avoid_: Calling `.iprior` file contents a prior type; calling either mode “li
 The `bayesed3` / `python -m bayesed` console entry. First token selects the path: `version` / `--version` report Package version and Binary banner; `results` / `plot` / `priors` present existing Results or Priors; `run` forwards the rest to the compiled binary (after resolving OpenMPI / OS-arch / process count). Empty argv and top-level `--help` are Launcher overview: one product tagline plus Version/Inspect/Run syntax sketches (verb names allowed on Inspect lines; no per-entry prose, no flag lists, no multi-line subcommand usage), not binary help. Coexists with `BayeSEDInterface` (Python Params → Execution); they share internal `runtime`.
 _Avoid_: Treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar; treating Package version and Binary banner as one “version”; putting full Inspect usage or flag details on the overview
 
+**Inspect loose match**:
+The Launcher inspect name ladder for `--cat` / `--cfg` / `--obj` / `--par`: exact, then contains, then regex; first non-empty hit list wins. Usage shows these value slots as `PATTERN`.
+_Avoid_: Treating PATTERN as regex-only; conflating with the Python Results / Model configuration soft-match; putting the ladder on the Launcher overview
+
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.
 _Avoid_: Python version (the interpreter); binary version; “BayeSED3 version” when only one of the two identities is meant

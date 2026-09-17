@@ -9,6 +9,9 @@ from astropy.table import Table
 from bayesed.inspect_cli import (
     PLOT_VERBS,
     RESULTS_VERBS,
+    parse_catalogs,
+    parse_model_configs,
+    parse_par_values,
     run_inspect as _run_inspect_impl,
 )
 from bayesed.launcher import run_launcher
@@ -69,9 +72,10 @@ def test_results_outdir_only_prints_usage():
     assert 'Usage:' in written
     assert 'Commands:' not in written
     assert 'results commands:' not in written
-    assert 'summary [--cat catalog] [--cfg config] [--json]' in written
-    assert 'par_names [--cat catalog] [--cfg config] [--json]' in written
+    assert 'summary [--cat PATTERN] [--cfg PATTERN] [--json]' in written
+    assert 'par_names [--cat PATTERN] [--cfg PATTERN] [--json]' in written
     # summary / par_names lines omit --obj; evidence / objects include it
+    # loose-match flags use PATTERN (not catalog/object/config/NAME)
     summary_line = next(
         line for line in written.splitlines() if ' summary ' in line
     )
@@ -88,6 +92,13 @@ def test_results_outdir_only_prints_usage():
     assert '--obj' not in par_names_line
     assert '--obj' in evidence_line
     assert '--obj' in objects_line
+    assert '[--obj PATTERN]' in evidence_line
+    assert '[--cat PATTERN]' in summary_line
+    assert 'catalog]' not in written
+    assert 'object]' not in written
+    assert 'config]' not in written
+    assert '--par NAME' not in written
+    assert 'par_values --par PATTERN' in written
 
 
 def test_results_outdir_json_without_command_prints_usage():
@@ -440,6 +451,43 @@ def test_results_rejects_stacked_query_verbs():
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'cannot be combined' in written
+
+
+def test_results_non_verb_before_query_is_missing_command():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'junk', 'summary'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' in written
+    assert 'cannot be combined' not in written
+    assert 'Usage:' in written
+
+
+def test_results_non_verb_before_catalogs_is_missing_command():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'junk', 'catalogs'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' in written
+    assert 'cannot be combined' not in written
+    assert 'Usage:' in written
+
+
+def test_parse_single_command_non_verb_prefix_is_missing_command():
+    for parse, tokens in (
+        (parse_catalogs, ['out', 'junk', 'catalogs']),
+        (parse_model_configs, ['out', 'junk', 'model_configs']),
+        (parse_par_values, ['out', 'junk', 'par_values', '--par', 'z']),
+    ):
+        try:
+            parse(tokens)
+            raise AssertionError(f'expected ValueError from {parse.__name__}')
+        except ValueError as e:
+            assert str(e) == 'missing command'
 
 
 def test_results_evidence_calls_existing_method():
@@ -1496,6 +1544,9 @@ if __name__ == '__main__':
     test_results_cfg_passed_to_ctor()
     test_results_flags_must_follow_verb()
     test_results_rejects_stacked_query_verbs()
+    test_results_non_verb_before_query_is_missing_command()
+    test_results_non_verb_before_catalogs_is_missing_command()
+    test_parse_single_command_non_verb_prefix_is_missing_command()
     test_results_evidence_calls_existing_method()
     test_results_par_names_calls_existing_methods()
     test_plot_bestfit_calls_plot_bestfit()

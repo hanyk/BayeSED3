@@ -46,29 +46,29 @@ _DERIVED_DEFAULT_MAX = 10
 
 def results_usage_lines(prog='bayesed3'):
     return (
-        f"{prog} results <outdir> summary [--cat catalog] [--cfg config] [--json]",
-        f"{prog} results <outdir> evidence [--cat catalog] [--cfg config] "
-        f"[--obj object] [--json]",
-        f"{prog} results <outdir> par_names [--cat catalog] [--cfg config] [--json]",
-        f"{prog} results <outdir> objects [--cat catalog] [--cfg config] "
-        f"[--obj object] [--json]",
+        f"{prog} results <outdir> summary [--cat PATTERN] [--cfg PATTERN] [--json]",
+        f"{prog} results <outdir> evidence [--cat PATTERN] [--cfg PATTERN] "
+        f"[--obj PATTERN] [--json]",
+        f"{prog} results <outdir> par_names [--cat PATTERN] [--cfg PATTERN] [--json]",
+        f"{prog} results <outdir> objects [--cat PATTERN] [--cfg PATTERN] "
+        f"[--obj PATTERN] [--json]",
         f"{prog} results <outdir> catalogs [--json]",
-        f"{prog} results <outdir> model_configs [--cat catalog] [--json]",
+        f"{prog} results <outdir> model_configs [--cat PATTERN] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
-        f"[--cat catalog] [--cfg config] [--obj object] [--json]",
+        f"[--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]",
     )
 
 
 def plot_usage_lines(prog='bayesed3'):
     return (
-        f"{prog} plot <outdir> bestfit [--cat catalog] [--obj object] "
-        f"[--cfg config] [--out path]",
-        f"{prog} plot <outdir> posterior free [--cat catalog] [--obj object] "
-        f"[--cfg config] [--out path]",
-        f"{prog} plot <outdir> posterior derived [--max N] [--cat catalog] "
-        f"[--obj object] [--cfg config] [--out path]",
-        f"{prog} plot <outdir> posterior --par NAME [--lab TEXT] ... "
-        f"[--cat catalog] [--obj object] [--cfg config] [--out path]",
+        f"{prog} plot <outdir> bestfit [--cat PATTERN] [--obj PATTERN] "
+        f"[--cfg PATTERN] [--out path]",
+        f"{prog} plot <outdir> posterior free [--cat PATTERN] [--obj PATTERN] "
+        f"[--cfg PATTERN] [--out path]",
+        f"{prog} plot <outdir> posterior derived [--max N] [--cat PATTERN] "
+        f"[--obj PATTERN] [--cfg PATTERN] [--out path]",
+        f"{prog} plot <outdir> posterior --par PATTERN [--lab TEXT] ... "
+        f"[--cat PATTERN] [--obj PATTERN] [--cfg PATTERN] [--out path]",
     )
 
 
@@ -291,8 +291,6 @@ def parse_par_values(tokens):
     outdir = tokens[0]
     rest = tokens[1:]
     if not rest or rest[0] != 'par_values':
-        if 'par_values' in rest:
-            raise ValueError('par_values cannot be combined with other commands')
         raise ValueError('missing command')
     flags = _parse_flag_pairs(
         rest, 1, _PAR_VALUES_FLAGS, bool_flags=_JSON_BOOL,
@@ -317,8 +315,6 @@ def parse_results_query(tokens):
     outdir = tokens[0]
     rest = tokens[1:]
     if not rest or rest[0] not in _QUERY_VERBS:
-        if any(tok in _QUERY_VERBS for tok in rest):
-            raise ValueError('query verbs cannot be combined')
         raise ValueError('missing command')
     cmd = rest[0]
     i = 1
@@ -343,10 +339,6 @@ def parse_model_configs(tokens):
     outdir = tokens[0]
     rest = tokens[1:]
     if not rest or rest[0] != 'model_configs':
-        if 'model_configs' in rest:
-            raise ValueError(
-                'model_configs cannot be combined with other commands'
-            )
         raise ValueError('missing command')
     flags = _parse_flag_pairs(
         rest, 1, _MODEL_CONFIGS_FLAGS, bool_flags=_JSON_BOOL,
@@ -361,8 +353,6 @@ def parse_catalogs(tokens):
     outdir = tokens[0]
     rest = tokens[1:]
     if not rest or rest[0] != 'catalogs':
-        if 'catalogs' in rest:
-            raise ValueError('catalogs cannot be combined with other commands')
         raise ValueError('missing command')
     flags = _parse_flag_pairs(rest, 1, {}, bool_flags=_JSON_BOOL)
     return outdir, flags['json']
@@ -388,7 +378,7 @@ def parse_plot_bestfit(tokens):
 
 def parse_plot_posterior(tokens):
     """
-    Parse ``<outdir> posterior (free | derived | --par NAME [--lab TEXT] ...)``.
+    Parse ``<outdir> posterior (free | derived | --par PATTERN [--lab TEXT] ...)``.
 
     ``posterior`` is the only command. Catalog, object, and model config
     via ``--cat`` / ``--obj`` / ``--cfg``. Each ``--lab`` is optional and
