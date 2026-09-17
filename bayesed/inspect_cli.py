@@ -487,7 +487,34 @@ def _load_results_flags(outdir, cat, cfg=None):
 
 
 def _print_json(data):
-    print(json.dumps(data, default=str))
+    print(json.dumps(data))
+
+
+def _json_scalar(value):
+    if hasattr(value, 'item'):
+        return value.item()
+    return value
+
+
+def _table_json_records(table):
+    """Convert an Astropy/pandas table to a list of JSON-native dicts."""
+    if hasattr(table, 'to_dict') and not hasattr(table, 'colnames'):
+        records = table.to_dict(orient='records')
+    elif hasattr(table, 'to_pandas'):
+        records = table.to_pandas().to_dict(orient='records')
+    elif hasattr(table, 'colnames'):
+        records = [
+            {col: _json_scalar(row[col]) for col in table.colnames}
+            for row in table
+        ]
+    else:
+        raise TypeError(
+            f'cannot serialize {type(table).__name__} as JSON records'
+        )
+    return [
+        {key: _json_scalar(val) for key, val in record.items()}
+        for record in records
+    ]
 
 
 def _format_available(items):
@@ -558,11 +585,16 @@ def _emit_load_error(exc):
 
 def _par_values_json_payload(table):
     """Serialize ``get_parameter_values`` output as JSON records."""
-    if hasattr(table, 'to_dict'):
-        return table.to_dict(orient='records')
-    if hasattr(table, 'to_pandas'):
-        return table.to_pandas().to_dict(orient='records')
-    return table
+    return _table_json_records(table)
+
+
+def _evidence_json_payload(table):
+    """Serialize Evidence table rows for ``results … evidence --json``.
+
+    Always a JSON array of objects with ``ID`` plus whatever of
+    ``INSlogZ`` / ``logZ`` / ``INSlogZerr`` / ``logZerr`` are present.
+    """
+    return _table_json_records(table)
 
 
 def _summary_payload(results):
@@ -591,13 +623,17 @@ def _summary_payload(results):
 
 
 def _print_evidence(results, as_json=False, object_ids=None):
+    if as_json:
+        kwargs = {'return_format': 'table'}
+        if object_ids is not None:
+            kwargs['object_ids'] = object_ids
+        evidence = results.get_evidence(**kwargs)
+        _print_json(_evidence_json_payload(evidence))
+        return
     if object_ids is not None:
         evidence = results.get_evidence(object_ids=object_ids)
     else:
         evidence = results.get_evidence()
-    if as_json:
-        _print_json(evidence)
-        return
     if isinstance(evidence, dict) and 'log_evidence' in evidence:
         err = evidence.get('log_evidence_error')
         print(f"log_evidence: {evidence['log_evidence']} ± {err}")

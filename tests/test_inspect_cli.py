@@ -3,6 +3,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import json
 import pandas as pd
 from astropy.table import Table
 
@@ -126,18 +127,61 @@ def test_results_objects_json():
 
 
 def test_results_evidence_json():
+    table = Table({
+        'ID': ['obj-1', 'obj-2'],
+        'INSlogZ': [-15782.2, -24553.2],
+        'logZ': [-15780.0, -24551.8],
+        'INSlogZerr': [0.0389714, 0.16613],
+        'logZerr': [0.808556, 0.769606],
+    })
     fake = MagicMock()
-    fake.get_evidence.return_value = {
-        'log_evidence': 1.5, 'log_evidence_error': 0.1,
-    }
+    fake.get_evidence.return_value = table
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
          patch('sys.stdout', new_callable=MagicMock) as out:
         code = run_inspect(['results', 'out', 'evidence', '--json'])
     assert code == 0
+    fake.get_evidence.assert_called_once_with(return_format='table')
     written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert 'log_evidence' in written
-    assert '1.5' in written
+    payload = json.loads(written)
+    assert isinstance(payload, list)
+    assert len(payload) == 2
+    assert payload[0]['ID'] == 'obj-1'
+    assert payload[0]['INSlogZ'] == -15782.2
+    assert payload[0]['logZ'] == -15780.0
+    assert 'log_evidence' not in payload[0]
+    assert payload[1]['ID'] == 'obj-2'
+
+
+def test_results_evidence_json_single_object_is_still_array():
+    table = Table({
+        'ID': ['obj-1'],
+        'INSlogZ': [-1.5],
+        'logZ': [-1.4],
+        'INSlogZerr': [0.1],
+        'logZerr': [0.2],
+    })
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    fake.get_evidence.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'evidence', '--obj', 'obj-1', '--json',
+        ])
+    assert code == 0
+    fake.get_evidence.assert_called_once_with(
+        object_ids=['obj-1'], return_format='table',
+    )
+    payload = json.loads(''.join(c.args[0] for c in out.write.call_args_list))
+    assert payload == [{
+        'ID': 'obj-1',
+        'INSlogZ': -1.5,
+        'logZ': -1.4,
+        'INSlogZerr': 0.1,
+        'logZerr': 0.2,
+    }]
 
 
 def test_results_summary_json():
