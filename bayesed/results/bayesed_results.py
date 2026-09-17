@@ -61,6 +61,11 @@ class BayeSEDResults:
         self._products.object_id = value
 
     @property
+    def hdf5_file(self):
+        """Basename of the loaded HDF5 file (ADR-0003 / ADR-0009)."""
+        return self._products.hdf5_file
+
+    @property
     def parameters(self):
         return self._products.parameters
 

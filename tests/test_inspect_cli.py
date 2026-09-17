@@ -101,7 +101,7 @@ def test_results_summary_json():
     fake.output_dir = 'out'
     fake.catalog_name = 'gal'
     fake.object_id = None
-    fake._hdf5_file = 'out/gal.h5'
+    fake.hdf5_file = 'gal.h5'
     fake.get_parameter_names.return_value = ['a', 'b']
     fake.get_free_parameters.return_value = ['a']
     fake.get_derived_parameters.return_value = ['b']
@@ -230,7 +230,7 @@ def test_unknown_catalog_lists_available_in_one_line():
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert written == (
-        "Error: Unknown catalog 'qso'. Available catalogs: ['gal']\n"
+        "Error: No catalog matching 'qso'. Available catalogs: ['gal']\n"
     )
 
 
@@ -300,32 +300,34 @@ def test_many_catalogs_truncates_available_list():
 
 def test_results_summary_uses_bayesed_results():
     fake = MagicMock()
+    fake.output_dir = 'out'
+    fake.catalog_name = 'gal'
+    fake.hdf5_file = 'gal.h5'
+    fake.get_parameter_names.return_value = ['a']
+    fake.get_free_parameters.return_value = ['a']
+    fake.get_derived_parameters.return_value = []
+    fake.list_objects.return_value = ['obj-1']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
-         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
         code = run_inspect(['results', 'out', 'summary'])
     assert code == 0
     ctor.assert_called_once_with('out')
-    fake.print_summary.assert_called_once()
+    fake.print_summary.assert_not_called()
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'BayeSEDResults Summary' in written
+    assert 'gal.h5' in written
 
 
 def test_results_cat_flag_loads_catalog():
     fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect(['results', 'out', 'objects', '--cat', 'gal'])
     assert code == 0
     ctor.assert_called_once_with('out', catalog_name='gal')
-    fake.list_objects.assert_called_once()
-
-
-def test_results_obj_flag_loads_object():
-    fake = MagicMock()
-    fake.list_objects.return_value = ['obj-1']
-    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
-         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
-        code = run_inspect(['results', 'out', 'objects', '--obj', 'obj-1'])
-    assert code == 0
-    ctor.assert_called_once_with('out', object_id='obj-1')
+    assert fake.list_objects.called
 
 
 def test_results_rejects_leftover_positionals():
@@ -338,9 +340,27 @@ def test_results_rejects_leftover_positionals():
     assert "Error: unexpected argument 'gal'" in written
 
 
+def test_results_obj_flag_filters_without_ctor_object_id():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor, \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'objects', '--obj', 'obj-1'])
+    assert code == 0
+    ctor.assert_called_once_with('out')
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.splitlines() == ['obj-1']
+
+
 def test_results_cfg_passed_to_ctor():
     fake = MagicMock()
+    fake.list_objects.return_value = []
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch(
+             'bayesed.inspect_cli.list_model_configs',
+             return_value=['cfg0', 'cfg1'],
+         ), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
             'results', 'out', 'summary', '--cat', 'gal', '--cfg', 'cfg0',
@@ -485,14 +505,15 @@ def test_plot_with_object_does_not_list():
 
 def test_plot_bestfit_passes_catalog_and_object():
     fake = MagicMock()
-    fake.object_id = 'obj-1'
+    fake.object_id = None
+    fake.list_objects.return_value = ['obj-1']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
             'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'obj-1',
         ])
     assert code == 0
-    ctor.assert_called_once_with('out', catalog_name='gal', object_id='obj-1')
+    ctor.assert_called_once_with('out', catalog_name='gal')
     fake.plot_bestfit.assert_called_once()
     assert fake.plot_bestfit.call_args.kwargs.get('show') is True
     assert fake.plot_bestfit.call_args.kwargs.get('object_id') == 'obj-1'
@@ -502,17 +523,19 @@ def test_plot_bestfit_cfg_passed_to_results():
     fake = MagicMock()
     fake.object_id = None
     fake.list_objects.return_value = ['only']
+    cfg = '0Stellar+Nebular_2dal8_10_sys_err0'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.list_model_configs', return_value=[cfg]), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
             'plot', 'out', 'bestfit', '--cat', 'gal',
-            '--cfg', '0Stellar+Nebular_2dal8_10_sys_err0',
+            '--cfg', cfg,
         ])
     assert code == 0
     ctor.assert_called_once_with(
         'out',
         catalog_name='gal',
-        model_config='0Stellar+Nebular_2dal8_10_sys_err0',
+        model_config=cfg,
     )
 
 
@@ -685,6 +708,7 @@ def test_par_values_cfg_passed_to_ctor():
     fake.get_parameter_names.return_value = ['age_median']
     fake.get_parameter_values.return_value = 'table'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.list_model_configs', return_value=['cfg0']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
             'results', 'out', 'par_values', '--cat', 'gal',
@@ -803,7 +827,7 @@ def test_par_values_missing_outdir_is_not_unknown_catalog():
         ])
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert 'No such directory' in written
+    assert "No catalog matching 'gal'" in written
     assert 'Unknown catalog' not in written
 
 
@@ -931,7 +955,7 @@ def test_results_model_configs_unknown_catalog_exits_one():
     listed.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'qso' in written
-    assert 'Unknown catalog' in written
+    assert 'No catalog matching' in written
 
 
 def test_results_model_configs_rejects_positional_catalog():
@@ -1096,7 +1120,8 @@ def test_plot_posterior_par_no_match_exits_one():
 
 def test_plot_posterior_par_lab_optional_per_par():
     fake = _fake_plot_results(
-        object_id='obj-1',
+        object_id=None,
+        objects=['obj-1'],
         free=['Av_2[0,1]', 'z'],
         derived=['log(age/yr)', 'log(Z/Zsun)'],
     )
@@ -1201,7 +1226,7 @@ def test_plot_posterior_rejects_leftover_positionals():
 
 
 def test_plot_posterior_cat_and_obj_flags():
-    fake = _fake_plot_results(object_id='STARFORMING')
+    fake = _fake_plot_results(objects=['STARFORMING'])
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
@@ -1209,17 +1234,16 @@ def test_plot_posterior_cat_and_obj_flags():
             '--cat', 'gal', '--obj', 'STARFORMING',
         ])
     assert code == 0
-    ctor.assert_called_once_with(
-        'out', catalog_name='gal', object_id='STARFORMING',
-    )
+    ctor.assert_called_once_with('out', catalog_name='gal')
     assert fake.plot_posterior_free.call_args.kwargs.get('object_id') == (
         'STARFORMING'
     )
 
 
 def test_plot_posterior_cfg_passed_to_results():
-    fake = _fake_plot_results(object_id='STARFORMING')
+    fake = _fake_plot_results(objects=['STARFORMING'])
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.list_model_configs', return_value=['cfg0']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect([
             'plot', 'out', 'posterior', 'free',
@@ -1229,7 +1253,6 @@ def test_plot_posterior_cfg_passed_to_results():
     ctor.assert_called_once_with(
         'out',
         catalog_name='gal',
-        object_id='STARFORMING',
         model_config='cfg0',
     )
 
@@ -1281,7 +1304,102 @@ def test_plot_posterior_unknown_catalog_exits_one():
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'qso' in written
-    assert 'Unknown catalog' in written
+    assert 'No catalog matching' in written
+
+
+def test_cat_loose_match_unique_contains():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1']
+    with patch(
+             'bayesed.inspect_cli.list_catalog_names',
+             return_value=['gal', 'qso'],
+         ), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
+        code = run_inspect(['results', 'out', 'objects', '--cat', 'ga'])
+    assert code == 0
+    ctor.assert_called_once_with('out', catalog_name='gal')
+
+
+def test_cat_loose_match_ambiguous_errors():
+    with patch(
+             'bayesed.inspect_cli.list_catalog_names',
+             return_value=['gal', 'mock_gal'],
+         ), \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'objects', '--cat', 'g'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Multiple catalogs found' in written
+    assert '--cat' in written
+
+
+def test_plot_obj_multi_match_plots_each():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['spec-0000', 'spec-0001', 'other']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'spec-000',
+        ])
+    assert code == 0
+    assert fake.plot_bestfit.call_count == 2
+    ids = [
+        c.kwargs.get('object_id') for c in fake.plot_bestfit.call_args_list
+    ]
+    assert ids == ['spec-0000', 'spec-0001']
+
+
+def test_plot_out_file_with_multi_obj_errors():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['spec-a', 'spec-b']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'spec-',
+            '--out', 'out.png',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert '--out must be a directory' in written
+    fake.plot_bestfit.assert_not_called()
+
+
+def test_plot_out_dir_with_multi_obj_passes_paths():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['spec-a', 'spec-b']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'spec-',
+            '--out', 'plots/',
+        ])
+    assert code == 0
+    assert fake.plot_bestfit.call_count == 2
+    paths = [
+        c.kwargs.get('output_file') for c in fake.plot_bestfit.call_args_list
+    ]
+    assert paths == [
+        'plots/spec-a_bestfit.png',
+        'plots/spec-b_bestfit.png',
+    ]
+    assert all(c.kwargs.get('show') is True for c in fake.plot_bestfit.call_args_list)
+
+
+def test_results_obj_multi_filter_objects():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['spec-a', 'spec-b', 'other']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'objects', '--obj', 'spec-',
+        ])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.splitlines() == ['spec-a', 'spec-b']
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+from pathlib import PurePosixPath
 
 from .inference import SEDInference
 from .prior_editor import PriorEditor
@@ -32,9 +33,12 @@ _PAR_VALUES_FLAGS = {
 }
 _RESULTS_QUERY_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
 _MODEL_CONFIGS_FLAGS = {'--cat': 'cat'}
-_PLOT_BESTFIT_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
+_PLOT_BESTFIT_FLAGS = {
+    '--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg', '--out': 'out',
+}
 _PLOT_POSTERIOR_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
+    '--out': 'out',
 }
 _JSON_BOOL = {'--json': 'json'}
 _DERIVED_DEFAULT_MAX = 10
@@ -53,10 +57,14 @@ def results_usage_lines(prog='bayesed3'):
 
 def plot_usage_lines(prog='bayesed3'):
     return (
-        f"{prog} plot <outdir> bestfit [--cat catalog] [--obj object] [--cfg config]",
-        f"{prog} plot <outdir> posterior free [--cat catalog] [--obj object] [--cfg config]",
-        f"{prog} plot <outdir> posterior derived [--max N] [--cat catalog] [--obj object] [--cfg config]",
-        f"{prog} plot <outdir> posterior --par NAME [--lab TEXT] ... [--cat catalog] [--obj object] [--cfg config]",
+        f"{prog} plot <outdir> bestfit [--cat catalog] [--obj object] "
+        f"[--cfg config] [--out path]",
+        f"{prog} plot <outdir> posterior free [--cat catalog] [--obj object] "
+        f"[--cfg config] [--out path]",
+        f"{prog} plot <outdir> posterior derived [--max N] [--cat catalog] "
+        f"[--obj object] [--cfg config] [--out path]",
+        f"{prog} plot <outdir> posterior --par NAME [--lab TEXT] ... "
+        f"[--cat catalog] [--obj object] [--cfg config] [--out path]",
     )
 
 
@@ -168,6 +176,110 @@ def match_names(candidates, pattern):
     return [name for name in names if compiled.search(name)]
 
 
+def _no_match_message(thing, pattern, list_name, items):
+    return (
+        f"No {thing} matching {pattern!r}. "
+        f"Available {list_name}: {list(items)}"
+    )
+
+
+def _require_one(candidates, pattern, things, thing, flag, list_name):
+    """Loose-match pattern to exactly one candidate name."""
+    hits = match_names(candidates, pattern)
+    if not hits:
+        raise ValueError(_no_match_message(thing, pattern, list_name, candidates))
+    if len(hits) > 1:
+        raise ValueError(_multi_choice_message(
+            things, thing, flag, list_name, hits,
+        ))
+    return hits[0]
+
+
+def _resolve_cat_and_cfg(outdir, cat, cfg):
+    """
+    Resolve --cat / --cfg in inspect; return exact names for BayeSEDResults.
+
+    ``cfg`` requires a Results catalog context (explicit or sole catalog).
+    """
+    catalogs = list_catalog_names(outdir)
+    catalog_name = None
+    if cat is not None:
+        catalog_name = _require_one(
+            catalogs, cat, 'catalogs', 'catalog', '--cat', 'catalogs',
+        )
+    model_config = None
+    if cfg is not None:
+        if catalog_name is None:
+            if not catalogs:
+                raise ValueError(f'No catalogs in {outdir}')
+            if len(catalogs) > 1:
+                raise ValueError(_multi_choice_message(
+                    'catalogs', 'catalog', '--cat', 'catalogs', catalogs,
+                ))
+            catalog_name = catalogs[0]
+        configs = list_model_configs(outdir, catalog_name)
+        model_config = _require_one(
+            configs, cfg, 'configs', 'config', '--cfg', 'configs',
+        )
+    return catalog_name, model_config
+
+
+def _resolve_plot_objects(all_objects, obj_pattern):
+    """
+    Object ids to plot in order.
+
+    ``obj_pattern`` None: silent single, else Multiple.
+    Pattern set: loose match; 1..N all plotted; 0 → No matching.
+    """
+    objects = list(all_objects)
+    if obj_pattern is None:
+        if not objects:
+            return []
+        if len(objects) == 1:
+            return objects
+        raise ValueError(_multi_choice_message(
+            'objects', 'object', '--obj', 'objects', objects,
+        ))
+    hits = match_names(objects, obj_pattern)
+    if not hits:
+        raise ValueError(_no_match_message(
+            'object', obj_pattern, 'objects', objects,
+        ))
+    return hits
+
+
+def _resolve_results_obj_filter(all_objects, obj_pattern):
+    """Optional --obj filter for results queries; several hits allowed."""
+    if obj_pattern is None:
+        return None
+    hits = match_names(list(all_objects), obj_pattern)
+    if not hits:
+        raise ValueError(_no_match_message(
+            'object', obj_pattern, 'objects', list(all_objects),
+        ))
+    return hits
+
+
+def _looks_like_file(path):
+    name = PurePosixPath(path).name
+    return '.' in name and not path.endswith('/') and not path.endswith('\\')
+
+
+def _resolve_out(out, object_ids, kind):
+    """Plan ``(object_id, output_file_or_None)`` per plot call."""
+    if out is None:
+        return [(oid, None) for oid in object_ids]
+    if len(object_ids) > 1 and _looks_like_file(out):
+        raise ValueError(
+            '--out must be a directory when multiple objects are plotted '
+            f'({len(object_ids)} objects)'
+        )
+    if len(object_ids) == 1 and _looks_like_file(out):
+        return [(object_ids[0], out)]
+    base = out.rstrip('/\\')
+    return [(oid, f'{base}/{oid}_{kind}.png') for oid in object_ids]
+
+
 def _exact_names_regex(names):
     return '^(?:' + '|'.join(re.escape(name) for name in names) + ')$'
 
@@ -260,7 +372,7 @@ def parse_catalogs(tokens):
 
 def parse_plot_bestfit(tokens):
     """
-    Parse ``<outdir> bestfit [--cat C] [--obj O]``.
+    Parse ``<outdir> bestfit [--cat C] [--obj O] [--cfg CFG] [--out PATH]``.
 
     ``bestfit`` is the only command. No leftover positionals.
     """
@@ -273,7 +385,7 @@ def parse_plot_bestfit(tokens):
             raise ValueError('bestfit cannot be combined with other commands')
         raise ValueError('missing command')
     flags = _parse_flag_pairs(rest, 1, _PLOT_BESTFIT_FLAGS)
-    return outdir, flags['cat'], flags['obj'], flags['cfg']
+    return outdir, flags['cat'], flags['obj'], flags['cfg'], flags['out']
 
 
 def parse_plot_posterior(tokens):
@@ -296,6 +408,7 @@ def parse_plot_posterior(tokens):
     cat = None
     obj = None
     cfg = None
+    out = None
     max_n = None
     pars = []
     labs = []
@@ -322,6 +435,8 @@ def parse_plot_posterior(tokens):
                 cat = value
             elif key == 'obj':
                 obj = value
+            elif key == 'out':
+                out = value
             else:
                 cfg = value
             continue
@@ -350,17 +465,15 @@ def parse_plot_posterior(tokens):
         raise ValueError('specify free, derived, or --par')
     if max_n is not None and kind != 'derived':
         raise ValueError('--max is only valid with derived')
-    return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg
+    return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg, out
 
 
 def _catalog_for_discovery(outdir, cat):
     catalogs = list_catalog_names(outdir)
     if cat is not None:
-        if cat not in catalogs:
-            raise ValueError(
-                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
-            )
-        return cat
+        return _require_one(
+            catalogs, cat, 'catalogs', 'catalog', '--cat', 'catalogs',
+        )
     if len(catalogs) == 1:
         return catalogs[0]
     if not catalogs:
@@ -370,19 +483,14 @@ def _catalog_for_discovery(outdir, cat):
     ))
 
 
-def _load_results_flags(outdir, cat, obj, cfg=None):
+def _load_results_flags(outdir, cat, cfg=None):
+    """Construct Results with exact catalog / Model configuration names only."""
+    catalog_name, model_config = _resolve_cat_and_cfg(outdir, cat, cfg)
     kwargs = {}
-    if cat is not None:
-        catalogs = list_catalog_names(outdir)
-        if catalogs and cat not in catalogs:
-            raise ValueError(
-                f"Unknown catalog '{cat}'. Available catalogs: {catalogs}"
-            )
-        kwargs['catalog_name'] = cat
-    if cfg is not None:
-        kwargs['model_config'] = cfg
-    if obj is not None:
-        kwargs['object_id'] = obj
+    if catalog_name is not None:
+        kwargs['catalog_name'] = catalog_name
+    if model_config is not None:
+        kwargs['model_config'] = model_config
     try:
         return BayeSEDResults(outdir, **kwargs)
     except ValueError as exc:
@@ -468,14 +576,12 @@ def _par_values_json_payload(table):
     return table
 
 
-def _summary_payload(results):
+def _summary_payload(results, object_ids=None):
     payload = {
         'output_dir': results.output_dir,
         'catalog': results.catalog_name,
-        'hdf5': str(getattr(results, '_hdf5_file', '')),
+        'hdf5': results.hdf5_file or '',
     }
-    if results.object_id:
-        payload['object_id'] = results.object_id
     try:
         payload['n_hdf5_columns'] = len(results.get_parameter_names())
         payload['free'] = list(results.get_free_parameters())
@@ -483,14 +589,55 @@ def _summary_payload(results):
     except Exception as e:
         payload['parameter_summary_error'] = str(e)
     try:
-        payload['objects'] = list(results.list_objects())
+        objects = list(results.list_objects())
+        if object_ids is not None:
+            objects = list(object_ids)
+        payload['objects'] = objects
     except Exception as e:
         payload['object_summary_error'] = str(e)
     return payload
 
 
-def _print_evidence(results, as_json=False):
-    evidence = results.get_evidence()
+def _print_summary_text(results, object_ids=None):
+    """Human summary; optional --obj narrows only the objects list."""
+    print('=' * 60)
+    print('BayeSEDResults Summary')
+    print('=' * 60)
+    print(f"Output Directory: {results.output_dir}")
+    print(f"Catalog: {results.catalog_name}")
+    print(f"HDF5 File: {results.hdf5_file}")
+    print()
+    try:
+        all_params = results.get_parameter_names()
+        free_params = results.get_free_parameters()
+        derived_params = results.get_derived_parameters()
+        print('Parameter Summary:')
+        print(f"  HDF5 Columns: {len(all_params)}")
+        print(f"  Free Parameters: {len(free_params)}")
+        print(f"  Derived Parameters: {len(derived_params)}")
+        print()
+    except Exception as e:
+        print(f'Parameter summary unavailable: {e}')
+    try:
+        objects = (
+            list(object_ids) if object_ids is not None
+            else list(results.list_objects())
+        )
+        print(f"Objects: {len(objects)} available")
+        if len(objects) <= 10:
+            print(f"  Object IDs: {objects}")
+        else:
+            print(f"  First 5: {objects[:5]}")
+            print(f"  Last 5: {objects[-5:]}")
+    except Exception as e:
+        print(f'Object summary unavailable: {e}')
+
+
+def _print_evidence(results, as_json=False, object_ids=None):
+    if object_ids is not None:
+        evidence = results.get_evidence(object_ids=object_ids)
+    else:
+        evidence = results.get_evidence()
     if as_json:
         _print_json(evidence)
         return
@@ -501,20 +648,6 @@ def _print_evidence(results, as_json=False):
     print(evidence)
 
 
-def _resolve_plot_object(results):
-    """Resolve the single object for plot; require --obj when several exist."""
-    if results.object_id:
-        return results.object_id
-    object_ids = results.list_objects()
-    if not object_ids:
-        return None
-    if len(object_ids) == 1:
-        return object_ids[0]
-    raise ValueError(_multi_choice_message(
-        'objects', 'object', '--obj', 'objects', object_ids,
-    ))
-
-
 def _run_par_values(rest, prog):
     try:
         outdir, cat, obj, par, cfg, as_json = parse_par_values(rest)
@@ -523,7 +656,7 @@ def _run_par_values(rest, prog):
         sys.stderr.write(results_usage(prog))
         return 1
     try:
-        results = _load_results_flags(outdir, cat, None, cfg)
+        results = _load_results_flags(outdir, cat, cfg)
         matched = match_names(results.get_parameter_names(), par)
         if not matched:
             raise ValueError(f"No parameters found matching '{par}'")
@@ -531,9 +664,9 @@ def _run_par_values(rest, prog):
             'param_match_mode': 'regex',
         }
         if obj is not None:
-            matched_objs = match_names(results.list_objects(), obj)
-            if not matched_objs:
-                raise ValueError(f"No objects found matching '{obj}'")
+            matched_objs = _resolve_results_obj_filter(
+                results.list_objects(), obj,
+            )
             kwargs['object_ids'] = matched_objs
             kwargs['object_match_mode'] = 'exact'
         table = results.get_parameter_values(_exact_names_regex(matched), **kwargs)
@@ -590,19 +723,30 @@ def _run_results_query(rest, prog):
         sys.stderr.write(results_usage(prog))
         return 1
     try:
-        results = _load_results_flags(outdir, cat, obj, cfg)
+        results = _load_results_flags(outdir, cat, cfg)
+        obj_filter = None
+        if obj is not None:
+            obj_filter = _resolve_results_obj_filter(
+                results.list_objects(), obj,
+            )
         for cmd in cmds:
             if cmd == 'summary':
                 if as_json:
-                    _print_json(_summary_payload(results))
+                    _print_json(_summary_payload(results, object_ids=obj_filter))
                 else:
-                    results.print_summary()
+                    _print_summary_text(results, object_ids=obj_filter)
             elif cmd == 'evidence':
-                _print_evidence(results, as_json=as_json)
+                _print_evidence(
+                    results, as_json=as_json, object_ids=obj_filter,
+                )
             elif cmd == 'par_names':
                 _print_par_names(results, as_json=as_json)
             elif cmd == 'objects':
-                _print_name_list(results.list_objects(), as_json)
+                items = (
+                    obj_filter if obj_filter is not None
+                    else results.list_objects()
+                )
+                _print_name_list(items, as_json)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1
@@ -669,18 +813,20 @@ def _plot_has_bestfit(rest):
 
 def _run_plot_bestfit(rest, prog):
     try:
-        outdir, cat, obj, cfg = parse_plot_bestfit(rest)
+        outdir, cat, obj, cfg, out = parse_plot_bestfit(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(plot_usage(prog))
         return 1
     try:
-        results = _load_results_flags(outdir, cat, obj, cfg)
-        plot_kw = {'show': True}
-        chosen = _resolve_plot_object(results)
-        if chosen:
-            plot_kw['object_id'] = chosen
-        results.plot_bestfit(**plot_kw)
+        results = _load_results_flags(outdir, cat, cfg)
+        object_ids = _resolve_plot_objects(results.list_objects(), obj)
+        plan = _resolve_out(out, object_ids, 'bestfit')
+        for oid, output_file in plan:
+            plot_kw = {'show': True, 'object_id': oid}
+            if output_file is not None:
+                plot_kw['output_file'] = output_file
+            results.plot_bestfit(**plot_kw)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1
@@ -689,33 +835,30 @@ def _run_plot_bestfit(rest, prog):
 
 def _run_plot_posterior(rest, prog):
     try:
-        outdir, kind, cat, obj, pars, labels, max_n, cfg = parse_plot_posterior(
-            rest
+        outdir, kind, cat, obj, pars, labels, max_n, cfg, out = (
+            parse_plot_posterior(rest)
         )
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(plot_usage(prog))
         return 1
     try:
-        results = _load_results_flags(outdir, cat, obj, cfg)
-        plot_kw = {'show': True}
-        chosen = _resolve_plot_object(results)
-        if chosen:
-            plot_kw['object_id'] = chosen
-        if kind == 'free':
-            results.plot_posterior_free(**plot_kw)
-        elif kind == 'derived':
-            plot_kw['max_params'] = (
-                _DERIVED_DEFAULT_MAX if max_n is None else max_n
-            )
-            results.plot_posterior_derived(**plot_kw)
-        else:
+        results = _load_results_flags(outdir, cat, cfg)
+        object_ids = _resolve_plot_objects(results.list_objects(), obj)
+        plot_kind = (
+            'posterior_free' if kind == 'free'
+            else 'posterior_derived' if kind == 'derived'
+            else 'posterior'
+        )
+        plan = _resolve_out(out, object_ids, plot_kind)
+        expanded = None
+        label_map = {}
+        if kind is None:
             universe = list(dict.fromkeys(
                 list(results.get_free_parameters())
                 + list(results.get_derived_parameters())
             ))
             expanded = []
-            label_map = {}
             lab_list = labels if labels is not None else [None] * len(pars)
             for par, lab in zip(pars, lab_list):
                 hits = match_names(universe, par)
@@ -732,7 +875,19 @@ def _run_plot_posterior(rest, prog):
                         expanded.append(name)
             if label_map:
                 results.set_parameter_labels(label_map)
-            results.plot_posterior(params=expanded, **plot_kw)
+        for oid, output_file in plan:
+            plot_kw = {'show': True, 'object_id': oid}
+            if output_file is not None:
+                plot_kw['output_file'] = output_file
+            if kind == 'free':
+                results.plot_posterior_free(**plot_kw)
+            elif kind == 'derived':
+                plot_kw['max_params'] = (
+                    _DERIVED_DEFAULT_MAX if max_n is None else max_n
+                )
+                results.plot_posterior_derived(**plot_kw)
+            else:
+                results.plot_posterior(params=expanded, **plot_kw)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1

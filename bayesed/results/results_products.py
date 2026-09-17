@@ -90,6 +90,14 @@ class ResultsProducts:
         logger.info(f"BayeSEDResults initialized for catalog '{self.catalog_name}'")
         if self.object_id:
             logger.info(f"Object-level access for object: {self.object_id}")
+
+    @property
+    def hdf5_file(self) -> Optional[str]:
+        """Basename of the loaded HDF5 file, or None if not set."""
+        if not self._hdf5_file:
+            return None
+        return Path(self._hdf5_file).name
+
     def _extract_catalog_name_from_filename(self, filename: str) -> str:
         """
         Extract catalog name from HDF5 filename.
@@ -1301,7 +1309,7 @@ class ResultsProducts:
         print("=" * 60)
         print(f"Output Directory: {self.output_dir}")
         print(f"Catalog: {self.catalog_name}")
-        print(f"HDF5 File: {Path(self._hdf5_file).name}")
+        print(f"HDF5 File: {self.hdf5_file}")
         if self.object_id:
             print(f"Object ID: {self.object_id}")
         print()
