@@ -8,6 +8,7 @@ remaining argv to the binary via ``runtime`` (``--mpi`` / ``--np`` only after
 ``run``). Empty argv and top-level ``--help`` / ``-h`` print Launcher overview.
 """
 
+import logging
 import subprocess
 import sys
 from importlib.metadata import PackageNotFoundError
@@ -29,6 +30,9 @@ from .runtime import (
     resolve_system_info,
 )
 
+_LOG_LEVEL_NAMES = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
+_LOG_LEVEL_CHOICES = '|'.join(_LOG_LEVEL_NAMES)
+
 
 def usage_text(prog='bayesed3'):
     results_cmds = '|'.join(RESULTS_VERBS)
@@ -41,6 +45,7 @@ def usage_text(prog='bayesed3'):
         f"  {prog} version | --version\n"
         "\n"
         "Inspect:\n"
+        f"  {prog} [--log-level {_LOG_LEVEL_CHOICES}] results|plot|priors\n"
         f"  {prog} results <outdir> [{results_cmds}]\n"
         f"  {prog} plot <outdir> [{plot_cmds}]\n"
         f"  {prog} priors list [dir]\n"
@@ -48,6 +53,44 @@ def usage_text(prog='bayesed3'):
         "Run:\n"
         f"  {prog} run [--help] [--mpi 1|n] [--np N] [binary options…]\n"
     )
+
+
+def parse_leading_log_level(argv):
+    """
+    Peel a leading ``--log-level LEVEL`` from ``argv``.
+
+    Returns ``(level_name_or_None, rest)``. ``LEVEL`` is case-insensitive and
+    must be one of DEBUG|INFO|WARNING|ERROR|CRITICAL.
+    """
+    if not argv or argv[0] != '--log-level':
+        return None, list(argv)
+    if len(argv) < 2:
+        raise ValueError(
+            f'--log-level requires a value ({_LOG_LEVEL_CHOICES})'
+        )
+    raw = argv[1]
+    level = raw.upper()
+    if level not in _LOG_LEVEL_NAMES:
+        raise ValueError(
+            f"invalid --log-level '{raw}'. "
+            f"Expected {_LOG_LEVEL_CHOICES}"
+        )
+    return level, list(argv[2:])
+
+
+def _apply_results_log_level(level_name):
+    """Set ``bayesed.results`` visibility for this Inspect invocation."""
+    level = getattr(logging, level_name)
+    root = logging.getLogger()
+    if not root.handlers:
+        # Library no longer basicConfig's at import; configure once for CLI.
+        logging.basicConfig(
+            level=level,
+            format='%(levelname)s:%(name)s:%(message)s',
+        )
+    else:
+        root.setLevel(level)
+    logging.getLogger('bayesed.results').setLevel(level)
 
 
 def parse_launcher_argv(argv):
@@ -179,6 +222,19 @@ def run_launcher(argv=None, prog='bayesed3'):
     if argv is None:
         argv = sys.argv[1:]
 
+    try:
+        log_level, argv = parse_leading_log_level(argv)
+    except ValueError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return 1
+
+    if log_level is not None:
+        if not argv or argv[0] not in INSPECT_TOKENS:
+            sys.stderr.write(
+                "Error: --log-level applies only to results|plot|priors\n"
+            )
+            return 1
+
     if not argv or argv[0] in ('--help', '-h'):
         sys.stderr.write(usage_text(prog))
         return 0
@@ -188,6 +244,7 @@ def run_launcher(argv=None, prog='bayesed3'):
         return 0
 
     if argv[0] in INSPECT_TOKENS:
+        _apply_results_log_level(log_level or 'WARNING')
         return run_inspect(argv, prog=prog)
 
     if argv[0] == 'run':

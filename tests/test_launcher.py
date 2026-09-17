@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 from importlib.metadata import PackageNotFoundError
 
 from bayesed.core import BayeSEDInterface
-from bayesed.launcher import parse_launcher_argv, run_launcher, usage_text
+from bayesed.launcher import (
+    parse_launcher_argv,
+    parse_leading_log_level,
+    run_launcher,
+    usage_text,
+)
 
 
 def test_parse_launcher_strips_owned_flags():
@@ -40,6 +45,16 @@ def test_usage_is_short_overview_without_inspect_flags():
         'bayesed3 - A Bayesian SED synthesis and analysis tool for galaxies '
         'and AGNs\n'
     )
+    inspect_idx = text.index('Inspect:\n')
+    log_level_line = (
+        '  bayesed3 [--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL] '
+        'results|plot|priors\n'
+    )
+    assert log_level_line in text
+    assert text.index(log_level_line) > inspect_idx
+    assert text.index(log_level_line) < text.index(
+        '  bayesed3 results <outdir>'
+    )
     assert (
         'bayesed3 results <outdir> '
         '[summary|evidence|par_names|objects|par_values|catalogs|model_configs]\n'
@@ -55,6 +70,86 @@ def test_usage_is_short_overview_without_inspect_flags():
     assert '--obj' not in text
     assert 'posterior free' not in text
     assert 'derived' not in text
+
+
+def test_parse_leading_log_level():
+    level, rest = parse_leading_log_level(
+        ['--log-level', 'info', 'results', 'out', 'summary'],
+    )
+    assert level == 'INFO'
+    assert rest == ['results', 'out', 'summary']
+    level, rest = parse_leading_log_level(['results', 'out'])
+    assert level is None
+    assert rest == ['results', 'out']
+
+
+def test_parse_leading_log_level_rejects_invalid():
+    try:
+        parse_leading_log_level(['--log-level', 'noisy', 'results'])
+    except ValueError as e:
+        assert 'invalid --log-level' in str(e).lower()
+        assert 'DEBUG|INFO|WARNING|ERROR|CRITICAL' in str(e)
+    else:
+        raise AssertionError('expected ValueError')
+
+
+def test_log_level_before_run_is_rejected():
+    with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
+         patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err:
+        code = run_launcher(['--log-level', 'DEBUG', 'run', '--help'])
+    assert code == 1
+    mock_popen.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert '--log-level applies only to results|plot|priors' in written
+
+
+def test_log_level_before_version_is_rejected():
+    with patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err, \
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
+        code = run_launcher(['--log-level', 'INFO', 'version'])
+    assert code == 1
+    out.write.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert '--log-level applies only to results|plot|priors' in written
+
+
+def test_inspect_default_sets_results_logger_warning():
+    import logging
+    logging.getLogger('bayesed.results').setLevel(logging.INFO)
+    with patch('bayesed.launcher.run_inspect', return_value=0) as mock_inspect:
+        code = run_launcher(['results', 'out', 'summary'])
+    assert code == 0
+    mock_inspect.assert_called_once_with(['results', 'out', 'summary'], prog='bayesed3')
+    assert logging.getLogger('bayesed.results').level == logging.WARNING
+
+
+def test_inspect_log_level_info_emits_results_info(capsys):
+    import logging
+
+    # Isolate from any prior basicConfig in this process.
+    root = logging.getLogger()
+    saved_handlers = list(root.handlers)
+    saved_level = root.level
+    try:
+        for handler in saved_handlers:
+            root.removeHandler(handler)
+        root.setLevel(logging.WARNING)
+        with patch('bayesed.launcher.run_inspect', return_value=0):
+            code = run_launcher([
+                '--log-level', 'INFO', 'results', 'out', 'summary',
+            ])
+        assert code == 0
+        logging.getLogger('bayesed.results.results_products').info(
+            'probe-auto-selected',
+        )
+        err = capsys.readouterr().err
+        assert 'probe-auto-selected' in err
+    finally:
+        for handler in list(root.handlers):
+            root.removeHandler(handler)
+        for handler in saved_handlers:
+            root.addHandler(handler)
+        root.setLevel(saved_level)
 
 
 def test_run_launcher_version_prints_python_and_binary():
@@ -276,6 +371,12 @@ if __name__ == '__main__':
     test_parse_launcher_default_mpi()
     test_parse_launcher_rejects_bad_mpi()
     test_usage_is_short_overview_without_inspect_flags()
+    test_parse_leading_log_level()
+    test_parse_leading_log_level_rejects_invalid()
+    test_log_level_before_run_is_rejected()
+    test_log_level_before_version_is_rejected()
+    test_inspect_default_sets_results_logger_warning()
+    # test_inspect_log_level_info_emits_results_info needs pytest capsys
     test_run_launcher_version_prints_python_and_binary()
     test_run_launcher_dash_dash_version_prints_python_and_binary()
     test_run_launcher_version_reports_binary_unavailable()
