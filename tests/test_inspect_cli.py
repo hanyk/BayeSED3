@@ -9,9 +9,21 @@ from astropy.table import Table
 from bayesed.inspect_cli import (
     PLOT_VERBS,
     RESULTS_VERBS,
-    run_inspect,
+    run_inspect as _run_inspect_impl,
 )
 from bayesed.launcher import run_launcher
+
+
+def run_inspect(argv, *, check_outdir=False):
+    """Test driver for ``inspect_cli.run_inspect``.
+
+    By default patches ``_require_outdir`` so fake paths like ``out`` work.
+    Pass ``check_outdir=True`` to exercise the real directory gate.
+    """
+    if check_outdir:
+        return _run_inspect_impl(argv)
+    with patch('bayesed.inspect_cli._require_outdir'):
+        return _run_inspect_impl(argv)
 
 
 def test_results_without_verbs_lists_commands_and_skips_binary():
@@ -55,6 +67,27 @@ def test_results_outdir_only_prints_usage():
     written = ''.join(c.args[0] for c in err.write.call_args_list)
     assert 'Error: missing command' in written
     assert 'Usage:' in written
+    assert 'Commands:' not in written
+    assert 'results commands:' not in written
+    assert 'summary [--cat catalog] [--cfg config] [--json]' in written
+    assert 'par_names [--cat catalog] [--cfg config] [--json]' in written
+    # summary / par_names lines omit --obj; evidence / objects include it
+    summary_line = next(
+        line for line in written.splitlines() if ' summary ' in line
+    )
+    par_names_line = next(
+        line for line in written.splitlines() if ' par_names ' in line
+    )
+    evidence_line = next(
+        line for line in written.splitlines() if ' evidence ' in line
+    )
+    objects_line = next(
+        line for line in written.splitlines() if ' objects ' in line
+    )
+    assert '--obj' not in summary_line
+    assert '--obj' not in par_names_line
+    assert '--obj' in evidence_line
+    assert '--obj' in objects_line
 
 
 def test_results_outdir_json_without_command_prints_usage():
@@ -113,8 +146,15 @@ def test_results_summary_json():
     assert code == 0
     fake.print_summary.assert_not_called()
     written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert 'catalog' in written
-    assert 'gal' in written
+    assert '"catalog": "gal"' in written or '"catalog":"gal"' in written.replace(' ', '')
+    assert 'n_hdf5_columns' in written
+    assert 'n_free' in written
+    assert 'n_derived' in written
+    assert 'n_objects' in written
+    assert '"free"' not in written or 'n_free' in written
+    # counts only — not full free/derived name lists as top-level arrays
+    assert '"free": [' not in written
+    assert '"derived": [' not in written
 
 
 def test_results_par_values_json():
@@ -308,15 +348,24 @@ def test_results_summary_uses_bayesed_results():
     fake.get_derived_parameters.return_value = []
     fake.list_objects.return_value = ['obj-1']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
-         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor, \
-         patch('sys.stdout', new_callable=MagicMock) as out:
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake) as ctor:
         code = run_inspect(['results', 'out', 'summary'])
     assert code == 0
     ctor.assert_called_once_with('out')
-    fake.print_summary.assert_not_called()
-    written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert 'BayeSEDResults Summary' in written
-    assert 'gal.h5' in written
+    fake.print_summary.assert_called_once_with()
+
+
+def test_results_summary_ignores_obj():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'results', 'out', 'summary', '--obj', 'obj-1',
+        ])
+    assert code == 0
+    fake.print_summary.assert_called_once_with()
+    fake.get_evidence.assert_not_called()
 
 
 def test_results_cat_flag_loads_catalog():
@@ -371,7 +420,7 @@ def test_results_cfg_passed_to_ctor():
     )
 
 
-def test_results_flags_must_follow_all_verbs():
+def test_results_flags_must_follow_verb():
     with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
          patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect([
@@ -383,19 +432,37 @@ def test_results_flags_must_follow_all_verbs():
     assert "Error: unexpected argument 'evidence'" in written
 
 
-def test_results_evidence_and_par_names_call_existing_methods():
+def test_results_rejects_stacked_query_verbs():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'evidence', 'par_names'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'cannot be combined' in written
+
+
+def test_results_evidence_calls_existing_method():
     fake = MagicMock()
     fake.get_evidence.return_value = {
         'log_evidence': 1.0,
         'log_evidence_error': 0.1,
     }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['results', 'out', 'evidence'])
+    assert code == 0
+    fake.get_evidence.assert_called_once()
+
+
+def test_results_par_names_calls_existing_methods():
+    fake = MagicMock()
     fake.get_free_parameters.return_value = ['z']
     fake.get_derived_parameters.return_value = ['log(Mstar)']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
-        code = run_inspect(['results', 'out', 'evidence', 'par_names'])
+        code = run_inspect(['results', 'out', 'par_names'])
     assert code == 0
-    fake.get_evidence.assert_called_once()
     fake.get_free_parameters.assert_called_once()
     fake.get_derived_parameters.assert_called_once()
 
@@ -816,18 +883,18 @@ def test_par_values_empty_match_exits_one():
 
 
 def test_par_values_missing_outdir_is_not_unknown_catalog():
-    with patch('bayesed.inspect_cli.list_catalog_names', return_value=[]), \
-         patch(
-             'bayesed.inspect_cli.BayeSEDResults',
-             side_effect=FileNotFoundError("No such directory: missing"),
-         ), \
+    with patch('bayesed.inspect_cli.list_catalog_names') as list_cat, \
+         patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
          patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect([
             'results', 'missing', 'par_values', '--cat', 'gal', '--par', 'age',
-        ])
+        ], check_outdir=True)
     assert code == 1
+    list_cat.assert_not_called()
+    ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert "No catalog matching 'gal'" in written
+    assert 'not a directory: missing' in written
+    assert 'No catalog matching' not in written
     assert 'Unknown catalog' not in written
 
 
@@ -1422,12 +1489,15 @@ if __name__ == '__main__':
     test_library_many_configs_truncates_available_list()
     test_many_catalogs_truncates_available_list()
     test_results_summary_uses_bayesed_results()
+    test_results_summary_ignores_obj()
     test_results_cat_flag_loads_catalog()
-    test_results_obj_flag_loads_object()
+    test_results_obj_flag_filters_without_ctor_object_id()
     test_results_rejects_leftover_positionals()
     test_results_cfg_passed_to_ctor()
-    test_results_flags_must_follow_all_verbs()
-    test_results_evidence_and_par_names_call_existing_methods()
+    test_results_flags_must_follow_verb()
+    test_results_rejects_stacked_query_verbs()
+    test_results_evidence_calls_existing_method()
+    test_results_par_names_calls_existing_methods()
     test_plot_bestfit_calls_plot_bestfit()
     test_plot_posterior_cannot_mix_with_bestfit()
     test_plot_posterior_then_bestfit_cannot_mix()

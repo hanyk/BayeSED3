@@ -11,7 +11,7 @@ import json
 import os
 import re
 import sys
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from .inference import SEDInference
 from .prior_editor import PriorEditor
@@ -46,8 +46,12 @@ _DERIVED_DEFAULT_MAX = 10
 
 def results_usage_lines(prog='bayesed3'):
     return (
-        f"{prog} results <outdir> <cmd> [<cmd>...] "
-        f"[--cat catalog] [--cfg config] [--obj object] [--json]",
+        f"{prog} results <outdir> summary [--cat catalog] [--cfg config] [--json]",
+        f"{prog} results <outdir> evidence [--cat catalog] [--cfg config] "
+        f"[--obj object] [--json]",
+        f"{prog} results <outdir> par_names [--cat catalog] [--cfg config] [--json]",
+        f"{prog} results <outdir> objects [--cat catalog] [--cfg config] "
+        f"[--obj object] [--json]",
         f"{prog} results <outdir> catalogs [--json]",
         f"{prog} results <outdir> model_configs [--cat catalog] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
@@ -88,34 +92,19 @@ def inspect_usage_lines(prog='bayesed3'):
 
 
 def inspect_usage(prog='bayesed3'):
-    return (
-        _usage_block(inspect_usage_lines(prog))
-        + "\n"
-        f"results commands: {', '.join(RESULTS_VERBS)}\n"
-        f"plot commands: {', '.join(PLOT_VERBS)}\n"
-        "priors commands: list\n"
-    )
+    return _usage_block(inspect_usage_lines(prog))
 
 
 def results_usage(prog='bayesed3'):
-    return (
-        _usage_block(results_usage_lines(prog))
-        + f"Commands: {', '.join(RESULTS_VERBS)}\n"
-    )
+    return _usage_block(results_usage_lines(prog))
 
 
 def plot_usage(prog='bayesed3'):
-    return (
-        _usage_block(plot_usage_lines(prog))
-        + f"Commands: {', '.join(PLOT_VERBS)}\n"
-    )
+    return _usage_block(plot_usage_lines(prog))
 
 
 def priors_usage(prog='bayesed3'):
-    return (
-        f"Usage: {priors_usage_line(prog)}\n"
-        "Commands: list\n"
-    )
+    return f"Usage: {priors_usage_line(prog)}\n"
 
 
 def _flag_value(tokens, i, flag_map):
@@ -183,6 +172,12 @@ def _no_match_message(thing, pattern, list_name, items):
     )
 
 
+def _require_outdir(outdir):
+    path = Path(outdir)
+    if not path.is_dir():
+        raise ValueError(f'not a directory: {outdir}')
+
+
 def _require_one(candidates, pattern, things, thing, flag, list_name):
     """Loose-match pattern to exactly one candidate name."""
     hits = match_names(candidates, pattern)
@@ -201,6 +196,7 @@ def _resolve_cat_and_cfg(outdir, cat, cfg):
 
     ``cfg`` requires a Results catalog context (explicit or sole catalog).
     """
+    _require_outdir(outdir)
     catalogs = list_catalog_names(outdir)
     catalog_name = None
     if cat is not None:
@@ -311,27 +307,29 @@ def parse_par_values(tokens):
 
 def parse_results_query(tokens):
     """
-    Parse ``<outdir> <query>... [--cat C] [--cfg CFG] [--obj O] [--json]``.
+    Parse ``<outdir> <query> [--cat C] [--cfg CFG] [--obj O] [--json]``.
 
-    Query verbs are ``summary`` / ``evidence`` / ``par_names`` / ``objects``.
-    Flags only after all verbs. No leftover positionals.
+    Exactly one query verb: ``summary`` / ``evidence`` / ``par_names`` /
+    ``objects``. Flags after the verb. No leftover positionals.
     """
     if not tokens:
         raise ValueError('missing outdir')
     outdir = tokens[0]
     rest = tokens[1:]
-    cmds = []
-    i = 0
-    while i < len(rest) and rest[i] in _QUERY_VERBS:
-        if rest[i] not in cmds:
-            cmds.append(rest[i])
-        i += 1
-    if not cmds:
+    if not rest or rest[0] not in _QUERY_VERBS:
+        if any(tok in _QUERY_VERBS for tok in rest):
+            raise ValueError('query verbs cannot be combined')
         raise ValueError('missing command')
+    cmd = rest[0]
+    i = 1
+    if i < len(rest) and rest[i] in _QUERY_VERBS:
+        raise ValueError(
+            f"'{rest[i]}' cannot be combined with '{cmd}'"
+        )
     flags = _parse_flag_pairs(
         rest, i, _RESULTS_QUERY_FLAGS, bool_flags=_JSON_BOOL,
     )
-    return outdir, cmds, flags['cat'], flags['obj'], flags['cfg'], flags['json']
+    return outdir, cmd, flags['cat'], flags['obj'], flags['cfg'], flags['json']
 
 
 def parse_model_configs(tokens):
@@ -469,6 +467,7 @@ def parse_plot_posterior(tokens):
 
 
 def _catalog_for_discovery(outdir, cat):
+    _require_outdir(outdir)
     catalogs = list_catalog_names(outdir)
     if cat is not None:
         return _require_one(
@@ -576,7 +575,8 @@ def _par_values_json_payload(table):
     return table
 
 
-def _summary_payload(results, object_ids=None):
+def _summary_payload(results):
+    """Orientation fields for ``results … summary --json`` (whole Results)."""
     payload = {
         'output_dir': results.output_dir,
         'catalog': results.catalog_name,
@@ -584,53 +584,20 @@ def _summary_payload(results, object_ids=None):
     }
     try:
         payload['n_hdf5_columns'] = len(results.get_parameter_names())
-        payload['free'] = list(results.get_free_parameters())
-        payload['derived'] = list(results.get_derived_parameters())
+        payload['n_free'] = len(results.get_free_parameters())
+        payload['n_derived'] = len(results.get_derived_parameters())
     except Exception as e:
         payload['parameter_summary_error'] = str(e)
     try:
         objects = list(results.list_objects())
-        if object_ids is not None:
-            objects = list(object_ids)
-        payload['objects'] = objects
+        if len(objects) <= 10:
+            payload['objects'] = objects
+        else:
+            payload['objects'] = objects[:5] + ['...'] + objects[-5:]
+        payload['n_objects'] = len(objects)
     except Exception as e:
         payload['object_summary_error'] = str(e)
     return payload
-
-
-def _print_summary_text(results, object_ids=None):
-    """Human summary; optional --obj narrows only the objects list."""
-    print('=' * 60)
-    print('BayeSEDResults Summary')
-    print('=' * 60)
-    print(f"Output Directory: {results.output_dir}")
-    print(f"Catalog: {results.catalog_name}")
-    print(f"HDF5 File: {results.hdf5_file}")
-    print()
-    try:
-        all_params = results.get_parameter_names()
-        free_params = results.get_free_parameters()
-        derived_params = results.get_derived_parameters()
-        print('Parameter Summary:')
-        print(f"  HDF5 Columns: {len(all_params)}")
-        print(f"  Free Parameters: {len(free_params)}")
-        print(f"  Derived Parameters: {len(derived_params)}")
-        print()
-    except Exception as e:
-        print(f'Parameter summary unavailable: {e}')
-    try:
-        objects = (
-            list(object_ids) if object_ids is not None
-            else list(results.list_objects())
-        )
-        print(f"Objects: {len(objects)} available")
-        if len(objects) <= 10:
-            print(f"  Object IDs: {objects}")
-        else:
-            print(f"  First 5: {objects[:5]}")
-            print(f"  Last 5: {objects[-5:]}")
-    except Exception as e:
-        print(f'Object summary unavailable: {e}')
 
 
 def _print_evidence(results, as_json=False, object_ids=None):
@@ -717,36 +684,36 @@ def _run_model_configs(rest, prog):
 
 def _run_results_query(rest, prog):
     try:
-        outdir, cmds, cat, obj, cfg, as_json = parse_results_query(rest)
+        outdir, cmd, cat, obj, cfg, as_json = parse_results_query(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
         return 1
     try:
         results = _load_results_flags(outdir, cat, cfg)
+        # summary / par_names ignore --obj (whole-Results orientation).
         obj_filter = None
-        if obj is not None:
+        if obj is not None and cmd in ('evidence', 'objects'):
             obj_filter = _resolve_results_obj_filter(
                 results.list_objects(), obj,
             )
-        for cmd in cmds:
-            if cmd == 'summary':
-                if as_json:
-                    _print_json(_summary_payload(results, object_ids=obj_filter))
-                else:
-                    _print_summary_text(results, object_ids=obj_filter)
-            elif cmd == 'evidence':
-                _print_evidence(
-                    results, as_json=as_json, object_ids=obj_filter,
-                )
-            elif cmd == 'par_names':
-                _print_par_names(results, as_json=as_json)
-            elif cmd == 'objects':
-                items = (
-                    obj_filter if obj_filter is not None
-                    else results.list_objects()
-                )
-                _print_name_list(items, as_json)
+        if cmd == 'summary':
+            if as_json:
+                _print_json(_summary_payload(results))
+            else:
+                results.print_summary()
+        elif cmd == 'evidence':
+            _print_evidence(
+                results, as_json=as_json, object_ids=obj_filter,
+            )
+        elif cmd == 'par_names':
+            _print_par_names(results, as_json=as_json)
+        elif cmd == 'objects':
+            items = (
+                obj_filter if obj_filter is not None
+                else results.list_objects()
+            )
+            _print_name_list(items, as_json)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1
