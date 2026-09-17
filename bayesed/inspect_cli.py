@@ -491,8 +491,17 @@ def _print_json(data):
 
 
 def _json_scalar(value):
-    if hasattr(value, 'item'):
-        return value.item()
+    if isinstance(value, bytes):
+        return value.decode('utf-8', errors='replace')
+    if isinstance(value, bytearray):
+        return bytes(value).decode('utf-8', errors='replace')
+    if hasattr(value, 'item') and not isinstance(value, (str, bytes, bytearray)):
+        try:
+            value = value.item()
+        except (ValueError, AttributeError):
+            pass
+        else:
+            return _json_scalar(value)
     return value
 
 

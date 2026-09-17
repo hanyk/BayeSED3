@@ -153,6 +153,26 @@ def test_results_evidence_json():
     assert payload[1]['ID'] == 'obj-2'
 
 
+def test_results_evidence_json_decodes_bytes_id():
+    table = Table({
+        'ID': [b'obj-bytes'],
+        'INSlogZ': [-1.5],
+        'logZ': [-1.4],
+        'INSlogZerr': [0.1],
+        'logZerr': [0.2],
+    })
+    fake = MagicMock()
+    fake.get_evidence.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'evidence', '--json'])
+    assert code == 0
+    payload = json.loads(''.join(c.args[0] for c in out.write.call_args_list))
+    assert payload[0]['ID'] == 'obj-bytes'
+    assert isinstance(payload[0]['ID'], str)
+
+
 def test_results_evidence_json_single_object_is_still_array():
     table = Table({
         'ID': ['obj-1'],
@@ -1569,6 +1589,7 @@ if __name__ == '__main__':
     test_results_outdir_json_without_command_prints_usage()
     test_results_objects_json()
     test_results_evidence_json()
+    test_results_evidence_json_single_object_is_still_array()
     test_results_summary_json()
     test_results_par_values_json()
     test_results_par_values_json_from_astropy_table()
