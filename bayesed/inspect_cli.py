@@ -11,7 +11,7 @@ import json
 import os
 import re
 import sys
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 
 from .inference import SEDInference
 from .prior_editor import PriorEditor
@@ -487,10 +487,15 @@ def _load_results_flags(outdir, cat, cfg=None):
 
 
 def _print_json(data):
-    print(json.dumps(data))
+    print(json.dumps(_json_ready(data)))
 
 
 def _json_scalar(value):
+    """Coerce one leaf value to a JSON-native Python type."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, PurePath):
+        return str(value)
     if isinstance(value, bytes):
         return value.decode('utf-8', errors='replace')
     if isinstance(value, bytearray):
@@ -499,10 +504,18 @@ def _json_scalar(value):
         try:
             value = value.item()
         except (ValueError, AttributeError):
-            pass
-        else:
-            return _json_scalar(value)
+            return value
+        return _json_scalar(value)
     return value
+
+
+def _json_ready(value):
+    """Recursively convert dict/list trees to JSON-serializable values."""
+    if isinstance(value, dict):
+        return {str(_json_scalar(k)): _json_ready(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(v) for v in value]
+    return _json_scalar(value)
 
 
 def _table_json_records(table):
@@ -520,10 +533,7 @@ def _table_json_records(table):
         raise TypeError(
             f'cannot serialize {type(table).__name__} as JSON records'
         )
-    return [
-        {key: _json_scalar(val) for key, val in record.items()}
-        for record in records
-    ]
+    return [_json_ready(record) for record in records]
 
 
 def _format_available(items):

@@ -4,6 +4,8 @@
 from unittest.mock import MagicMock, patch
 
 import json
+from pathlib import Path
+
 import pandas as pd
 from astropy.table import Table
 
@@ -206,14 +208,14 @@ def test_results_evidence_json_single_object_is_still_array():
 
 def test_results_summary_json():
     fake = MagicMock()
-    fake.output_dir = 'out'
+    fake.output_dir = Path('/tmp/outdir')
     fake.catalog_name = 'gal'
     fake.object_id = None
     fake.hdf5_file = 'gal.h5'
     fake.get_parameter_names.return_value = ['a', 'b']
     fake.get_free_parameters.return_value = ['a']
     fake.get_derived_parameters.return_value = ['b']
-    fake.list_objects.return_value = ['obj-1']
+    fake.list_objects.return_value = [b'obj-1']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
          patch('sys.stdout', new_callable=MagicMock) as out:
@@ -221,15 +223,30 @@ def test_results_summary_json():
     assert code == 0
     fake.print_summary.assert_not_called()
     written = ''.join(c.args[0] for c in out.write.call_args_list)
-    assert '"catalog": "gal"' in written or '"catalog":"gal"' in written.replace(' ', '')
-    assert 'n_hdf5_columns' in written
-    assert 'n_free' in written
-    assert 'n_derived' in written
-    assert 'n_objects' in written
-    assert '"free"' not in written or 'n_free' in written
-    # counts only — not full free/derived name lists as top-level arrays
+    payload = json.loads(written)
+    assert payload['output_dir'] == '/tmp/outdir'
+    assert isinstance(payload['output_dir'], str)
+    assert payload['catalog'] == 'gal'
+    assert payload['objects'] == ['obj-1']
+    assert payload['n_hdf5_columns'] == 2
+    assert payload['n_free'] == 1
+    assert payload['n_derived'] == 1
+    assert payload['n_objects'] == 1
+    assert 'free' not in payload or 'n_free' in payload
     assert '"free": [' not in written
     assert '"derived": [' not in written
+
+
+def test_results_objects_json_decodes_bytes_ids():
+    fake = MagicMock()
+    fake.list_objects.return_value = [b'obj-a', b'obj-b']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'objects', '--json'])
+    assert code == 0
+    payload = json.loads(''.join(c.args[0] for c in out.write.call_args_list))
+    assert payload == ['obj-a', 'obj-b']
 
 
 def test_results_par_values_json():
@@ -1589,8 +1606,10 @@ if __name__ == '__main__':
     test_results_outdir_json_without_command_prints_usage()
     test_results_objects_json()
     test_results_evidence_json()
+    test_results_evidence_json_decodes_bytes_id()
     test_results_evidence_json_single_object_is_still_array()
     test_results_summary_json()
+    test_results_objects_json_decodes_bytes_ids()
     test_results_par_values_json()
     test_results_par_values_json_from_astropy_table()
     test_results_catalogs_json()
