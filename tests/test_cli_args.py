@@ -73,6 +73,20 @@ def test_add_model_igm_and_sfr_over_reach_argv():
     assert args[args.index('--SFR_over') + 1] == '10.0,100.0'
 
 
+def test_to_cli_args_includes_ntest():
+    params = BayeSEDParams.galaxy(
+        input_file='observation/test/gal.txt',
+        outdir='tests/output_cli_args_unit',
+        ssp_model='bc2003_hr_stelib_chab_neb_2000r',
+        sfh_type='exponential',
+        dal_law='calzetti',
+    )
+    params.Ntest = 2
+    args = to_cli_args(params)
+    assert '--Ntest' in args
+    assert args[args.index('--Ntest') + 1] == '2'
+
+
 def test_bayesed_params_rejects_unknown_field_with_suggestion():
     params = BayeSEDParams(
         input_type=0,
@@ -86,5 +100,6 @@ if __name__ == '__main__':
     test_to_cli_args_galaxy_includes_core_flags()
     test_sfr_over_argv_variable_length()
     test_add_model_igm_and_sfr_over_reach_argv()
+    test_to_cli_args_includes_ntest()
     test_bayesed_params_rejects_unknown_field_with_suggestion()
     print('test_cli_args: OK')

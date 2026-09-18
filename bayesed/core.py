@@ -2015,13 +2015,16 @@ class BayeSEDInterface:
             print("Warning: Could not determine BayeSED3 root directory.")
             print("Binary may not be able to find data files (data/, models/, nets/).")
 
+        # Interface/run Ntest overrides params.Ntest; --Ntest is emitted once via to_cli_args
+        if self.Ntest is not None:
+            params.Ntest = self.Ntest
+
         args = to_cli_args(params)
         cmd = build_mpi_command(
             self.mpi_cmd,
             self.num_processes,
             self.executable_path,
             args,
-            ntest=self.Ntest,
         )
 
         # Progress indicator: Execution
@@ -2039,8 +2042,8 @@ class BayeSEDInterface:
             print(f"  Job scheduler: SLURM")
         elif os.environ.get('NSLOTS'):
             print(f"  Job scheduler: SGE")
-        if self.Ntest is not None:
-            print(f"  Processing first {self.Ntest} object(s) only")
+        if params.Ntest is not None:
+            print(f"  Processing first {params.Ntest} object(s) only")
         print("-" * 70)
 
         try:
@@ -2076,8 +2079,8 @@ class BayeSEDInterface:
                     f"Processes used: {self.num_processes}",
                 ]
 
-                if self.Ntest is not None:
-                    summary_lines.append(f"Objects processed: {self.Ntest} (test run)")
+                if params.Ntest is not None:
+                    summary_lines.append(f"Objects processed: {params.Ntest} (test run)")
                 else:
                     # Try to count objects from input file
                     try:

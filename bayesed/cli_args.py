@@ -256,6 +256,9 @@ def to_cli_args(params):
     if params.Nsample:
         args.extend(['--Nsample', str(params.Nsample)])
 
+    if params.Ntest is not None:
+        args.extend(['--Ntest', str(params.Ntest)])
+
     if params.output_SFH:
         args.extend(['--output_SFH', _format_output_SFH_params(params.output_SFH)])
 

@@ -417,6 +417,10 @@ def build_mpi_command(mpi_cmd, num_processes, executable_path, args, ntest=None)
 
     Uses PBS_NODEFILE as ``--machinefile`` when present; otherwise
     ``--use-hwthread-cpus -np``.
+
+    ``ntest`` is deprecated: pass ``--Ntest`` via ``to_cli_args`` /
+    ``BayeSEDParams.Ntest`` (or set it before ``to_cli_args``). When given,
+    ``--Ntest`` is still appended for older callers.
     """
     cmd = [mpi_cmd]
     pbs_nodefile = os.environ.get('PBS_NODEFILE')

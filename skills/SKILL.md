@@ -149,7 +149,7 @@ Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_paramete
 Happy-path convention: load/generate `.iprior` before fitting. Call it before `set_prior` / `print_priors` / `validate_priors`.
 
 **Quick test?**  
-`inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`.
+`params.Ntest=2`, or `inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`. `run(..., Ntest=)` overrides `params.Ntest`; both reach binary `--Ntest` via `to_cli_args`.
 
 **Evidence keys?**  
 Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5.
