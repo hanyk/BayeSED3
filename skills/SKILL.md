@@ -1,6 +1,6 @@
 ---
 name: bayesed3
-description: Use for BayeSED3 SED work — galaxy or AGN fitting, prior setup, Results and posterior plots, Bayesian evidence or model-configuration comparison, MultiNest or advanced run modes (AB mag, phot/spec-only). Trigger immediately on vague asks like "how do I fit this galaxy?"
+description: Use for BayeSED3 galaxy / AGN SED synthesis/analysis, priors, Results analysis, evidence comparison, advanced run modes, and Launcher Inspect (`bayesed3 results` / `plot` / `priors` / `run`). Trigger on vague asks like "how do I fit this galaxy?"
 ---
 
 # BayeSED3 Bayesian SED Analysis Workflow
@@ -8,6 +8,23 @@ description: Use for BayeSED3 SED work — galaxy or AGN fitting, prior setup, R
 Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits).
 
 **Happy path:** Observation → Input catalog → `SEDModel` → `SEDInference.priors_init` → (optional `set_prior`) → `inference.run` → **Results** → analyze / compare.
+
+## Interfaces
+
+| Entry | Use when |
+|-------|----------|
+| `SEDInference` | Default fit path — returns **Results** |
+| `BayeSEDInterface` | Batch / diagnostics — returns **Execution**; load Results from `outdir` afterward |
+| `bayesed3 results` / `plot` / `priors` | Inspect existing products from an `outdir` on the shell (`--json` for agents) |
+| `bayesed3 run` | Forward compiled-binary flags / `--import` (escape hatch for a new fit) |
+
+**Prefer when surfaces overlap:**
+- **New fit** — `SEDInference` (not `bayesed3 run`) unless raw binary argv / `--import` is required.
+- **Results already in-process** — Python Results API (`results-analysis.md`), not Inspect.
+- **Only an `outdir` on the shell** — `bayesed3 results` / `plot` / `priors` (`launcher-inspect.md`).
+- **Raw binary flags** — `bayesed3 run` (`binary-cli.md`).
+
+Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry — see decision tree step 2.
 
 ## Decision Tree
 
@@ -25,7 +42,8 @@ Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills
    → Batch/diagnostics: Interface.run → Execution, then BayeSEDResults(outdir)
 6. Analyze → results-analysis.md
 7. Compare model configurations → model-comparison.md
-8. CLI / Launcher (`bayesed3`) / --import → binary-cli.md
+8a. Launcher Inspect (`results` / `plot` / `priors` / `--json`) → launcher-inspect.md
+8b. Launcher `run` / binary flags / `--import` → binary-cli.md
 ```
 
 ## Reference Files
@@ -40,28 +58,29 @@ Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills
 | `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF, MultiNest |
 | `references/results-analysis.md` | Load Results, stats, plots, GetDist |
 | `references/model-comparison.md` | Evidence ranking, posterior comparison |
-| `references/binary-cli.md` | Launcher (`bayesed3`) and binary flags / `--import` |
+| `references/launcher-inspect.md` | Launcher Inspect: `results` / `plot` / `priors` / `--json` |
+| `references/binary-cli.md` | `bayesed3 run` binary flags / `--import` |
 
 ## Happy-path steps
 
 Each step ends when its **Done** criterion holds. Follow in order; open a reference only when the decision tree points there.
 
-1. **Input catalog** — path to a BayeSED `.txt` catalog (build via `data-preparation.md` if needed).  
+1. **Obtain an input catalog** — path to a BayeSED `.txt` catalog (build via `data-preparation.md` if needed).  
    **Done:** `input_file` points at an existing catalog file.
 
-2. **SED model** — default `SEDModel.create_galaxy` / `create_agn` + `params.add_*` (`custom-models.md`).  
+2. **Build the SED model** — default `SEDModel.create_galaxy` / `create_agn` + `params.add_*` (`custom-models.md`).  
    **Done:** `params` has components attached and `save_sample_par=True` when posteriors or comparison are required.
 
-3. **Priors** — `SEDInference().priors_init(params)`; optional `set_prior` (`prior-management.md`).  
+3. **Initialize priors** — `SEDInference().priors_init(params)`; optional `set_prior` (`prior-management.md`).  
    **Done:** `priors_init` has run for this `params` (and every `set_prior` finished before the run).
 
-4. **Run** — `results = inference.run(params)` → **Results**. Batch path: `Interface.run` → **Execution**, then `BayeSEDResults(outdir, ...)`.  
-   **Done:** you hold a `BayeSEDResults` instance (from `inference.run` or explicit load).
+4. **Run inference** — `results = inference.run(params)` → **Results**. Batch path: `Interface.run` → **Execution**, then `BayeSEDResults(outdir, ...)`.  
+   **Done:** a `BayeSEDResults` instance is held (from `inference.run` or explicit load).
 
-5. **Analyze** — summary, best-fit, posteriors, evidence (`results-analysis.md`).  
+5. **Analyze Results** — summary, best-fit, posteriors, evidence (`results-analysis.md`).  
    **Done:** `print_summary()` (or equivalent) succeeded and `get_evidence()` returned `log_evidence` / `log_evidence_error` when evidence was requested.
 
-6. **Compare** (optional) — separate `outdir` per model configuration (`model-comparison.md`).  
+6. **Compare model configurations** (optional) — separate `outdir` per model configuration (`model-comparison.md`).  
    **Done:** each configuration has Results; evidence or posterior comparison produced if asked.
 
 ### Skeleton
@@ -100,10 +119,11 @@ evidence = results.get_evidence()  # log_evidence, log_evidence_error
 
 ### Branches
 
+Happy-path exceptions (assembly / batch). Launcher entries stay under Interfaces + tree 8a/8b.
+
 - **Factory:** `.galaxy()` / `.agn()` then same steps 3–5 → galaxy/agn refs.
 - **Mixed / dust / torus:** `custom-models.md`.
 - **Batch / diagnostics:** `execution = BayeSEDInterface(...).run(params)` then load Results.
-- **Advanced modes / CLI:** `advanced-run-modes.md` / `binary-cli.md` (Launcher: `bayesed3`).
 
 ## Imports (happy path)
 

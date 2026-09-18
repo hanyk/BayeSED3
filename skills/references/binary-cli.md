@@ -2,17 +2,17 @@
 # Binary CLI — Complete Options Reference
 ---
 
-Escape hatch for raw binary flags. Prefer the Python happy path (`SEDModel` + `SEDInference`) in `SKILL.md`. For Python equivalents of phot/spec-only, NNLM/RDF, MultiNest tuning, and AB mag catalogs, use `advanced-run-modes.md` first.
+Escape hatch for **compiled-binary** flags (what the fit engine accepts). Prefer the Python happy path (`SEDModel` + `SEDInference`) in `SKILL.md`. For Python equivalents of phot/spec-only, NNLM/RDF, MultiNest tuning, and AB mag catalogs, use `advanced-run-modes.md` first.
 
-Prefer the **Launcher** (`bayesed3` / `python -m bayesed`, ADR-0007) over calling `./bin/...` yourself. It resolves OpenMPI, OS-arch binary, process count, and data-root cwd. It owns only `--mpi` and `--np`; all other argv (including `-h`/`--help`) is forwarded to the compiled binary.
+Invoke the binary through the **Launcher** `run` path (`bayesed3 run …` / `python -m bayesed run …`, ADR-0009). The Launcher resolves OpenMPI, OS-arch binary, process count, and data-root cwd. After `run`, it owns only `--mpi` and `--np`; remaining argv is forwarded to the binary. Bare binary-looking argv without `run` is rejected.
 
-Run `bayesed3 --help` (or `./bin/linux/bayesed_mn_1 --help`) for the authoritative flag list.
+This file is **not** the Inspect manual (`results` / `plot` / `priors` / `--json`)—see `launcher-inspect.md`. Top-level `bayesed3 --help` is the Launcher overview, not the full binary flag list; use `bayesed3 run --help` (or `./bin/linux/bayesed_mn_1 --help`) for authoritative binary USAGE.
 
 ## Invoking the Binary
 
 ```bash
-# Launcher — preferred. Forwards remaining argv to the binary.
-bayesed3 -v 2 -i 0,observation/test/gal.txt \
+# Launcher run path — preferred. Forwards argv after `run` to the binary.
+bayesed3 run -v 2 -i 0,observation/test/gal.txt \
   --outdir observation/test/output/gal \
   --ssp 0,0,bc2003_hr_stelib_chab_neb_2000r,1,1,1,0,0,1,0,0 \
   --sfh 0,2,0,0 \
@@ -20,8 +20,8 @@ bayesed3 -v 2 -i 0,observation/test/gal.txt \
   --multinest 1,0,0,400,0.1,0.5,1000,-1e90,1,2,0,0,-1e90,100000,0.01 \
   --save_sample_par
 
-# MPI across objects (mode n) with 4 processes
-bayesed3 --mpi n --np 4 -v 2 -i 0,observation/test/gal.txt ...
+# MPI across objects (mode n) with 4 processes (Launcher-owned flags after `run`)
+bayesed3 run --mpi n --np 4 -v 2 -i 0,observation/test/gal.txt ...
 
 # Direct binary (escape hatch if you already know the platform paths)
 ./bin/linux/bayesed_mn_1 -v 2 -i 0,observation/test/gal.txt ...
@@ -330,7 +330,7 @@ Key: `-i 1,...` for AB magnitude input; `--no_spectra_fit` skips spectral data; 
 Replace `bayesed_mn_1` with `bayesed_mn_n` via the Launcher, or prepend `mpirun` to the direct binary:
 
 ```bash
-bayesed3 --mpi n --np 4 -v 2 \
+bayesed3 run --mpi n --np 4 -v 2 \
   -i 0,observation/test/gal.txt \
   --outdir observation/test/output/gal \
   ... (same options as single-process)

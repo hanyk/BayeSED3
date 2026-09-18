@@ -2,7 +2,7 @@
 # Advanced Run Modes — Python API
 ---
 
-Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For raw binary flags and `--import`, see `binary-cli.md`.
+Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For Launcher Inspect (`results` / `plot` / `priors`), see `launcher-inspect.md`. For `run` / binary flags and `--import`, see `binary-cli.md`.
 
 These patterns mirror `tests/run_test.py` (test1 / test3). Prefer assembling with `SEDModel` + `SEDInference` when possible; low-level `*Params` shown where tests use them.
 
@@ -132,4 +132,5 @@ results = BayeSEDResults(params.outdir, catalog_name='...')
 
 - Input catalogs and filters: `data-preparation.md`
 - SEDModel assembly: `custom-models.md`
-- Binary CLI / Launcher / `--import`: `binary-cli.md`
+- Launcher Inspect: `launcher-inspect.md`
+- Binary CLI / `run` / `--import`: `binary-cli.md`
