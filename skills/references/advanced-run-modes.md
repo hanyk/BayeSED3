@@ -2,7 +2,7 @@
 # Advanced Run Modes — Python API
 ---
 
-Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For Launcher Inspect (`results` / `plot` / `priors`), see `launcher-inspect.md`. For `run` / binary flags and `--import`, see `binary-cli.md`.
+Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For Launcher Inspect (`results` / `plot` / `priors`), see `launcher-inspect.md`. Open this file for AB mag / phot-spec-only / NNLM-RDF-SNR or MultiNest knobs beyond the SKILL FAQ — not for ordinary Skeleton fits. For `bayesed3 run` / `--import` / raw binary argv, see `binary-cli.md` (only when that Prefer gate fires).
 
 These patterns mirror `tests/run_test.py` (test1 / test3). Prefer assembling with `SEDModel` + `SEDInference` when possible; low-level `*Params` shown where tests use them.
 
@@ -133,4 +133,4 @@ results = BayeSEDResults(params.outdir, catalog_name='...')
 - Input catalogs and filters: `data-preparation.md`
 - SEDModel assembly: `custom-models.md`
 - Launcher Inspect: `launcher-inspect.md`
-- Binary CLI / `run` / `--import`: `binary-cli.md`
+- Binary CLI / `run` / `--import`: `binary-cli.md` (only when the Prefer `run` gate in `SKILL.md` fires)

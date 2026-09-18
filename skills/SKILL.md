@@ -5,9 +5,11 @@ description: Use for BayeSED3 galaxy / AGN SED synthesis/analysis, priors, Resul
 
 # BayeSED3 Bayesian SED Analysis Workflow
 
-Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits).
+Agent workflow router (ADR-0001, ADR-0013). Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits). Full API = package docstrings; `references/*` = branch workflow only.
 
 **Happy path:** Observation → Input catalog → `SEDModel` → `SEDInference.priors_init` → (optional `set_prior`) → `inference.run` → **Results** → analyze / compare.
+
+**Default ref rule:** ordinary new fit → follow Skeleton + FAQ; open **zero** `references/*` unless a gate below fires.
 
 ## Interfaces
 
@@ -16,68 +18,78 @@ Agent workflow router. Canonical copy: repo `skills/` (sync to `~/.agents/skills
 | `SEDInference` | Default fit path — returns **Results** |
 | `BayeSEDInterface` | Batch / diagnostics — returns **Execution**; load Results from `outdir` afterward |
 | `bayesed3 results` / `plot` / `priors` | Inspect existing products from an `outdir` on the shell (`--json` for agents) |
-| `bayesed3 run` | Forward compiled-binary flags / `--import` (escape hatch for a new fit) |
+| `bayesed3 run` | Escape hatch: `--import` file, full binary argv, or **explicit** Launcher `run` request |
 
 **Prefer when surfaces overlap:**
-- **New fit** — `SEDInference` (not `bayesed3 run`) unless raw binary argv / `--import` is required.
-- **Results already in-process** — Python Results API (`results-analysis.md`), not Inspect.
+- **Ordinary new fit** — `SEDInference` + Skeleton + FAQ. Gate for `bayesed3 run`: user delivers an `--import` options file, a full binary argv string, or **explicitly** requires Launcher `run` forwarding. Mentioning the words `bayesed3 run` is not enough. If that gate does not fire, do not open `binary-cli.md`.
+- **Results already in-process** — Skeleton (`print_summary` / `get_evidence` / listed `plot_*`); open `results-analysis.md` only beyond that.
 - **Only an `outdir` on the shell** — `bayesed3 results` / `plot` / `priors` (`launcher-inspect.md`).
-- **Raw binary flags** — `bayesed3 run` (`binary-cli.md`).
+- **`--import` / raw binary argv / explicit `run`** — `bayesed3 run` (`binary-cli.md`).
 
 Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry — see decision tree step 2.
 
 ## Decision Tree
 
 ```
+0. Entry?
+   → Only outdir on shell → 8a (launcher-inspect.md)
+   → --import file / full binary argv / explicit Launcher run → 8b (binary-cli.md)
+   → Else ordinary fit → Skeleton + FAQ (no refs yet)
 1. Need an input catalog?
-   → Existing .txt, or data-preparation.md (SEDObservation / filters)
+   → Existing .txt, or data-preparation.md (arrays → catalog)
 2. Build the SED model
-   → Default: SEDModel → custom-models.md
-   → Shortcut: .galaxy() / .agn() → galaxy-fitting.md / agn-fitting.md
-   → Fine control: *Params → same refs + run_test.py
-3. Advanced run mode? (AB mag, phot/spec-only, NNLM/RDF/SNR, MultiNest)
-   → advanced-run-modes.md
-4. priors_init(params); optional set_prior → prior-management.md
+   → Default: SEDModel.create_* + Skeleton (no ref)
+   → Dust / torus / mixed / non-default components → custom-models.md
+   → Factory .galaxy() / .agn() or SSP/SFH tables → galaxy-fitting.md / agn-fitting.md
+   → Fine control: *Params → same refs
+3. Beyond FAQ sampling / input mode?
+   → AB mag, phot/spec-only, NNLM/RDF/SNR, or knobs not in FAQ → advanced-run-modes.md
+   → Else configure_multinest / Ntest from FAQ only
+4. priors_init(params); optional set_prior
+   → set_prior / print_priors / validate_priors → prior-management.md
+   → priors_init alone → no ref
 5. inference.run(params) → Results
    → Batch/diagnostics: Interface.run → Execution, then BayeSEDResults(outdir)
-6. Analyze → results-analysis.md
+6. Analyze
+   → summary / get_evidence / Skeleton plot_* → no ref
+   → GetDist / corr / custom stats → results-analysis.md
 7. Compare model configurations → model-comparison.md
-8a. Launcher Inspect (`results` / `plot` / `priors` / `--json`) → launcher-inspect.md
-8b. Launcher `run` / binary flags / `--import` → binary-cli.md
+8a. Launcher Inspect → launcher-inspect.md
+8b. Launcher run / --import / raw argv → binary-cli.md
 ```
 
 ## Reference Files
 
 | File | Open when |
 |------|-----------|
-| `references/data-preparation.md` | Arrays → catalog, filters, nondetections, spectroscopy |
-| `references/custom-models.md` | Canonical `SEDModel`, dust, torus, mixed components |
-| `references/galaxy-fitting.md` | Factory + low-level galaxy; SSP/SFH/DAL tables |
-| `references/agn-fitting.md` | Factory + low-level AGN |
-| `references/prior-management.md` | `set_prior`, prior types, `.iprior` |
-| `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF, MultiNest |
-| `references/results-analysis.md` | Load Results, stats, plots, GetDist |
-| `references/model-comparison.md` | Evidence ranking, posterior comparison |
-| `references/launcher-inspect.md` | Launcher Inspect: `results` / `plot` / `priors` / `--json` |
-| `references/binary-cli.md` | `bayesed3 run` binary flags / `--import` |
+| `references/data-preparation.md` | Building catalog from arrays / filters / nondetections / spectroscopy |
+| `references/custom-models.md` | Dust, torus, mixed, or other non-default `SEDModel` assembly |
+| `references/galaxy-fitting.md` | Factory `.galaxy()` or SSP/SFH/DAL tables |
+| `references/agn-fitting.md` | Factory `.agn()` or AGN component tables |
+| `references/prior-management.md` | `set_prior` / `print_priors` / `validate_priors` (not bare `priors_init`) |
+| `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF/SNR, or MultiNest knobs beyond FAQ |
+| `references/results-analysis.md` | Beyond Skeleton summary / evidence / basic `plot_*` |
+| `references/model-comparison.md` | Evidence ranking / posterior comparison across configurations |
+| `references/launcher-inspect.md` | Shell Inspect: `results` / `plot` / `priors` / `--json` |
+| `references/binary-cli.md` | Prefer `run` gate: `--import`, raw binary argv, or explicit Launcher `run` |
 
 ## Happy-path steps
 
-Each step ends when its **Done** criterion holds. Follow in order; open a reference only when the decision tree points there.
+Each step ends when its **Done** criterion holds. Follow in order; open a reference only when its **Open when** gate fires.
 
 1. **Obtain an input catalog** — path to a BayeSED `.txt` catalog (build via `data-preparation.md` if needed).  
    **Done:** `input_file` points at an existing catalog file.
 
-2. **Build the SED model** — default `SEDModel.create_galaxy` / `create_agn` + `params.add_*` (`custom-models.md`).  
+2. **Build the SED model** — default `SEDModel.create_galaxy` / `create_agn` + `params.add_*` (Skeleton; `custom-models.md` only if non-default).  
    **Done:** `params` has components attached and `save_sample_par=True` when posteriors or comparison are required.
 
-3. **Initialize priors** — `SEDInference().priors_init(params)`; optional `set_prior` (`prior-management.md`).  
+3. **Initialize priors** — `SEDInference().priors_init(params)`; optional `set_prior` (`prior-management.md` only if editing priors).  
    **Done:** `priors_init` has run for this `params` (and every `set_prior` finished before the run).
 
 4. **Run inference** — `results = inference.run(params)` → **Results**. Batch path: `Interface.run` → **Execution**, then `BayeSEDResults(outdir, ...)`.  
    **Done:** a `BayeSEDResults` instance is held (from `inference.run` or explicit load).
 
-5. **Analyze Results** — summary, best-fit, posteriors, evidence (`results-analysis.md`).  
+5. **Analyze Results** — Skeleton: `print_summary()`, `get_evidence()`, optional `plot_bestfit` / `plot_posterior_free`. Open `results-analysis.md` only beyond that.  
    **Done:** `print_summary()` (or equivalent) succeeded and `get_evidence()` returned `log_evidence` / `log_evidence_error` when evidence was requested.
 
 6. **Compare model configurations** (optional) — separate `outdir` per model configuration (`model-comparison.md`).  
@@ -103,6 +115,7 @@ params = BayeSEDParams(
     save_sample_par=True,
 )
 params.add_galaxy(galaxy)  # step 2
+# Optional quick test: params.Ntest = 1; params.configure_multinest(nlive=40, seed=1)
 
 inference = SEDInference()
 inference.priors_init(params)  # step 3
@@ -138,7 +151,7 @@ Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_paramete
 
 - Outdirs: `tests/output_<name>/` or `observation/<testname>/output/`
 - Posteriors: HDF5; best-fit SED: FITS
-- Parameter names: `param_name[igroup,id]` (e.g. `log(age/yr)[0,1]`) — offsets in `custom-models.md`
+- Parameter names: `param_name[igroup,id]` (e.g. `log(age/yr)[0,1]`) — offsets in `custom-models.md` when that ref is open
 
 ## FAQ
 
@@ -149,7 +162,10 @@ Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_paramete
 Happy-path convention: load/generate `.iprior` before fitting. Call it before `set_prior` / `print_priors` / `validate_priors`.
 
 **Quick test?**  
-`params.Ntest=2`, or `inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`. `run(..., Ntest=)` overrides `params.Ntest`; both reach binary `--Ntest` via `to_cli_args`.
+`params.Ntest=2`, or `inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`. `run(..., Ntest=)` overrides `params.Ntest`. See also “Where are `nlive` / `seed` / …” below — not `binary-cli.md`.
+
+**Where are `nlive` / `seed` / `efr` / `Ntest`?**  
+Python: `params.configure_multinest(...)`, `params.Ntest`, or `inference.run(..., Ntest=)`. Details beyond this FAQ → `advanced-run-modes.md`. Not `binary-cli.md` unless the Prefer `run` gate fired.
 
 **Evidence keys?**  
-Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5.
+Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5. Inspect `--json` uses HDF5 column names (`INSlogZ` / `logZ` / …).
