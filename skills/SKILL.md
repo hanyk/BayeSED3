@@ -1,11 +1,11 @@
 ---
 name: bayesed3
-description: Use for BayeSED3 galaxy / AGN SED synthesis/analysis, priors, Results analysis, evidence comparison, advanced run modes, and Launcher Inspect (`bayesed3 results` / `plot` / `priors` / `run`). Trigger on vague asks like "how do I fit this galaxy?"
+description: Use for BayeSED3 galaxy / AGN SED synthesis/analysis, priors, Results analysis, evidence comparison, advanced run modes, Launcher Inspect (`results` / `plot` / `priors`), and assembling Launcher Run argv. Trigger on vague asks like "how do I fit this galaxy?"
 ---
 
 # BayeSED3 Bayesian SED Analysis Workflow
 
-Agent workflow router (ADR-0001, ADR-0013). Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits). Full API = package docstrings; `references/*` = branch workflow only.
+Agent workflow router (ADR-0001, ADR-0013, ADR-0014, ADR-0015). Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits). Full API = package docstrings; `references/*` = branch workflow only.
 
 **Happy path:** Observation → Input catalog → `SEDModel` → `SEDInference.priors_init` → (optional `set_prior`) → `inference.run` → **Results** → analyze / compare.
 
@@ -18,13 +18,13 @@ Agent workflow router (ADR-0001, ADR-0013). Canonical copy: repo `skills/` (sync
 | `SEDInference` | Default fit path — returns **Results** |
 | `BayeSEDInterface` | Batch / diagnostics — returns **Execution**; load Results from `outdir` afterward |
 | `bayesed3 results` / `plot` / `priors` | Inspect existing products from an `outdir` on the shell (`--json` for agents) |
-| `bayesed3 run` | Escape hatch: `--import` file, full binary argv, or **explicit** Launcher `run` request |
+| `bayesed3 run` | Assemble **Run argv** when a Prefer `run` gate holds (ADR-0014). Same installed Python package as `SEDInference`. |
 
 **Prefer when surfaces overlap:**
-- **Ordinary new fit** — `SEDInference` + Skeleton + FAQ. Gate for `bayesed3 run`: user delivers an `--import` options file, a full binary argv string, or **explicitly** requires Launcher `run` forwarding. Mentioning the words `bayesed3 run` is not enough. If that gate does not fire, do not open `binary-cli.md`.
+- **Ordinary new fit** — `SEDInference` + Skeleton + FAQ.
 - **Results already in-process** — Skeleton (`print_summary` / `get_evidence` / listed `plot_*`); open `results-analysis.md` only beyond that.
 - **Only an `outdir` on the shell** — `bayesed3 results` / `plot` / `priors` (`launcher-inspect.md`).
-- **`--import` / raw binary argv / explicit `run`** — `bayesed3 run` (`binary-cli.md`).
+- **Prefer `run` (open `binary-cli.md`)** — any one: (1) the user wants a copy-paste `bayesed3 run` command, or delivers `--import` / a full argv string; (2) the deliverable is a shell command (job script / one-liner), not a Python snippet; (3) `bayesed3 run --help` lists a flag that is not a `BayeSEDParams` field and the user rejects `import_files`. The skill’s own mention of `bayesed3 run` is not a gate. Params looking harder or slower is not a gate.
 
 Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry — see decision tree step 2.
 
@@ -33,7 +33,7 @@ Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry �
 ```
 0. Entry?
    → Only outdir on shell → 8a (launcher-inspect.md)
-   → --import file / full binary argv / explicit Launcher run → 8b (binary-cli.md)
+   → Prefer `run` gate (the three Prefer clauses) → 8b
    → Else ordinary fit → Skeleton + FAQ (no refs yet)
 1. Need an input catalog?
    → Existing .txt, or data-preparation.md (arrays → catalog)
@@ -43,8 +43,9 @@ Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry �
    → Factory .galaxy() / .agn() or SSP/SFH tables → galaxy-fitting.md / agn-fitting.md
    → Fine control: *Params → same refs
 3. Beyond FAQ sampling / input mode?
-   → AB mag, phot/spec-only, NNLM/RDF/SNR, or knobs not in FAQ → advanced-run-modes.md
-   → Else configure_multinest / Ntest from FAQ only
+   → AB mag, phot/spec-only, NNLM/RDF/SNR, or when to change nlive/efr beyond FAQ → advanced-run-modes.md
+   → What a MultiNest / --multinest slot means, or change a field other than FAQ quick-test → multinest-params.md
+   → Else Ntest / nlive from FAQ only
 4. priors_init(params); optional set_prior
    → set_prior / print_priors / validate_priors → prior-management.md
    → priors_init alone → no ref
@@ -55,7 +56,7 @@ Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry �
    → GetDist / corr / custom stats → results-analysis.md
 7. Compare model configurations → model-comparison.md
 8a. Launcher Inspect → launcher-inspect.md
-8b. Launcher run / --import / raw argv → binary-cli.md
+8b. Assemble Run argv → live `bayesed3 run --help` + binary-cli.md; then Inspect
 ```
 
 ## Reference Files
@@ -67,11 +68,12 @@ Model assembly (`SEDModel` / `.galaxy()` / `*Params`) is not a separate entry �
 | `references/galaxy-fitting.md` | Factory `.galaxy()` or SSP/SFH/DAL tables |
 | `references/agn-fitting.md` | Factory `.agn()` or AGN component tables |
 | `references/prior-management.md` | `set_prior` / `print_priors` / `validate_priors` (not bare `priors_init`) |
-| `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF/SNR, or MultiNest knobs beyond FAQ |
+| `references/advanced-run-modes.md` | AB mag, phot/spec-only, NNLM/RDF/SNR, or when to change `nlive` / `efr` beyond FAQ |
+| `references/multinest-params.md` | What a MultiNest / `--multinest` slot means, or changing a field other than FAQ quick-test (ADR-0015) |
 | `references/results-analysis.md` | Beyond Skeleton summary / evidence / basic `plot_*` |
 | `references/model-comparison.md` | Evidence ranking / posterior comparison across configurations |
 | `references/launcher-inspect.md` | Shell Inspect: `results` / `plot` / `priors` / `--json` |
-| `references/binary-cli.md` | Prefer `run` gate: `--import`, raw binary argv, or explicit Launcher `run` |
+| `references/binary-cli.md` | Prefer `run` gate (the three clauses in Prefer, ADR-0014); assembly rules after live `--help` |
 
 ## Happy-path steps
 
@@ -115,7 +117,8 @@ params = BayeSEDParams(
     save_sample_par=True,
 )
 params.add_galaxy(galaxy)  # step 2
-# Optional quick test: params.Ntest = 1; params.configure_multinest(nlive=40, seed=1)
+# Optional quick test: params.Ntest = 1; params.multinest = MultiNestParams(nlive=40)
+# (import MultiNestParams from bayesed; do not call configure_multinest(nlive=40))
 
 inference = SEDInference()
 inference.priors_init(params)  # step 3
@@ -132,11 +135,30 @@ evidence = results.get_evidence()  # log_evidence, log_evidence_error
 
 ### Branches
 
-Happy-path exceptions (assembly / batch). Launcher entries stay under Interfaces + tree 8a/8b.
+Happy-path exceptions (assembly / batch). Launcher Inspect stays 8a; assemble-run stays 8b.
 
 - **Factory:** `.galaxy()` / `.agn()` then same steps 3–5 → galaxy/agn refs.
 - **Mixed / dust / torus:** `custom-models.md`.
 - **Batch / diagnostics:** `execution = BayeSEDInterface(...).run(params)` then load Results.
+
+### Assemble Run argv (only if a Prefer `run` gate holds)
+
+Each step ends when its **Done** criterion holds. Flag *shapes* come from live `bayesed3 run --help` in this session — not from memory and not by pasting help into notes. Open `binary-cli.md` for rules `--help` does not give (`igroup`/`id`, `iscalable`, SSP fields, default `.iprior`).
+
+1. **Input catalog** — existing BayeSED `.txt` (same as happy-path step 1). QSO spectroscopic also needs the line-list files named on `-ls1` (paths on the QSO worked line).  
+   **Done:** catalog path exists (and those line-list files exist when `-ls1` is used).
+
+2. **Help** — run `bayesed3 run --help` (Launcher-owned `--mpi` / `--np` are not in that help).  
+   **Done:** this session contains the help text.
+
+3. **Assemble** — `bayesed3 run` + Run argv from help + `binary-cli.md`. Omit `--multinest` unless the user stated a sampling intent (binary defaults). Quick test: copy the live `--help` default `--multinest` tuple, set the `nlive` slot to 40, append `--Ntest 1`.  
+   **Done:** the command starts with `bayesed3 run` and includes `-i` (or `--input`), `--outdir`, every SED component the user asked for (galaxy spectroscopic: `--ssp`, `--sfh`, `--dal`; QSO spectroscopic: those plus BBB, BLR, FeII, NLR as on the QSO worked line), `--Ntest` when limiting objects or quick-testing, `--multinest` only when sampling was asked for, and `--save_sample_par` when posteriors or comparison are required.
+
+4. **Fit** — `bayesed3 run` with the Input catalog. The binary writes any missing `.iprior` files and continues the fit with those defaults. Custom bounds → leave this branch; use Python `set_prior`. There is no `bayesed3 priors init` or `set`.  
+   **Done:** process exit code 0.
+
+5. **Inspect** — `bayesed3 results <outdir> summary` (and `evidence` when evidence was asked). Open `launcher-inspect.md` for Inspect grammar. Optional: `BayeSEDResults(outdir)` if this session already uses Python or needs GetDist (`results-analysis.md`).  
+   **Done:** Inspect `summary` succeeded (and `evidence` returned rows when requested).
 
 ## Imports (happy path)
 
@@ -162,10 +184,13 @@ Low-level `*Params`, `SEDObservation`, `BayeSEDExecution`, `standardize_paramete
 Happy-path convention: load/generate `.iprior` before fitting. Call it before `set_prior` / `print_priors` / `validate_priors`.
 
 **Quick test?**  
-`params.Ntest=2`, or `inference.run(params, Ntest=2)`, or `Ntest=2` on `BayeSEDInterface`, or `params.configure_multinest(nlive=40)`. `run(..., Ntest=)` overrides `params.Ntest`. See also “Where are `nlive` / `seed` / …” below — not `binary-cli.md`.
+`params.Ntest = 1` and `params.multinest = MultiNestParams(nlive=40)` (`from bayesed import MultiNestParams`). `run(..., Ntest=)` overrides `params.Ntest`. Do not call `configure_multinest(nlive=40)` — that method overwrites `efr` / `fb` / `outfile`. Assemble-run: live `--help` default `--multinest` tuple with `nlive` (4th slot) = 40, plus `--Ntest 1`. Not `binary-cli.md` unless a Prefer `run` gate already holds. Not `multinest-params.md`.
 
 **Where are `nlive` / `seed` / `efr` / `Ntest`?**  
-Python: `params.configure_multinest(...)`, `params.Ntest`, or `inference.run(..., Ntest=)`. Details beyond this FAQ → `advanced-run-modes.md`. Not `binary-cli.md` unless the Prefer `run` gate fired.
+Unattended fit: leave defaults (`nlive=100`, `efr=0.1`). Quick test: this FAQ. Faster parameter estimation: set `efr=0.8` on `MultiNestParams` (`advanced-run-modes.md`). Slot meanings: `multinest-params.md` only if asking what a field is or changing one beyond this FAQ. Assemble-run: `--Ntest` / `--multinest` from live `--help`; patch slots using the `binary-cli.md` index after a Prefer `run` gate.
 
 **Evidence keys?**  
 Prefer `log_evidence` / `log_evidence_error` from `get_evidence()`. Raw `INSlogZ` may also appear in the dict when present in HDF5. Inspect `--json` uses HDF5 column names (`INSlogZ` / `logZ` / …).
+
+**Custom priors on assemble-run?**  
+See assemble-run step 4: defaults come from the fit itself; custom bounds → Python `set_prior`.

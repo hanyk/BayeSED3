@@ -2,7 +2,7 @@
 # Advanced Run Modes — Python API
 ---
 
-Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For Launcher Inspect (`results` / `plot` / `priors`), see `launcher-inspect.md`. Open this file for AB mag / phot-spec-only / NNLM-RDF-SNR or MultiNest knobs beyond the SKILL FAQ — not for ordinary Skeleton fits. For `bayesed3 run` / `--import` / raw binary argv, see `binary-cli.md` (only when that Prefer gate fires).
+Should-level recipes for production-style runs. Use after the Must happy path in `SKILL.md`. For Launcher Inspect (`results` / `plot` / `priors`), see `launcher-inspect.md`. Open this file for AB mag / phot-spec-only / NNLM-RDF-SNR or *when to change* `nlive` / `efr` beyond the SKILL FAQ — not for ordinary Skeleton fits, and not for slot *meanings* (`multinest-params.md`). For assembling Run argv, see `binary-cli.md` (only when a Prefer `run` gate in `SKILL.md` holds).
 
 These patterns mirror `tests/run_test.py` (test1 / test3). Prefer assembling with `SEDModel` + `SEDInference` when possible; low-level `*Params` shown where tests use them.
 
@@ -32,8 +32,6 @@ params = BayeSEDParams(
     no_spectra_fit=True,  # photometry-only catalog
 )
 params.add_galaxy(galaxy)
-params.configure_multinest(nlive=50, efr=0.1, updInt=1000)
-
 inference = SEDInference()
 inference.priors_init(params)
 results = inference.run(params)
@@ -91,30 +89,22 @@ galaxy = SEDModel.create_galaxy(
 )
 ```
 
-## MultiNest: Quick vs Production
+## MultiNest: when to change `nlive` / `efr`
 
-Via params (recommended on happy path):
-
-```python
-params.configure_multinest(
-    nlive=40,    # quick test; production often 400–1000
-    efr=0.3,     # ~0.3 for evidence; ~0.8 for parameter estimation
-    updInt=1000,
-    fb=2,
-    INS=1,
-)
-```
-
-Via `SEDInference` sampler helpers (applied at `inference.run`):
+`nlive` is nested-sampling resolution; wall-clock cost scales with it. Unattended fits leave library defaults (`nlive=100`, `efr=0.1`, `INS=1`, `ceff=0`). FAQ quick test: `Ntest=1` and `MultiNestParams(nlive=40)` — not `configure_multinest(...)`, which overwrites other fields. “Production” / “evidence” does not mean `nlive=400` or `efr=0.3` (that relaxes the default `efr=0.1`). Raise `nlive` only if the user wants stabler evidence (then check `logZerr`); noisy photometry can get worse with extra live points (Han et al. 2023). Raise `efr` to `0.8` only for faster parameter estimation.
 
 ```python
-inference = SEDInference()
-inference.multinest(nlive=100, efr=0.1, INS=1, fb=2)
-inference.priors_init(params)
-results = inference.run(params)
+from bayesed import MultiNestParams
+
+params.multinest = MultiNestParams(efr=0.8)  # faster PE; nlive stays 100
+# or, if multinest already exists: params.multinest.efr = 0.8
 ```
 
-Also available on `SEDInference`: `gsl()`, `nnlm()`, `ndumper()`, `set_logzero()`, `set_unweighted_samples()`, `set_nsample()`, `set_niteration()` — see method docstrings in `bayesed/inference.py`. Happy-path quick test: `inference.run(params, Ntest=2)`.
+Slot meanings: `multinest-params.md`. Assemble-run: patch the `--help` tuple via the `binary-cli.md` index; omit `--multinest` when the user did not state a sampling intent.
+
+`SEDInference.multinest(...)` still exists; like `configure_multinest`, it is not a single-field patch.
+
+Also available on `SEDInference`: `gsl()`, `nnlm()`, `ndumper()`, `set_logzero()`, `set_unweighted_samples()`, `set_nsample()`, `set_niteration()` — see method docstrings. Happy-path quick test stays the FAQ (`Ntest=1`, `nlive=40`).
 
 ## Batch Path: Execution then Results
 
@@ -133,4 +123,5 @@ results = BayeSEDResults(params.outdir, catalog_name='...')
 - Input catalogs and filters: `data-preparation.md`
 - SEDModel assembly: `custom-models.md`
 - Launcher Inspect: `launcher-inspect.md`
-- Binary CLI / `run` / `--import`: `binary-cli.md` (only when the Prefer `run` gate in `SKILL.md` fires)
+- Assembling Run argv: `binary-cli.md` (only when a Prefer `run` gate in `SKILL.md` holds)
+- MultiNest slot meanings: `multinest-params.md`

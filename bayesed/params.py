@@ -267,7 +267,7 @@ class MultiNestParams:
     outfile: int = 0  # Write output files
     logZero: float = -1e90  # Log of Zero
     maxiter: int = 100000  # Maximum number of iterations
-    acpt: float = 0.01  # Acceptance rate
+    acpt: float = 0.01  # Min acceptance rate; extra NS stopping criterion
 
 @dataclass
 class SFROverParams:

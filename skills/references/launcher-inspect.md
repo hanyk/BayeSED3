@@ -2,7 +2,7 @@
 # Launcher Inspect — results / plot / priors
 ---
 
-Present existing **Results** or **Priors** via the Launcher (`bayesed3` / `python -m bayesed`). Not a fit path. For compiled-binary flags and `--import`, use `binary-cli.md` after `bayesed3 run`. Decision record: ADR-0009.
+Present existing **Results** or **Priors** via the Launcher (`bayesed3` / `python -m bayesed`). Not a fit path. For assembling **Run argv**, use live `bayesed3 run --help` plus `binary-cli.md` after a Prefer `run` gate (`SKILL.md`, ADR-0014). Decision record: ADR-0009.
 
 Prefer the Python Results API in `results-analysis.md` when you already hold a `BayeSEDResults` in-process. Use Inspect when working from an `outdir` on the shell (humans or agents).
 
@@ -12,7 +12,7 @@ Prefer the Python Results API in `results-analysis.md` when you already hold a `
 |-------------|------|
 | `version` / `--version` | Package version + Binary banner (no fit) |
 | `results` / `plot` / `priors` | **Inspect** — read existing products |
-| `run` | Forward remaining argv to the compiled binary (`binary-cli.md`) |
+| `run` | Forward **Run argv** to the compiled binary (`binary-cli.md` after a Prefer `run` gate) |
 
 Empty argv and top-level `--help` / `-h` print a short overview (Version / Inspect / Run sketches)—enough to discover the next verb. Full Inspect flag lists appear on incomplete subcommand usage, not on the overview.
 
@@ -36,7 +36,7 @@ All support optional `--json`. Load is Results-catalog-scoped (`--cat` / `--cfg`
 |------|----------------|-------|
 | `summary` | object (orientation card) | Ignores `--obj`. Includes `n_objects`; `objects` list truncated when long |
 | `par_names` | object `{free, derived}` | Ignores `--obj` |
-| `evidence` | array of row objects | HDF5 column names (`ID`, present `INSlogZ` / `logZ` / errs)—not the Python `log_evidence` keys |
+| `evidence` | array of row objects | `--json`: HDF5 column names (`ID`, present `INSlogZ` / `logZ` / errs). Human print (no `--json`): Python-style `log_evidence: … ± …` |
 | `objects` | array of ids | Optional `--obj` filter |
 | `par_values` | array of row objects | Requires `--par`; optional `--obj` |
 | `catalogs` / `model_configs` | array of names | Discovery; no HDF5 load |
@@ -84,5 +84,5 @@ One `list [dir]` form, two meanings: no directory prints the Prior type table; a
 | Need | Open |
 |------|------|
 | In-process stats / GetDist / Python plots | `results-analysis.md` |
-| `bayesed3 run …` binary flags / `--import` | `binary-cli.md` |
+| `bayesed3 run …` Run argv | `binary-cli.md` (Prefer `run` gate in `SKILL.md`) |
 | Why Inspect grammar is this way | ADR-0009 |

@@ -80,7 +80,7 @@ params = BayeSEDParams(
                      iscalable=1, k=1, f_run=1)],
     kin=[KinParams(id=3, velscale=10, num_gauss_hermites_con=2, num_gauss_hermites_eml=0)],
 
-    multinest=MultiNestParams(nlive=40, efr=0.05, updInt=100, fb=2),
+    multinest=MultiNestParams(nlive=40),  # FAQ quick test; omit this block for default nlive=100
     sys_err_obs=SysErrParams(min=0.0, max=0.2),
     SNRmin1=SNRmin1Params(phot=0, spec=3)
 )

@@ -139,4 +139,4 @@ for label, logZ in evidences:
 - `save_sample_par=True` is required for posterior sample plots, not for `get_evidence()` (evidence is in HDF5 either way)
 - `standardize_parameter_names()` rewrites component IDs so posteriors can be overplotted
 - Keep prior ranges consistent across configurations when ranking Evidence
-- Larger MultiNest `nlive` improves evidence accuracy (often `nlive≥400` in production; see `advanced-run-modes.md`)
+- Larger MultiNest `nlive` can tighten evidence; do not jump to 400 on the word “production” — see `advanced-run-modes.md`

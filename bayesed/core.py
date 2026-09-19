@@ -891,7 +891,8 @@ class BayeSEDParams:
             Log-likelihood threshold (default: -1e90, effectively disabled).
             Points with loglike < logZero will be ignored by MultiNest.
         acpt : float
-            Acceptance rate threshold (default: 0.01). Used in constant efficiency mode.
+            Minimum acceptance rate (default: 0.01). Extra nested-sampling
+            stopping criterion alongside ``tol`` and ``maxiter``.
 
         Returns
         -------

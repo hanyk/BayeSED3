@@ -56,12 +56,7 @@ params = BayeSEDParams(
         con_eml_tot=2                      # 2=continuum+emission lines
     )],
     z=ZParams(iprior_type=1),
-    multinest=MultiNestParams(
-        nlive=40,                          # 40 for testing, 400+ for production
-        efr=0.05,
-        updInt=100,
-        fb=2
-    ),
+    multinest=MultiNestParams(nlive=40),  # FAQ quick test; omit this block for default nlive=100
     sys_err_obs=SysErrParams(min=0.0, max=0.2)
 )
 
