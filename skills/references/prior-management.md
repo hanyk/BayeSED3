@@ -11,7 +11,17 @@
 Call these methods on `SEDInference` (skill happy path). Lifecycle implementation lives in
 `bayesed.priors.Priors`; `PriorManager` is an internal `.iprior` I/O adapter (ADR-0002).
 
-`inference.run(params)` returns **Results** (`BayeSEDResults`).  
+Working `.iprior` copies sit beside the Input catalog (`dirname(input_file)`). Factory
+defaults for this Model configuration live in `{outdir}/priors_defaults/`. `priors_init`
+copies only names the current configuration still lacks; it does not overwrite existing
+working files. `inference.run` does not call `priors_init`.
+
+Do **not** pass `clean_input_dir=True` when the Input catalog directory is shared
+(several configurations, e.g. `observation/test/gal.txt` and `qso.txt`). That flag
+deletes every valid `.iprior` in the directory. Use it only on a private catalog
+directory. Restore a parameter with `set_prior(..., reset_to_default=True)`.
+
+`inference.run(params)` returns **Results** (`BayeSEDResults`).
 `BayeSEDInterface.run(params)` returns **Execution** — use only for batch/diagnostics, then load Results separately.
 
 ## Basic Usage
@@ -112,9 +122,8 @@ Call `inference.validate_priors()` after edits if you need a dict of per-paramet
 
 ## Prior File (.iprior)
 
-Prior configurations are saved as `.iprior` files under `outdir`.  
-Format: `param_name prior_type min max nbin [hyperparameters...]`  
-Prefer the `SEDInference` API over hand-editing.
+Working copies sit beside the Input catalog. Factory defaults are in
+`{outdir}/priors_defaults/`. Prefer the `SEDInference` API over hand-editing.
 
 ## Sampler Helpers on SEDInference
 

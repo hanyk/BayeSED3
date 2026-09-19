@@ -18,13 +18,48 @@ from collections import defaultdict
 from io import StringIO
 from typing import TYPE_CHECKING
 
-from .core import BayeSEDInterface
+from .core import BayeSEDExecutionError, BayeSEDInterface
 from .prior import Prior
 from .prior_editor import PriorEditor
 from .prior_manager import PriorManager
 
 if TYPE_CHECKING:
     from .core import BayeSEDParams
+
+
+def classify_sandbox_round(returncode, output, new_files):
+    """Classify one dummy-catalog binary round (ADR-0016 Z4)."""
+    text = (output or '').lower()
+    generated = (
+        ("can't open" in text or 'can’t open' in text)
+        and 'has been generated' in text
+    )
+    no_objects = 'no valid objects' in text
+    new_names = {os.path.basename(path) for path in new_files}
+    if generated and new_names:
+        return 'continue'
+    if returncode == 0 and no_objects and not new_names:
+        return 'done'
+    return 'fail'
+
+
+def union_copy_missing(source_dir, dest_dir, filenames, verbose=False):
+    """Copy basenames that are absent from ``dest_dir``. Never overwrite."""
+    copied = []
+    for name in filenames:
+        dest = os.path.join(dest_dir, name)
+        if os.path.exists(dest):
+            continue
+        src = os.path.join(source_dir, name)
+        if not os.path.exists(src):
+            raise FileNotFoundError(
+                f"Factory prior '{name}' is missing from {source_dir}"
+            )
+        shutil.copy2(src, dest)
+        copied.append(name)
+        if verbose:
+            print(f"  Copied missing {name}")
+    return copied
 
 
 class Priors:
@@ -502,33 +537,11 @@ class Priors:
                 # No defaults exist - generate them (one-time cost)
                 if verbose:
                     print(f"Generating fresh defaults in {priors_defaults_dir}...")
-                try:
-                    relevant_filenames = self._generate_fresh_defaults(params, priors_defaults_dir, verbose=verbose)
-                    if verbose:
-                        print("✓ Fresh defaults generated")
-                        if relevant_filenames:
-                            print(f"✓ Identified {len(relevant_filenames)} relevant file(s) for current model config")
-
-                    # If generated filenames don't exist in input dir (e.g. new binary
-                    # adds .iprior.{N} suffix), copy defaults to input dir and skip filter.
+                relevant_filenames = self._generate_fresh_defaults(params, priors_defaults_dir, verbose=verbose)
+                if verbose:
+                    print("✓ Fresh defaults generated")
                     if relevant_filenames:
-                        input_basenames = {os.path.basename(f) for f in iprior_files}
-                        if not (input_basenames & relevant_filenames):
-                            if verbose:
-                                print(f"  Input dir has stale .iprior files, copying generated defaults...")
-                            defaults_files = [os.path.join(priors_defaults_dir, b) for b in relevant_filenames]
-                            copied = []
-                            for f in defaults_files:
-                                dst = os.path.join(input_dir, os.path.basename(f))
-                                shutil.copy2(f, dst)
-                                copied.append(dst)
-                            iprior_files = copied
-                            files_existed_before = None  # skip filter, use these files directly
-                except Exception as e:
-                    logging.getLogger(__name__).warning(
-                        f"Failed to generate fresh defaults: {e}. "
-                        f"reset_to_default functionality will not be available."
-                    )
+                        print(f"✓ Identified {len(relevant_filenames)} relevant file(s) for current model config")
         else:
             # Files didn't exist - just generated fresh
             # Use the generated files directly as defaults (no separate defaults needed)
@@ -542,7 +555,15 @@ class Priors:
                     self._prior_manager.load_prior_file(filename, is_auto_generated=True)
                 except Exception as e:
                     logging.getLogger(__name__).warning(f"Failed to load {filename} as default: {e}")
-        
+
+        if relevant_filenames:
+            for name in union_copy_missing(
+                priors_defaults_dir, input_dir, relevant_filenames, verbose=verbose
+            ):
+                dest = os.path.join(input_dir, name)
+                if dest not in iprior_files:
+                    iprior_files.append(dest)
+
         # Filter to only load relevant .iprior files (matching current model config)
         # Exception: When regenerate_defaults=True, we already have the exact files to load
         if files_existed_before is None:
@@ -837,64 +858,43 @@ class Priors:
             else:
                 interface = BayeSEDInterface(mpi_mode='1', np=1)
             
-            # Run the binary multiple times until no new .iprior files are created
-            # The binary checks what exists and creates what's missing incrementally
-            # Note: Binary may create files with suffixes like .iprior.0, .iprior.4, etc.
-            max_iterations = 10  # Safety limit to prevent infinite loops
-            iteration = 0
-            
-            while iteration < max_iterations:
-                iteration += 1
-                
-                # Count existing .iprior files before running (including numbered variants)
+            # Run until Z4: template written → continue; no valid objects → done.
+            while True:
                 iprior_pattern = os.path.join(input_dir, '*.iprior*')
                 iprior_files_before = set(glob.glob(iprior_pattern))
-                # Filter to only .iprior files (not .iprior.bak)
                 iprior_files_before = {f for f in iprior_files_before if not f.endswith('.bak')}
-                num_before = len(iprior_files_before)
-                
-                if verbose:
-                    if iteration == 1:
-                        print(f"Iteration {iteration}: Starting with {num_before} existing .iprior file(s)")
-                    else:
-                        print(f"Iteration {iteration}: {num_before} .iprior file(s) exist, checking for more...")
-                
-                # Suppress binary output by redirecting stdout/stderr
+
                 old_stdout = sys.stdout
                 old_stderr = sys.stderr
                 sys.stdout = StringIO()
                 sys.stderr = StringIO()
-                
                 try:
-                    # Run BayeSED - it will generate missing .iprior files and then fail
-                    interface.run(temp_params, validate=False)
-                except Exception as e:
-                    # Expected behavior: binary generates files then exits with error
-                    pass
+                    execution = interface.run(temp_params, validate=False)
+                    returncode, output = 0, getattr(execution, 'output_text', '') or ''
+                except BayeSEDExecutionError as exc:
+                    returncode, output = exc.returncode, exc.output or ''
                 finally:
-                    # Restore stdout/stderr
                     sys.stdout = old_stdout
                     sys.stderr = old_stderr
-                
-                # Count .iprior files after running (including numbered variants)
+
                 iprior_files_after = set(glob.glob(iprior_pattern))
                 iprior_files_after = {f for f in iprior_files_after if not f.endswith('.bak')}
-                num_after = len(iprior_files_after)
                 new_files = iprior_files_after - iprior_files_before
-                
-                if new_files:
-                    if verbose:
-                        print(f"  ✓ Generated {len(new_files)} new file(s):")
-                        for f in sorted(new_files):
-                            print(f"    - {os.path.basename(f)}")
-                else:
-                    # No new files created - all .iprior files have been generated
-                    if verbose:
-                        print(f"  ✓ No new files generated - all .iprior files complete")
+                outcome = classify_sandbox_round(returncode, output, new_files)
+                if verbose:
+                    print(
+                        f"  sandbox round rc={returncode} outcome={outcome} "
+                        f"new={[os.path.basename(f) for f in sorted(new_files)]}"
+                    )
+                if outcome == 'continue':
+                    continue
+                if outcome == 'done':
                     break
-            
-            if verbose and iteration >= max_iterations:
-                print(f"  ⚠ Warning: Reached maximum iterations ({max_iterations})")
+                excerpt = '\n'.join((output or '').splitlines()[-30:])
+                raise RuntimeError(
+                    "Prior generation failed (unexpected binary output).\n"
+                    f"return code: {returncode}\n{excerpt}"
+                )
             
             # Verify that at least some .iprior files were created
             final_iprior_files = glob.glob(iprior_pattern)

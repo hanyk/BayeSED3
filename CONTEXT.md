@@ -37,8 +37,8 @@ Bayesian evidence for a model configuration. The Python API exposes `get_evidenc
 _Avoid_: Treating raw `INSlogZ` as the only public API key name; treating Inspect JSON column names as the Python dict API
 
 **Priors**:
-The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type). On Launcher `run`, the compiled binary creates any missing `.iprior` files.
-_Avoid_: Treating `PriorManager` or `PriorEditor` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors; treating `.iprior` as a free-form agent-edit surface (custom bounds use Python `set_prior`); treating Python `priors_init` as the Launcher `run` prior procedure
+The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type). Working copies are the editable files beside the Input catalog (`set_prior` writes these). Factory defaults are the unmodified set for that Model configuration. On Launcher `run`, the compiled binary creates any missing `.iprior` files.
+_Avoid_: Treating `PriorManager` or `PriorEditor` as the public entry name; treating sampler settings (`SEDInference.multinest`, etc.) as priors; treating `.iprior` as a free-form agent-edit surface (custom bounds use Python `set_prior`); treating Python `priors_init` as the Launcher `run` prior procedure; treating factory defaults as the files `set_prior` edits; treating a shared Input catalog directory as per-configuration isolation for working copies
 
 **Prior type**:
 One of the discrete prior distribution families (Uniform, Gaussian, …) with fixed hyperparameter slots. `bayesed3 priors list` with no directory prints the Prior type table; with a directory it loads `.iprior` files there and prints their Priors contents — one `list [dir]` form, two meanings by presence of the directory.
