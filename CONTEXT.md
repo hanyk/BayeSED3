@@ -33,8 +33,8 @@ Scientific posterior products loaded from HDF5 (`BayeSEDResults` facade over pro
 _Avoid_: Execution, run output (when meaning only process metadata); treating plot helpers as the definition of Results
 
 **Evidence**:
-Bayesian evidence for a model configuration. The Python API exposes `get_evidence()` with `log_evidence` / `log_evidence_error` (mapped from table columns). Launcher `results … evidence --json` uses the HDF5 table column names (`ID`, and present `INSlogZ` / `logZ` / `INSlogZerr` / `logZerr` — two estimators and their errors) as a JSON array of row objects.
-_Avoid_: Treating raw `INSlogZ` as the only public API key name; treating Inspect JSON column names as the Python dict API
+Bayesian evidence (ln Z) for one Model configuration on one source (one Input catalog row). The Python API exposes `get_evidence()` with `log_evidence` / `log_evidence_error` (mapped from table columns) for a single source. Launcher `results … evidence --json` uses the HDF5 table column names (`ID`, and present `INSlogZ` / `logZ` / `INSlogZerr` / `logZerr` — two estimators and their errors) as a JSON array of row objects.
+_Avoid_: Treating a multi-source Results catalog as one evidence number; treating raw `INSlogZ` as the only public API key name; treating Inspect JSON column names as the Python dict API
 
 **Priors**:
 The prior lifecycle for a model configuration — load/generate/validate/bootstrap of `.iprior` specifications (`Priors`). Interactive edit/print is an internal `PriorEditor` (not a public type). Working copies are the editable files beside the Input catalog (`set_prior` writes these). Factory defaults are the unmodified set for that Model configuration. On Launcher `run`, the compiled binary creates any missing `.iprior` files.

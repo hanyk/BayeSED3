@@ -35,10 +35,16 @@ def classify_sandbox_round(returncode, output, new_files):
         and 'has been generated' in text
     )
     no_objects = 'no valid objects' in text
+    phot_empty = (
+        'phot filters' in text
+        and '0 photometric data points' in text
+    )
     new_names = {os.path.basename(path) for path in new_files}
-    if generated and new_names:
+    if (generated or phot_empty) and new_names:
         return 'continue'
-    if returncode == 0 and no_objects and not new_names:
+    if not new_names and (
+        (returncode == 0 and no_objects) or phot_empty
+    ):
         return 'done'
     return 'fail'
 

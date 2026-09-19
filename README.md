@@ -357,9 +357,10 @@ plot_posterior_comparison(
     output_file='model_comparison.png'
 )
 
-# Compare Bayesian evidence (prefer log_evidence; raw INSlogZ is only present when INS wrote it)
-evidence1 = results1.get_evidence()
-evidence2 = results2.get_evidence()
+# Compare Bayesian evidence for the first source (prefer log_evidence)
+obj = results1.list_objects()[0]
+evidence1 = results1.get_evidence(object_ids=obj)
+evidence2 = results2.get_evidence(object_ids=obj)
 delta_logZ = evidence1['log_evidence'] - evidence2['log_evidence']
 delta_logZ_err = (evidence1['log_evidence_error']**2 + evidence2['log_evidence_error']**2)**0.5
 ```

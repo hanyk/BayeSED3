@@ -5,6 +5,7 @@ A — classify_sandbox_round (Z4 literals from live dummy output)
 B — union_copy_missing never overwrites
 C — priors_init copies missing factory names even when some already exist
 D — SEDInference.priors_init raises when dummy generate is not Z4
+E — phot dummy: N filters / 0 phot points is continue then done
 """
 
 import os
@@ -19,6 +20,10 @@ from bayesed.priors import Priors, classify_sandbox_round, union_copy_missing
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SAMPLE = os.path.join(_REPO_ROOT, 'observation', 'test', '2dal8.iprior')
+_PHOT_EMPTY = (
+    "3 phot filters was selected in /tmp/filters_selected.txt, "
+    "but 0 photometric data points was given in /tmp/.temp_empty_input.txt!"
+)
 
 
 def test_classify_sandbox_round_continue_and_done():
@@ -31,6 +36,8 @@ def test_classify_sandbox_round_continue_and_done():
     assert classify_sandbox_round(0, done, []) == 'done'
     assert classify_sandbox_round(1, 'mpirun detected non-zero status', []) == 'fail'
     assert classify_sandbox_round(1, template, []) == 'fail'
+    assert classify_sandbox_round(1, _PHOT_EMPTY, ['/tmp/2dal8.iprior.0']) == 'continue'
+    assert classify_sandbox_round(1, _PHOT_EMPTY, []) == 'done'
 
 
 def test_union_copy_missing_does_not_overwrite():
@@ -118,9 +125,43 @@ def test_priors_init_raises_when_dummy_generate_is_not_z4():
         shutil.rmtree(tmp)
 
 
+def test_priors_init_completes_when_phot_dummy_writes_then_stops():
+    tmp = tempfile.mkdtemp(prefix='bayesed_priors_init_phot_')
+    try:
+        input_dir = os.path.join(tmp, 'input')
+        outdir = os.path.join(tmp, 'out')
+        os.makedirs(input_dir)
+        catalog = os.path.join(input_dir, 'phot.txt')
+        with open(catalog, 'w') as handle:
+            handle.write('# gal 0 0 0\n')
+        params = SimpleNamespace(input_file=catalog, outdir=outdir)
+
+        def write_then_phot_empty(temp_params, validate=False):
+            dest = os.path.join(temp_params.outdir, '2dal8.iprior.0')
+            if not os.path.exists(dest):
+                shutil.copy(_SAMPLE, dest)
+            raise BayeSEDExecutionError(
+                'binary failed',
+                returncode=1,
+                output=_PHOT_EMPTY,
+            )
+
+        with patch('bayesed.priors.BayeSEDInterface') as iface_cls:
+            iface_cls.return_value.run.side_effect = write_then_phot_empty
+            SEDInference().priors_init(params)
+        names = {
+            name for name in os.listdir(input_dir)
+            if name.endswith('.iprior') or '.iprior.' in name
+        }
+        assert names == {'2dal8.iprior.0'}
+    finally:
+        shutil.rmtree(tmp)
+
+
 if __name__ == '__main__':
     test_classify_sandbox_round_continue_and_done()
     test_union_copy_missing_does_not_overwrite()
     test_priors_init_copies_missing_and_keeps_working()
     test_priors_init_raises_when_dummy_generate_is_not_z4()
+    test_priors_init_completes_when_phot_dummy_writes_then_stops()
     print('ok')

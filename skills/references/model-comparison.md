@@ -42,8 +42,9 @@ Factory shortcut: `BayeSEDParams.galaxy(..., sfh_type=..., dal_law=...)` then th
 # results1 = BayeSEDResults('tests/output_model1_exp_calzetti', catalog_name='gal')
 # results2 = BayeSEDResults('tests/output_model2_delayed_smc', catalog_name='gal')
 
-evidence1 = results1.get_evidence()
-evidence2 = results2.get_evidence()
+obj = results1.list_objects()[0]
+evidence1 = results1.get_evidence(object_ids=obj)
+evidence2 = results2.get_evidence(object_ids=obj)
 
 # log_evidence prefers INSlogZ, falls back to logZ
 delta_logZ = evidence1['log_evidence'] - evidence2['log_evidence']
@@ -126,7 +127,8 @@ plot_posterior_comparison(
     output_file='tests/all_models_comparison.png'
 )
 
-evidences = [(cfg['label'], r.get_evidence()['log_evidence'])
+obj = results_list[0].list_objects()[0]
+evidences = [(cfg['label'], r.get_evidence(object_ids=obj)['log_evidence'])
              for cfg, r in zip(model_configs, results_list)]
 evidences.sort(key=lambda x: x[1], reverse=True)
 print("Model ranking by Bayesian evidence:")
