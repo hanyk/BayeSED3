@@ -609,6 +609,30 @@ def test_plot_bestfit_calls_plot_bestfit():
     assert fake.plot_bestfit.call_args.kwargs.get('show') is True
 
 
+def test_plot_bestfit_without_save_does_not_write_png():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['only']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'bestfit'])
+    assert code == 0
+    kwargs = fake.plot_bestfit.call_args.kwargs
+    assert kwargs.get('save') is False
+    assert 'output_file' not in kwargs
+
+
+def test_plot_bestfit_save_writes_sidecar():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['only']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'bestfit', '--save'])
+    assert code == 0
+    kwargs = fake.plot_bestfit.call_args.kwargs
+    assert kwargs.get('save') is True
+    assert 'output_file' not in kwargs
+
+
 def test_plot_posterior_cannot_mix_with_bestfit():
     with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
          patch('sys.stderr', new_callable=MagicMock) as err:
@@ -1062,6 +1086,15 @@ def test_results_catalogs_lists_names_without_loading_results():
     assert written.splitlines() == ['gal', 'qso']
 
 
+def test_results_catalogs_missing_outdir_is_not_empty_list():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'missing', 'catalogs'], check_outdir=True)
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'not a directory: missing' in written
+    assert 'No catalog matching' not in written
+
+
 def test_results_catalogs_rejects_trailing_name():
     with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
          patch('sys.stderr', new_callable=MagicMock) as err:
@@ -1206,6 +1239,21 @@ def test_plot_posterior_free_does_not_treat_free_as_catalog():
     assert fake.plot_posterior_free.call_args.kwargs.get('show') is True
     fake.plot_posterior.assert_not_called()
     fake.plot_posterior_derived.assert_not_called()
+
+
+def test_plot_posterior_save_writes_sidecar():
+    fake = _fake_plot_results()
+    fake.output_dir = 'out'
+    fake.catalog_name = 'gal'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'posterior', 'free', '--save'])
+    assert code == 0
+    kwargs = fake.plot_posterior_free.call_args.kwargs
+    assert kwargs.get('show') is True
+    assert kwargs.get('output_file') == str(
+        Path('out') / 'gal' / 'only' / 'only_posterior_free.png'
+    )
 
 
 def test_plot_posterior_derived_uses_max_params_ten():
@@ -1547,41 +1595,19 @@ def test_plot_obj_multi_match_plots_each():
     assert ids == ['spec-0000', 'spec-0001']
 
 
-def test_plot_out_file_with_multi_obj_errors():
+def test_plot_out_is_rejected():
     fake = MagicMock()
-    fake.list_objects.return_value = ['spec-a', 'spec-b']
+    fake.list_objects.return_value = ['spec-a']
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
          patch('sys.stderr', new_callable=MagicMock) as err:
         code = run_inspect([
-            'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'spec-',
-            '--out', 'out.png',
+            'plot', 'out', 'bestfit', '--cat', 'gal', '--out', 'out.png',
         ])
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert '--out must be a directory' in written
+    assert 'unknown option --out' in written
     fake.plot_bestfit.assert_not_called()
-
-
-def test_plot_out_dir_with_multi_obj_passes_paths():
-    fake = MagicMock()
-    fake.list_objects.return_value = ['spec-a', 'spec-b']
-    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
-         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
-        code = run_inspect([
-            'plot', 'out', 'bestfit', '--cat', 'gal', '--obj', 'spec-',
-            '--out', 'plots/',
-        ])
-    assert code == 0
-    assert fake.plot_bestfit.call_count == 2
-    paths = [
-        c.kwargs.get('output_file') for c in fake.plot_bestfit.call_args_list
-    ]
-    assert paths == [
-        'plots/spec-a_bestfit.png',
-        'plots/spec-b_bestfit.png',
-    ]
-    assert all(c.kwargs.get('show') is True for c in fake.plot_bestfit.call_args_list)
 
 
 def test_results_obj_multi_filter_objects():
@@ -1634,6 +1660,8 @@ if __name__ == '__main__':
     test_results_evidence_calls_existing_method()
     test_results_par_names_calls_existing_methods()
     test_plot_bestfit_calls_plot_bestfit()
+    test_plot_bestfit_without_save_does_not_write_png()
+    test_plot_bestfit_save_writes_sidecar()
     test_plot_posterior_cannot_mix_with_bestfit()
     test_plot_posterior_then_bestfit_cannot_mix()
     test_plot_multiple_objects_without_obj_errors()
@@ -1667,6 +1695,7 @@ if __name__ == '__main__':
     test_par_values_unknown_catalog_exits_one()
     test_params_verb_is_removed()
     test_results_catalogs_lists_names_without_loading_results()
+    test_results_catalogs_missing_outdir_is_not_empty_list()
     test_results_catalogs_rejects_trailing_name()
     test_results_catalogs_rejects_mix_with_summary()
     test_results_model_configs_prints_configs_for_catalog()
@@ -1678,6 +1707,7 @@ if __name__ == '__main__':
     test_priors_without_list_prints_usage()
     test_plot_bare_posterior_exits_one()
     test_plot_posterior_free_does_not_treat_free_as_catalog()
+    test_plot_posterior_save_writes_sidecar()
     test_plot_posterior_derived_uses_max_params_ten()
     test_plot_posterior_derived_max_flag()
     test_plot_posterior_par_calls_plot_posterior()
@@ -1698,4 +1728,5 @@ if __name__ == '__main__':
     test_plot_multiple_configs_without_cfg_exits_one()
     test_plot_posterior_multiple_objects_without_obj_errors()
     test_plot_posterior_unknown_catalog_exits_one()
+    test_plot_out_is_rejected()
     print('test_inspect_cli: OK')

@@ -11,7 +11,7 @@ import json
 import os
 import re
 import sys
-from pathlib import Path, PurePath, PurePosixPath
+from pathlib import Path, PurePath
 
 from .inference import SEDInference
 from .prior_editor import PriorEditor
@@ -33,12 +33,12 @@ _PAR_VALUES_FLAGS = {
 }
 _RESULTS_QUERY_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
 _MODEL_CONFIGS_FLAGS = {'--cat': 'cat'}
+_PLOT_SAVE_BOOL = {'--save': 'save'}
 _PLOT_BESTFIT_FLAGS = {
-    '--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg', '--out': 'out',
+    '--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg',
 }
 _PLOT_POSTERIOR_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
-    '--out': 'out',
 }
 _JSON_BOOL = {'--json': 'json'}
 _DERIVED_DEFAULT_MAX = 10
@@ -62,13 +62,13 @@ def results_usage_lines(prog='bayesed3'):
 def plot_usage_lines(prog='bayesed3'):
     return (
         f"{prog} plot <outdir> bestfit [--cat PATTERN] [--obj PATTERN] "
-        f"[--cfg PATTERN] [--out path]",
+        f"[--cfg PATTERN] [--save]",
         f"{prog} plot <outdir> posterior free [--cat PATTERN] [--obj PATTERN] "
-        f"[--cfg PATTERN] [--out path]",
+        f"[--cfg PATTERN] [--save]",
         f"{prog} plot <outdir> posterior derived [--max N] [--cat PATTERN] "
-        f"[--obj PATTERN] [--cfg PATTERN] [--out path]",
+        f"[--obj PATTERN] [--cfg PATTERN] [--save]",
         f"{prog} plot <outdir> posterior --par PATTERN [--lab TEXT] ... "
-        f"[--cat PATTERN] [--obj PATTERN] [--cfg PATTERN] [--out path]",
+        f"[--cat PATTERN] [--obj PATTERN] [--cfg PATTERN] [--save]",
     )
 
 
@@ -256,26 +256,6 @@ def _resolve_results_obj_filter(all_objects, obj_pattern):
     return hits
 
 
-def _looks_like_file(path):
-    name = PurePosixPath(path).name
-    return '.' in name and not path.endswith('/') and not path.endswith('\\')
-
-
-def _resolve_out(out, object_ids, kind):
-    """Plan ``(object_id, output_file_or_None)`` per plot call."""
-    if out is None:
-        return [(oid, None) for oid in object_ids]
-    if len(object_ids) > 1 and _looks_like_file(out):
-        raise ValueError(
-            '--out must be a directory when multiple objects are plotted '
-            f'({len(object_ids)} objects)'
-        )
-    if len(object_ids) == 1 and _looks_like_file(out):
-        return [(object_ids[0], out)]
-    base = out.rstrip('/\\')
-    return [(oid, f'{base}/{oid}_{kind}.png') for oid in object_ids]
-
-
 def _exact_names_regex(names):
     return '^(?:' + '|'.join(re.escape(name) for name in names) + ')$'
 
@@ -360,7 +340,7 @@ def parse_catalogs(tokens):
 
 def parse_plot_bestfit(tokens):
     """
-    Parse ``<outdir> bestfit [--cat C] [--obj O] [--cfg CFG] [--out PATH]``.
+    Parse ``<outdir> bestfit [--cat C] [--obj O] [--cfg CFG] [--save]``.
 
     ``bestfit`` is the only command. No leftover positionals.
     """
@@ -372,8 +352,10 @@ def parse_plot_bestfit(tokens):
         if 'bestfit' in rest:
             raise ValueError('bestfit cannot be combined with other commands')
         raise ValueError('missing command')
-    flags = _parse_flag_pairs(rest, 1, _PLOT_BESTFIT_FLAGS)
-    return outdir, flags['cat'], flags['obj'], flags['cfg'], flags['out']
+    flags = _parse_flag_pairs(
+        rest, 1, _PLOT_BESTFIT_FLAGS, bool_flags=_PLOT_SAVE_BOOL,
+    )
+    return outdir, flags['cat'], flags['obj'], flags['cfg'], flags['save']
 
 
 def parse_plot_posterior(tokens):
@@ -396,7 +378,7 @@ def parse_plot_posterior(tokens):
     cat = None
     obj = None
     cfg = None
-    out = None
+    do_save = False
     max_n = None
     pars = []
     labs = []
@@ -423,10 +405,12 @@ def parse_plot_posterior(tokens):
                 cat = value
             elif key == 'obj':
                 obj = value
-            elif key == 'out':
-                out = value
             else:
                 cfg = value
+            continue
+        if tok == '--save':
+            do_save = True
+            i += 1
             continue
         if tok == '--par':
             if i + 1 >= len(rest) or rest[i + 1].startswith('--'):
@@ -453,7 +437,7 @@ def parse_plot_posterior(tokens):
         raise ValueError('specify free, derived, or --par')
     if max_n is not None and kind != 'derived':
         raise ValueError('--max is only valid with derived')
-    return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg, out
+    return outdir, kind, cat, obj, pars, labs if has_lab else None, max_n, cfg, do_save
 
 
 def _catalog_for_discovery(outdir, cat):
@@ -707,7 +691,12 @@ def _run_catalogs(rest, prog):
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(results_usage(prog))
         return 1
-    _print_name_list(list_catalog_names(outdir), as_json)
+    try:
+        _require_outdir(outdir)
+        _print_name_list(list_catalog_names(outdir), as_json)
+    except ValueError as e:
+        _emit_load_error(e)
+        return 1
     return 0
 
 
@@ -825,7 +814,7 @@ def _plot_has_bestfit(rest):
 
 def _run_plot_bestfit(rest, prog):
     try:
-        outdir, cat, obj, cfg, out = parse_plot_bestfit(rest)
+        outdir, cat, obj, cfg, do_save = parse_plot_bestfit(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(plot_usage(prog))
@@ -833,21 +822,24 @@ def _run_plot_bestfit(rest, prog):
     try:
         results = _load_results_flags(outdir, cat, cfg)
         object_ids = _resolve_plot_objects(results.list_objects(), obj)
-        plan = _resolve_out(out, object_ids, 'bestfit')
-        for oid, output_file in plan:
-            plot_kw = {'show': True, 'object_id': oid}
-            if output_file is not None:
-                plot_kw['output_file'] = output_file
-            results.plot_bestfit(**plot_kw)
+        for oid in object_ids:
+            results.plot_bestfit(show=True, object_id=oid, save=do_save)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1
     return 0
 
 
+def _plot_sidecar_path(results, object_id, kind):
+    return str(
+        Path(results.output_dir) / results.catalog_name / object_id
+        / f'{object_id}_{kind}.png'
+    )
+
+
 def _run_plot_posterior(rest, prog):
     try:
-        outdir, kind, cat, obj, pars, labels, max_n, cfg, out = (
+        outdir, kind, cat, obj, pars, labels, max_n, cfg, do_save = (
             parse_plot_posterior(rest)
         )
     except ValueError as e:
@@ -862,7 +854,6 @@ def _run_plot_posterior(rest, prog):
             else 'posterior_derived' if kind == 'derived'
             else 'posterior'
         )
-        plan = _resolve_out(out, object_ids, plot_kind)
         expanded = None
         label_map = {}
         if kind is None:
@@ -887,10 +878,12 @@ def _run_plot_posterior(rest, prog):
                         expanded.append(name)
             if label_map:
                 results.set_parameter_labels(label_map)
-        for oid, output_file in plan:
+        for oid in object_ids:
             plot_kw = {'show': True, 'object_id': oid}
-            if output_file is not None:
-                plot_kw['output_file'] = output_file
+            if do_save:
+                plot_kw['output_file'] = _plot_sidecar_path(
+                    results, oid, plot_kind,
+                )
             if kind == 'free':
                 results.plot_posterior_free(**plot_kw)
             elif kind == 'derived':

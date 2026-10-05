@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
 
-def plot_bestfit(fits_file, output_file=None, show=True, 
+def plot_bestfit(fits_file, output_file=None, show=True, *,
+                 save=True,
 
                  filter_file=None, filter_selection_file=None,
 
@@ -1551,23 +1552,14 @@ def plot_bestfit(fits_file, output_file=None, show=True,
 
         # Save figure
 
-        if output_file is None:
-
-            # Save PNG in the same directory as the FITS file
-
-            import os
-
-            fits_dir = os.path.dirname(os.path.abspath(fits_file))
-
-            fits_basename = os.path.basename(fits_file)
-
-            png_basename = os.path.splitext(fits_basename)[0] + '.png'
-
-            output_file = os.path.join(fits_dir, png_basename)
-
-        
-
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        if save:
+            if output_file is None:
+                import os
+                fits_dir = os.path.dirname(os.path.abspath(fits_file))
+                fits_basename = os.path.basename(fits_file)
+                png_basename = os.path.splitext(fits_basename)[0] + '.png'
+                output_file = os.path.join(fits_dir, png_basename)
+            plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
 
         
 

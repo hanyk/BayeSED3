@@ -468,6 +468,8 @@ class ResultsPresentation:
 
     def plot_bestfit(self, object_id: Optional[str] = None,
                     output_file: Optional[str] = None, show: bool = True,
+                    *,
+                    save: bool = True,
                     filter_file: Optional[str] = None, filter_selection_file: Optional[str] = None,
                     use_rest_frame: bool = True, flux_unit: str = 'fnu', use_log_scale: Optional[bool] = None,
                     model_names: Optional[List[str]] = None, show_emission_lines: bool = True,
@@ -487,6 +489,9 @@ class ResultsPresentation:
             Output file path for saving. If None, saves as {fits_file}.png
         show : bool, default True
             Whether to display the plot
+        save : bool, default True
+            Whether to write a PNG. When True and output_file is omitted, writes
+            beside the FITS file.
         filter_file : str, optional
             Path to filter response file for overlay
         filter_selection_file : str, optional
@@ -587,6 +592,7 @@ class ResultsPresentation:
             fits_file, 
             output_file=output_file, 
             show=show,
+            save=save,
             filter_file=filter_file,
             filter_selection_file=filter_selection_file,
             use_rest_frame=use_rest_frame,

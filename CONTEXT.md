@@ -46,7 +46,7 @@ _Avoid_: Calling `.iprior` file contents a prior type; calling either mode “li
 
 **Launcher**:
 The `bayesed3` / `python -m bayesed` console entry of the installed Python package. It is the cross-platform unified interface to the compiled binary (OpenMPI, OS-arch, process count, data-root cwd). First token selects the path: `version` / `--version` report Package version and Binary banner; `results` / `plot` / `priors` present existing Results or Priors; `run` takes Launcher-owned `--mpi` / `--np` and forwards **Run argv** to the compiled binary. Empty argv and top-level `--help` are Launcher overview: one product tagline plus Version/Inspect/Run syntax sketches (verb names allowed on Inspect lines; Inspect’s first sketch may list `--log-level` enum values; no per-entry prose, no other Inspect flag lists, no multi-line subcommand usage), not binary help. Coexists with the Python analysis API (`SEDInference` / `BayeSEDParams`) and with `BayeSEDInterface` (Params → Execution); they share internal `runtime`.
-_Avoid_: Treating `run` as a no-Python or Python-free path; treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar; treating Package version and Binary banner as one “version”; putting full Inspect usage or `--cat`/`--par` details on the overview; treating `--log-level` as controlling the compiled binary
+_Avoid_: Treating `run` as a no-Python or Python-free path; treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar; treating Package version and Binary banner as one “version”; putting full Inspect usage or `--cat`/`--par` details on the overview; treating `--log-level` as controlling the compiled binary; treating Inspect `plot --save` as Run argv `--save_*`
 
 **Run argv**:
 The argument list after `bayesed3 run` that the Launcher forwards to the compiled binary, except Launcher-owned `--mpi` / `--np`. One encoding of a Model configuration. Live flag shapes come from `bayesed3 run --help`. `--z` / `--sys_err_*` may appear here.
@@ -55,6 +55,10 @@ _Avoid_: Inspect argv; top-level `bayesed3 --help`; treating Run argv as a no-Py
 **Inspect loose match**:
 The Launcher inspect name ladder for `--cat` / `--cfg` / `--obj` / `--par`: exact, then contains, then regex; first non-empty hit list wins. Usage shows these value slots as `PATTERN`.
 _Avoid_: Treating PATTERN as regex-only; conflating with the Python Results / Model configuration soft-match; putting the ladder on the Launcher overview
+
+**Plot save**:
+Inspect `plot` boolean `--save`: when present, write one image per plotted object beside that object's Results products (the directory that holds `*_bestfit.fits` / sample files). When omitted, display only. The user does not choose a path.
+_Avoid_: Results outdir as the save directory; path-valued `--out`; treating Inspect `--save` as binary `--save_bestfit` / `--save_sample_par`; treating Python `plot_bestfit()`'s default sidecar PNG as Inspect behaviour when `--save` is omitted
 
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.

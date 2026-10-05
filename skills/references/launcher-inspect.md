@@ -64,12 +64,12 @@ Do not default to unfiltered `objects --json` or `evidence --json` when `n_objec
 ## plot
 
 ```bash
-bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--out path]
-bayesed3 plot <outdir> posterior free|derived [--max N] ...
-bayesed3 plot <outdir> posterior --par PATTERN [--lab TEXT] ...
+bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--save]
+bayesed3 plot <outdir> posterior free|derived [--max N] ... [--save]
+bayesed3 plot <outdir> posterior --par PATTERN [--lab TEXT] ... [--save]
 ```
 
-One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Optional `--out` saves while still showing.
+One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Boolean `--save` (no path): write one image per object beside that object's Results products; omit it to display only (Inspect does not use Python `plot_bestfit()`'s default sidecar PNG). Not Run argv `--save_*`.
 
 ## priors
 
