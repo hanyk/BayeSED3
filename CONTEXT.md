@@ -57,8 +57,8 @@ The Launcher inspect name ladder for `--cat` / `--cfg` / `--obj` / `--par`: exac
 _Avoid_: Treating PATTERN as regex-only; conflating with the Python Results / Model configuration soft-match; putting the ladder on the Launcher overview
 
 **Plot save**:
-Inspect `plot` boolean `--save`: when present, write one image per plotted object beside that object's Results products (the directory that holds `*_bestfit.fits` / sample files). When omitted, display only. The user does not choose a path.
-_Avoid_: Results outdir as the save directory; path-valued `--out`; treating Inspect `--save` as binary `--save_bestfit` / `--save_sample_par`; treating Python `plot_bestfit()`'s default sidecar PNG as Inspect behaviour when `--save` is omitted
+Inspect `plot` boolean `--save`: when present, write one image per plotted object beside that object's Results products. When omitted, display only. The user does not choose a path. Presentation computes the sidecar; Inspect only passes `save=`. Bestfit uses the FITS stem. Posterior uses the loaded `*_sample_par` config stem (strip `_sample_par`) plus `_posterior_free` / `_posterior_derived` / `_posterior`. Python `plot_bestfit` and `plot_posterior*` default to writing that sidecar (`save=True`); Inspect without `--save` passes `save=False`.
+_Avoid_: Results outdir as the save directory; path-valued `--out`; treating Inspect `--save` as binary `--save_bestfit` / `--save_sample_par`; treating Python default sidecar PNGs as Inspect behaviour when `--save` is omitted; Inspect assembling sidecar paths; a second lookup of sample_par for the PNG; stashing the sample_par path on GetDist samples; `{stem}_free.png` / `sample_par_free`; one PNG for every posterior kind; treating Python `plot_posterior*` as save-off by default
 
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.

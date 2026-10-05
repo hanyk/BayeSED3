@@ -5,7 +5,7 @@ Held by BayeSEDResults; constructed with a ResultsProducts instance (ADR-0003).
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Tuple, Union, Any
 import logging
 
 import numpy as np
@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Near-zero variance: treat as fixed (same threshold as prior free-plot filter).
 _FIXED_VARIANCE_EPS = 1e-10
+_POSTERIOR_SIDECAR_KINDS = frozenset({
+    'posterior', 'posterior_free', 'posterior_derived',
+})
 
 
 class ResultsPresentation:
@@ -57,7 +60,7 @@ class ResultsPresentation:
         # Delegate data/state access to products (not methods defined here).
         return getattr(self._products, name)
 
-    def get_getdist_samples(self, object_id: Optional[str] = None, 
+    def get_getdist_samples(self, object_id: Optional[str] = None,
                            settings: Optional[Dict[str, Any]] = None) -> Any:
         """
         Get GetDist samples with parameter management.
@@ -75,6 +78,16 @@ class ResultsPresentation:
         getdist.MCSamples
             GetDist samples object
         """
+        samples, _ = self._load_getdist_samples(
+            object_id=object_id, settings=settings,
+        )
+        return samples
+
+    def _load_getdist_samples(
+        self,
+        object_id: Optional[str] = None,
+        settings: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[Any, Path]:
         # Determine object to load
         if object_id is None:
             if self.object_id is not None:
@@ -92,8 +105,9 @@ class ResultsPresentation:
         # Include settings in cache key to handle different settings
         settings_key = str(sorted(settings.items())) if settings else "default"
         cache_key = f"{object_id}_{self.model_config}_{settings_key}"
-        if cache_key in self._getdist_samples_cache:
-            return self._getdist_samples_cache[cache_key]
+        cached = self._getdist_samples_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         # Find sample files for this object matching the current configuration
         sample_files = self._find_config_files(object_id, "*_sample_par.txt")
@@ -158,11 +172,13 @@ class ResultsPresentation:
 
                 samples = new_samples
 
+            sample_par = Path(sample_file)
             logger.info(f"Loaded GetDist samples for {object_id}: {samples.numrows} samples, {samples.n} parameters")
             
             # Cache the samples to avoid duplicate loading
-            self._getdist_samples_cache[cache_key] = samples
-            return samples
+            loaded = (samples, sample_par)
+            self._getdist_samples_cache[cache_key] = loaded
+            return loaded
 
         except ImportError:
             raise ImportError("GetDist is required for GetDist samples. Install with: pip install getdist")
@@ -182,12 +198,27 @@ class ResultsPresentation:
         self._getdist_samples_cache.clear()
         
         logger.info(f"Set custom labels for {len(custom_labels)} parameters")
+
+    @staticmethod
+    def _posterior_sidecar_path(sample_par: Path, kind: str) -> str:
+        if kind not in _POSTERIOR_SIDECAR_KINDS:
+            raise ValueError(f'unknown posterior sidecar kind: {kind!r}')
+        stem = sample_par.stem
+        suffix = '_sample_par'
+        if not stem.endswith(suffix):
+            raise ValueError(f'expected *_sample_par path, got {sample_par}')
+        stem = stem[:-len(suffix)]
+        return str(sample_par.with_name(f'{stem}_{kind}.png'))
+
     def plot_posterior(self, object_id: Optional[str] = None,
                       params: Optional[List[str]] = None,
                       method: str = 'getdist', filled: bool = True,
                       show: bool = True, output_file: Optional[str] = None,
                       show_median: bool = True, show_confidence_intervals: bool = True,
-                      confidence_level: float = 0.68, **kwargs) -> Any:
+                      confidence_level: float = 0.68, *,
+                      save: bool = True,
+                      _sidecar_kind: str = 'posterior',
+                      **kwargs) -> Any:
         """
         Plot posterior distributions using GetDist.
 
@@ -204,7 +235,13 @@ class ResultsPresentation:
         show : bool, default True
             Whether to display the plot
         output_file : str, optional
-            Output file path for saving
+            Output file path for saving. If omitted and save is True, writes
+            beside the loaded ``*_sample_par`` as
+            ``{config stem}_posterior.png`` (``_sample_par`` stripped).
+            ``plot_posterior_free`` / ``plot_posterior_derived`` use
+            ``_posterior_free`` / ``_posterior_derived``.
+        save : bool, default True
+            Whether to write a PNG.
         show_median : bool, default True
             Whether to show median markers on plots
         show_confidence_intervals : bool, default True
@@ -232,8 +269,7 @@ class ResultsPresentation:
                 else:
                     raise ValueError("No objects available for plotting")
 
-        # Get samples using GetDist
-        samples = self.get_getdist_samples(object_id=object_id)
+        samples, sample_par = self._load_getdist_samples(object_id=object_id)
 
         # ADR-0010: explicit params must all exist on this samples object;
         # default free list is filtered to present + varying names.
@@ -440,8 +476,13 @@ class ResultsPresentation:
                     )
 
         # Save if requested
-        if output_file:
-            g.export(output_file)
+        if save:
+            path = output_file
+            if path is None:
+                path = self._posterior_sidecar_path(
+                    sample_par, _sidecar_kind,
+                )
+            g.export(path)
 
         # Show if requested
         if show:
@@ -617,7 +658,8 @@ class ResultsPresentation:
                            output_file: Optional[str] = None,
                            show: bool = True,
                            show_median: bool = True, show_confidence_intervals: bool = True,
-                           confidence_level: float = 0.68, **kwargs) -> Any:
+                           confidence_level: float = 0.68, *,
+                           save: bool = True, **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for free parameters.
 
@@ -629,6 +671,9 @@ class ResultsPresentation:
             Output file path for saving plot
         show : bool, default True
             Whether to display the plot
+        save : bool, default True
+            Whether to write a PNG. When True and output_file is omitted, writes
+            beside ``*_sample_par`` as ``{config stem}_posterior_free.png``.
         show_median : bool, default True
             Whether to show median markers on plots
         show_confidence_intervals : bool, default True
@@ -674,7 +719,8 @@ class ResultsPresentation:
                                      output_file=output_file, show=show,
                                      show_median=show_median, 
                                      show_confidence_intervals=show_confidence_intervals,
-                                     confidence_level=confidence_level, **kwargs)
+                                     confidence_level=confidence_level,
+                                     save=save, _sidecar_kind='posterior_free', **kwargs)
         except Exception as e:
             if "GetDist" in str(e) or "No chains found" in str(e):
                 logger.warning(f"GetDist plotting not available: {e}")
@@ -689,7 +735,8 @@ class ResultsPresentation:
                               output_file: Optional[str] = None,
                               show: bool = True,
                               show_median: bool = True, show_confidence_intervals: bool = True,
-                              confidence_level: float = 0.68, **kwargs) -> Any:
+                              confidence_level: float = 0.68, *,
+                              save: bool = True, **kwargs) -> Any:
         """
         Plot posterior distributions (corner plot) for derived parameters.
 
@@ -703,6 +750,9 @@ class ResultsPresentation:
             Output file path for saving plot
         show : bool, default True
             Whether to display the plot
+        save : bool, default True
+            Whether to write a PNG. When True and output_file is omitted, writes
+            beside ``*_sample_par`` as ``{config stem}_posterior_derived.png``.
         show_median : bool, default True
             Whether to show median markers on plots
         show_confidence_intervals : bool, default True
@@ -752,7 +802,8 @@ class ResultsPresentation:
                                      output_file=output_file, show=show,
                                      show_median=show_median,
                                      show_confidence_intervals=show_confidence_intervals,
-                                     confidence_level=confidence_level, **kwargs)
+                                     confidence_level=confidence_level,
+                                     save=save, _sidecar_kind='posterior_derived', **kwargs)
         except Exception as e:
             if "GetDist" in str(e) or "No chains found" in str(e):
                 logger.warning(f"GetDist plotting not available: {e}")

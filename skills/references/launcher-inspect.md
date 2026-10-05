@@ -69,7 +69,7 @@ bayesed3 plot <outdir> posterior free|derived [--max N] ... [--save]
 bayesed3 plot <outdir> posterior --par PATTERN [--lab TEXT] ... [--save]
 ```
 
-One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Boolean `--save` (no path): write one image per object beside that object's Results products; omit it to display only (Inspect does not use Python `plot_bestfit()`'s default sidecar PNG). Not Run argv `--save_*`.
+One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Boolean `--save` (no path): write one image per object beside that object's Results products; omit it to display only (Inspect passes `save=False`, so it does not inherit Python `plot_bestfit` / `plot_posterior*` default sidecar PNGs). Not Run argv `--save_*`.
 
 ## priors
 

@@ -1241,19 +1241,27 @@ def test_plot_posterior_free_does_not_treat_free_as_catalog():
     fake.plot_posterior_derived.assert_not_called()
 
 
+def test_plot_posterior_without_save_does_not_write_png():
+    fake = _fake_plot_results()
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'posterior', 'free'])
+    assert code == 0
+    kwargs = fake.plot_posterior_free.call_args.kwargs
+    assert kwargs.get('save') is False
+    assert 'output_file' not in kwargs
+
+
 def test_plot_posterior_save_writes_sidecar():
     fake = _fake_plot_results()
-    fake.output_dir = 'out'
-    fake.catalog_name = 'gal'
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
         code = run_inspect(['plot', 'out', 'posterior', 'free', '--save'])
     assert code == 0
     kwargs = fake.plot_posterior_free.call_args.kwargs
     assert kwargs.get('show') is True
-    assert kwargs.get('output_file') == str(
-        Path('out') / 'gal' / 'only' / 'only_posterior_free.png'
-    )
+    assert kwargs.get('save') is True
+    assert 'output_file' not in kwargs
 
 
 def test_plot_posterior_derived_uses_max_params_ten():
@@ -1264,6 +1272,8 @@ def test_plot_posterior_derived_uses_max_params_ten():
     assert code == 0
     fake.plot_posterior_derived.assert_called_once()
     assert fake.plot_posterior_derived.call_args.kwargs.get('show') is True
+    assert fake.plot_posterior_derived.call_args.kwargs.get('save') is False
+    assert 'output_file' not in fake.plot_posterior_derived.call_args.kwargs
     assert fake.plot_posterior_derived.call_args.kwargs.get('max_params') == 10
     fake.plot_posterior_free.assert_not_called()
     fake.plot_posterior.assert_not_called()
@@ -1292,6 +1302,8 @@ def test_plot_posterior_par_calls_plot_posterior():
     assert fake.plot_posterior.call_args.kwargs.get('params') == [
         'log(Mstar)[0,1]', 'z',
     ]
+    assert fake.plot_posterior.call_args.kwargs.get('save') is False
+    assert 'output_file' not in fake.plot_posterior.call_args.kwargs
     fake.plot_posterior_free.assert_not_called()
     fake.plot_posterior_derived.assert_not_called()
 
@@ -1707,6 +1719,7 @@ if __name__ == '__main__':
     test_priors_without_list_prints_usage()
     test_plot_bare_posterior_exits_one()
     test_plot_posterior_free_does_not_treat_free_as_catalog()
+    test_plot_posterior_without_save_does_not_write_png()
     test_plot_posterior_save_writes_sidecar()
     test_plot_posterior_derived_uses_max_params_ten()
     test_plot_posterior_derived_max_flag()

@@ -830,13 +830,6 @@ def _run_plot_bestfit(rest, prog):
     return 0
 
 
-def _plot_sidecar_path(results, object_id, kind):
-    return str(
-        Path(results.output_dir) / results.catalog_name / object_id
-        / f'{object_id}_{kind}.png'
-    )
-
-
 def _run_plot_posterior(rest, prog):
     try:
         outdir, kind, cat, obj, pars, labels, max_n, cfg, do_save = (
@@ -849,11 +842,6 @@ def _run_plot_posterior(rest, prog):
     try:
         results = _load_results_flags(outdir, cat, cfg)
         object_ids = _resolve_plot_objects(results.list_objects(), obj)
-        plot_kind = (
-            'posterior_free' if kind == 'free'
-            else 'posterior_derived' if kind == 'derived'
-            else 'posterior'
-        )
         expanded = None
         label_map = {}
         if kind is None:
@@ -879,11 +867,7 @@ def _run_plot_posterior(rest, prog):
             if label_map:
                 results.set_parameter_labels(label_map)
         for oid in object_ids:
-            plot_kw = {'show': True, 'object_id': oid}
-            if do_save:
-                plot_kw['output_file'] = _plot_sidecar_path(
-                    results, oid, plot_kind,
-                )
+            plot_kw = {'show': True, 'object_id': oid, 'save': do_save}
             if kind == 'free':
                 results.plot_posterior_free(**plot_kw)
             elif kind == 'derived':
