@@ -950,6 +950,9 @@ def _run_results_plot(kind, rest, prog):
         return 1
     if kind == 'results':
         return _run_results_query(rest, prog)
+    if kind == 'plot' and (not rest or rest[0].startswith('-')):
+        sys.stderr.write(plot_usage(prog))
+        return 1
     if kind == 'plot' and _plot_has_posterior(rest):
         return _run_plot_posterior(rest, prog)
     if kind == 'plot' and _plot_has_bestfit(rest):

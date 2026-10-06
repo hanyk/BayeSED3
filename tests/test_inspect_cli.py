@@ -48,8 +48,29 @@ def test_plot_without_verbs_lists_commands():
         code = run_inspect(['plot', 'some/outdir'])
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' in written
     for verb in PLOT_VERBS:
         assert verb in written
+
+
+def test_plot_without_outdir_prints_usage_only():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' not in written
+    assert written.startswith('Usage:')
+    for verb in PLOT_VERBS:
+        assert verb in written
+
+
+def test_plot_leading_flag_prints_usage_only():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', '--save'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' not in written
+    assert written.startswith('Usage:')
 
 
 def test_top_level_help_is_overview_not_binary():
@@ -1737,6 +1758,8 @@ def test_results_obj_multi_filter_objects():
 if __name__ == '__main__':
     test_results_without_verbs_lists_commands_and_skips_binary()
     test_plot_without_verbs_lists_commands()
+    test_plot_without_outdir_prints_usage_only()
+    test_plot_leading_flag_prints_usage_only()
     test_top_level_help_is_overview_not_binary()
     test_results_outdir_only_prints_usage()
     test_results_outdir_json_without_command_prints_usage()
