@@ -5,7 +5,7 @@ description: Use for BayeSED3 galaxy / AGN SED synthesis/analysis, priors, Resul
 
 # BayeSED3 Bayesian SED Analysis Workflow
 
-Agent workflow router (ADR-0001, ADR-0013, ADR-0014, ADR-0015). Canonical copy: repo `skills/` (sync to `~/.agents/skills/bayesed3/` after edits). Full API = package docstrings; `references/*` = branch workflow only.
+Agent workflow router (ADR-0001, ADR-0013, ADR-0014, ADR-0015). Canonical copy: repo `skills/` (`~/.agents/skills/bayesed3/` is a symlink to it; edit the repo copy). Full API = package docstrings; `references/*` = branch workflow only.
 
 **Happy path:** Observation → Input catalog → `SEDModel` → `SEDInference.priors_init` → (optional `set_prior`) → `inference.run` → **Results** → analyze / compare.
 

@@ -60,6 +60,10 @@ _Avoid_: Treating PATTERN as regex-only; conflating with the Python Results / Mo
 Inspect `plot` boolean `--save`: when present, write one image per plotted object beside that object's Results products. When omitted, display only. The user does not choose a path. Presentation computes the sidecar; Inspect only passes `save=`. Bestfit uses the FITS stem. Posterior uses the loaded `*_sample_par` config stem (strip `_sample_par`) plus `_posterior_free` / `_posterior_derived` / `_posterior`. Python `plot_bestfit` and `plot_posterior*` default to writing that sidecar (`save=True`); Inspect without `--save` passes `save=False`.
 _Avoid_: Results outdir as the save directory; path-valued `--out`; treating Inspect `--save` as binary `--save_bestfit` / `--save_sample_par`; treating Python default sidecar PNGs as Inspect behaviour when `--save` is omitted; Inspect assembling sidecar paths; a second lookup of sample_par for the PNG; stashing the sample_par path on GetDist samples; `{stem}_free.png` / `sample_par_free`; one PNG for every posterior kind; treating Python `plot_posterior*` as save-off by default
 
+**Bestfit appearance**:
+Inspect `plot … bestfit` flags that change how the best-fit SED is drawn. When a flag is present, Inspect passes that value through to `plot_bestfit`. When it is omitted, Inspect does not pass the argument, so the Python default stands. Distinct from Plot save, where omitting `--save` forces display only.
+_Avoid_: These flags on posterior plots; `--hide` of one component; `--linear` with an axis; a user-chosen image path; font size, figure size, or dpi on Inspect
+
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.
 _Avoid_: Python version (the interpreter); binary version; “BayeSED3 version” when only one of the two identities is meant

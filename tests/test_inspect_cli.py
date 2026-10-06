@@ -621,6 +621,104 @@ def test_plot_bestfit_without_save_does_not_write_png():
     assert 'output_file' not in kwargs
 
 
+def _plot_bestfit_kwargs(argv):
+    fake = MagicMock()
+    fake.list_objects.return_value = ['only']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(argv)
+    return code, fake.plot_bestfit.call_args.kwargs if code == 0 else None
+
+
+def test_plot_bestfit_flux_passes_flux_unit():
+    code, kwargs = _plot_bestfit_kwargs(['plot', 'out', 'bestfit', '--flux', 'nufnu'])
+    assert code == 0
+    assert kwargs.get('flux_unit') == 'nufnu'
+
+
+def test_plot_bestfit_flux_rejects_unknown_unit():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'bestfit', '--flux', 'jansky'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --flux requires fnu, nufnu, or flambda' in written
+
+
+def test_plot_bestfit_log_axis_passes_use_log_scale():
+    for axis in ('x', 'y', 'both'):
+        code, kwargs = _plot_bestfit_kwargs(
+            ['plot', 'out', 'bestfit', '--log', axis],
+        )
+        assert code == 0
+        assert kwargs.get('use_log_scale') == axis
+
+
+def test_plot_bestfit_linear_passes_use_log_scale_false():
+    code, kwargs = _plot_bestfit_kwargs(['plot', 'out', 'bestfit', '--linear'])
+    assert code == 0
+    assert kwargs.get('use_log_scale') is False
+
+
+def test_plot_bestfit_log_and_linear_rejected():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'bestfit', '--log', 'x', '--linear'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --log and --linear cannot be combined' in written
+
+
+def test_plot_bestfit_log_rejects_unknown_axis():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'bestfit', '--log', 'xy'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --log requires x, y, or both' in written
+
+
+def test_plot_bestfit_switch_flags_pass_false():
+    cases = (
+        ('--no-lines', 'show_emission_lines'),
+        ('--no-total', 'show_total'),
+        ('--no-components', 'show_components'),
+        ('--full-range', 'focus_on_data_range'),
+    )
+    for flag, key in cases:
+        code, kwargs = _plot_bestfit_kwargs(['plot', 'out', 'bestfit', flag])
+        assert code == 0
+        assert kwargs.get(key) is False
+
+
+def test_plot_bestfit_omits_appearance_kwargs():
+    code, kwargs = _plot_bestfit_kwargs(['plot', 'out', 'bestfit'])
+    assert code == 0
+    for key in (
+        'use_rest_frame', 'flux_unit', 'use_log_scale',
+        'show_emission_lines', 'show_total', 'show_components',
+        'focus_on_data_range',
+    ):
+        assert key not in kwargs
+
+
+def test_plot_posterior_rejects_bestfit_appearance_flag():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'posterior', 'free', '--log', 'x'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: unknown option --log' in written
+
+
+def test_plot_bestfit_observed_frame_passes_use_rest_frame_false():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['only']
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect(['plot', 'out', 'bestfit', '--observed-frame'])
+    assert code == 0
+    assert fake.plot_bestfit.call_args.kwargs.get('use_rest_frame') is False
+
+
 def test_plot_bestfit_save_writes_sidecar():
     fake = MagicMock()
     fake.list_objects.return_value = ['only']
@@ -1673,6 +1771,16 @@ if __name__ == '__main__':
     test_results_par_names_calls_existing_methods()
     test_plot_bestfit_calls_plot_bestfit()
     test_plot_bestfit_without_save_does_not_write_png()
+    test_plot_bestfit_flux_passes_flux_unit()
+    test_plot_bestfit_flux_rejects_unknown_unit()
+    test_plot_bestfit_log_axis_passes_use_log_scale()
+    test_plot_bestfit_linear_passes_use_log_scale_false()
+    test_plot_bestfit_log_and_linear_rejected()
+    test_plot_bestfit_log_rejects_unknown_axis()
+    test_plot_bestfit_switch_flags_pass_false()
+    test_plot_bestfit_omits_appearance_kwargs()
+    test_plot_posterior_rejects_bestfit_appearance_flag()
+    test_plot_bestfit_observed_frame_passes_use_rest_frame_false()
     test_plot_bestfit_save_writes_sidecar()
     test_plot_posterior_cannot_mix_with_bestfit()
     test_plot_posterior_then_bestfit_cannot_mix()

@@ -1,0 +1,23 @@
+name: fit
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  galaxy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: "3.12"
+          channels: conda-forge
+          channel-priority: strict
+      - run: conda install -y openmpi=4.1.6
+      - run: mpirun --version
+      - run: pip install -e .
+      - run: python tests/ci_galaxy_fit.py

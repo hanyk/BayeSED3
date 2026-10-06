@@ -64,12 +64,12 @@ Do not default to unfiltered `objects --json` or `evidence --json` when `n_objec
 ## plot
 
 ```bash
-bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--save]
+bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--observed-frame] [--flux fnu|nufnu|flambda] [--log x|y|both] [--linear] [--no-lines] [--no-total] [--no-components] [--full-range] [--save]
 bayesed3 plot <outdir> posterior free|derived [--max N] ... [--save]
 bayesed3 plot <outdir> posterior --par PATTERN [--lab TEXT] ... [--save]
 ```
 
-One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Boolean `--save` (no path): write one image per object beside that object's Results products; omit it to display only (Inspect passes `save=False`, so it does not inherit Python `plot_bestfit` / `plot_posterior*` default sidecar PNGs). Not Run argv `--save_*`.
+One object when the set has a single id; several without `--obj` error (no auto-pick). Several `--obj` hits: plot each in turn. Boolean `--save` (no path): write one image per object beside that object's Results products; omit it to display only (Inspect passes `save=False`, so it does not inherit Python `plot_bestfit` / `plot_posterior*` default sidecar PNGs). Not Run argv `--save_*`. Bestfit appearance flags (`--observed-frame`, `--flux`, `--log`, `--linear`, `--no-lines`, `--no-total`, `--no-components`, `--full-range`) apply only to `bestfit`. A present flag is passed through to `plot_bestfit`; an omitted flag is not passed, so the Python default stands. `--log` takes `x`, `y`, or `both`. `--log` together with `--linear` is an error. These flags on `posterior` are unknown options.
 
 ## priors
 

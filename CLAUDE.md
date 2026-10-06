@@ -97,7 +97,7 @@ Use `BayeSEDInterface(Ntest=2)` to limit processing to the first N objects — u
 
 ### BayeSED3 workflow skill
 
-Canonical copy: repo [`skills/`](skills/) (`SKILL.md` + `references/`). Sync-overwrite to `~/.agents/skills/bayesed3/` after skill edits. Domain glossary: [`CONTEXT.md`](CONTEXT.md).
+Canonical copy: repo [`skills/`](skills/) (`SKILL.md` + `references/`). `~/.agents/skills/bayesed3/` and `~/.claude/skills/bayesed3/` are symlinks to that directory; edit `skills/` in the repo. Domain glossary: [`CONTEXT.md`](CONTEXT.md).
 
 ### Issue tracker
 

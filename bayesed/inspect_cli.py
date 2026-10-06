@@ -34,9 +34,21 @@ _PAR_VALUES_FLAGS = {
 _RESULTS_QUERY_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
 _MODEL_CONFIGS_FLAGS = {'--cat': 'cat'}
 _PLOT_SAVE_BOOL = {'--save': 'save'}
+_PLOT_BESTFIT_BOOL = {
+    '--save': 'save',
+    '--observed-frame': 'observed_frame',
+    '--linear': 'linear',
+    '--no-lines': 'no_lines',
+    '--no-total': 'no_total',
+    '--no-components': 'no_components',
+    '--full-range': 'full_range',
+}
 _PLOT_BESTFIT_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg',
+    '--flux': 'flux', '--log': 'log',
 }
+_BESTFIT_FLUX_UNITS = frozenset({'fnu', 'nufnu', 'flambda'})
+_BESTFIT_LOG_AXES = frozenset({'x', 'y', 'both'})
 _PLOT_POSTERIOR_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
 }
@@ -62,7 +74,9 @@ def results_usage_lines(prog='bayesed3'):
 def plot_usage_lines(prog='bayesed3'):
     return (
         f"{prog} plot <outdir> bestfit [--cat PATTERN] [--obj PATTERN] "
-        f"[--cfg PATTERN] [--save]",
+        f"[--cfg PATTERN] [--observed-frame] [--flux fnu|nufnu|flambda] "
+        f"[--log x|y|both] [--linear] [--no-lines] [--no-total] "
+        f"[--no-components] [--full-range] [--save]",
         f"{prog} plot <outdir> posterior free [--cat PATTERN] [--obj PATTERN] "
         f"[--cfg PATTERN] [--save]",
         f"{prog} plot <outdir> posterior derived [--max N] [--cat PATTERN] "
@@ -338,11 +352,43 @@ def parse_catalogs(tokens):
     return outdir, flags['json']
 
 
+def _bestfit_appearance(flags):
+    """Map present Bestfit appearance flags onto ``plot_bestfit`` kwargs.
+
+    Omitted flags are left out so ``plot_bestfit`` keeps its Python defaults.
+    """
+    appearance = {}
+    if flags['observed_frame']:
+        appearance['use_rest_frame'] = False
+    flux = flags['flux']
+    if flux is not None:
+        if flux not in _BESTFIT_FLUX_UNITS:
+            raise ValueError('--flux requires fnu, nufnu, or flambda')
+        appearance['flux_unit'] = flux
+    log_axis = flags['log']
+    if log_axis is not None and flags['linear']:
+        raise ValueError('--log and --linear cannot be combined')
+    if log_axis is not None:
+        if log_axis not in _BESTFIT_LOG_AXES:
+            raise ValueError('--log requires x, y, or both')
+        appearance['use_log_scale'] = log_axis
+    elif flags['linear']:
+        appearance['use_log_scale'] = False
+    if flags['no_lines']:
+        appearance['show_emission_lines'] = False
+    if flags['no_total']:
+        appearance['show_total'] = False
+    if flags['no_components']:
+        appearance['show_components'] = False
+    if flags['full_range']:
+        appearance['focus_on_data_range'] = False
+    return appearance
+
+
 def parse_plot_bestfit(tokens):
     """
-    Parse ``<outdir> bestfit [--cat C] [--obj O] [--cfg CFG] [--save]``.
-
-    ``bestfit`` is the only command. No leftover positionals.
+    Parse ``<outdir> bestfit`` plus catalog, object, config, save, and
+    Bestfit appearance flags. ``bestfit`` is the only command.
     """
     if not tokens:
         raise ValueError('missing outdir')
@@ -353,9 +399,12 @@ def parse_plot_bestfit(tokens):
             raise ValueError('bestfit cannot be combined with other commands')
         raise ValueError('missing command')
     flags = _parse_flag_pairs(
-        rest, 1, _PLOT_BESTFIT_FLAGS, bool_flags=_PLOT_SAVE_BOOL,
+        rest, 1, _PLOT_BESTFIT_FLAGS, bool_flags=_PLOT_BESTFIT_BOOL,
     )
-    return outdir, flags['cat'], flags['obj'], flags['cfg'], flags['save']
+    return (
+        outdir, flags['cat'], flags['obj'], flags['cfg'], flags['save'],
+        _bestfit_appearance(flags),
+    )
 
 
 def parse_plot_posterior(tokens):
@@ -814,7 +863,7 @@ def _plot_has_bestfit(rest):
 
 def _run_plot_bestfit(rest, prog):
     try:
-        outdir, cat, obj, cfg, do_save = parse_plot_bestfit(rest)
+        outdir, cat, obj, cfg, do_save, appearance = parse_plot_bestfit(rest)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         sys.stderr.write(plot_usage(prog))
@@ -823,7 +872,9 @@ def _run_plot_bestfit(rest, prog):
         results = _load_results_flags(outdir, cat, cfg)
         object_ids = _resolve_plot_objects(results.list_objects(), obj)
         for oid in object_ids:
-            results.plot_bestfit(show=True, object_id=oid, save=do_save)
+            plot_kw = {'show': True, 'object_id': oid, 'save': do_save}
+            plot_kw.update(appearance)
+            results.plot_bestfit(**plot_kw)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1
