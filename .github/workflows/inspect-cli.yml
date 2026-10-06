@@ -15,4 +15,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e . pytest pandas
-      - run: python -m pytest tests/test_inspect_cli.py -q
+      - run: python -m pytest tests/test_inspect_cli.py tests/test_plot_bestfit_model_names.py -q

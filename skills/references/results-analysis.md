@@ -50,11 +50,14 @@ derived_params = results.get_derived_parameters()
 
 ## Discovery Helpers
 
+`results.list_model_components(object_id)` returns that object's `model:` extension names from the best-fit FITS, excluding `model:total`. Those strings are the `show_components` keys. Their order is the `model_names` order.
+
 ```python
 from bayesed.results.utils import list_catalog_names
 
 list_catalog_names('tests/output_quick_start')
-# results.list_model_configurations() / list_model_components() when multi-config
+components = results.list_model_components(objects[0])
+# results.list_model_configurations() when several model configurations exist
 
 # Posterior samples (GetDist-backed)
 samples = results.get_posterior_samples(object_id=objects[0])
