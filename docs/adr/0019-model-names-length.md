@@ -1,0 +1,3 @@
+# plot_bestfit rejects a model_names list of the wrong length
+
+`plot_bestfit` pairs `model_names` with `model:` extensions, excluding `model:total`, by position. A shorter list used to end `zip` early, so later names landed on the wrong components and the unpaired extensions were not drawn. A longer list dropped the spare strings. Callers who copied a 4-name list onto a 5-component fit mislabeled FeII and omitted NLR. We raise `ValueError` before any curve is drawn when the lengths differ. `None` still auto-generates one name per extension. Hiding a component stays on `show_components`, whose keys are the extension names from `list_model_components()`. We rejected padding a short list with auto names, and replacing the list with a dict in this change.

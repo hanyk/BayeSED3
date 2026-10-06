@@ -547,7 +547,10 @@ class ResultsPresentation:
             (range ratio > 10). If negative values are present, defaults to linear scale.
             Set to True to force log scale, or False to force linear scale.
         model_names : list of str, optional
-            Custom names for model components. If None, auto-generates from HDU names
+            Legend strings for model components, in ``model:`` extension order,
+            excluding ``model:total``. ``None`` auto-generates one name per
+            extension. Any other length raises ``ValueError`` before a curve
+            is drawn.
         show_emission_lines : bool, default True
             Show emission line markers for spectroscopy
         show_total : bool, default True

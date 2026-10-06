@@ -76,7 +76,9 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
     model_names : list of str, optional
 
-        Custom names for model components. If None, auto-generates from HDU names
+        Legend strings for model components, in ``model:`` extension order,
+        excluding ``model:total``. ``None`` auto-generates one name per extension.
+        Any other length raises ``ValueError`` before a curve is drawn.
 
     show_emission_lines : bool
 
@@ -343,7 +345,12 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
                     model_names.append(model_short[:20])  # Truncate long names
 
-        
+        if len(model_names) != len(models):
+            plt.close(fig)
+            raise ValueError(
+                f'model_names has {len(model_names)} names for '
+                f'{len(models)} model components'
+            )
 
         # Line styles for model components — all non-solid to distinguish from total/spec.
         # Colors avoid: black (total), warm reds/oranges (spec_obs), blues/teals (spec_mod).

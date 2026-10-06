@@ -64,6 +64,10 @@ _Avoid_: Results outdir as the save directory; path-valued `--out`; treating Ins
 Inspect `plot … bestfit` flags that change how the best-fit SED is drawn. When a flag is present, Inspect passes that value through to `plot_bestfit`. When it is omitted, Inspect does not pass the argument, so the Python default stands. Distinct from Plot save, where omitting `--save` forces display only.
 _Avoid_: These flags on posterior plots; `--hide` of one component; `--linear` with an axis; a user-chosen image path; font size, figure size, or dpi on Inspect
 
+**Component name**:
+The legend string for one `model:` extension on a best-fit SED, excluding `model:total`. The list follows those extensions in file order. `list_model_components()` returns the extension names that order and that `show_components` keys use.
+_Avoid_: Posterior `--lab`; SED model; Model configuration; the FITS extension name itself
+
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.
 _Avoid_: Python version (the interpreter); binary version; “BayeSED3 version” when only one of the two identities is meant
