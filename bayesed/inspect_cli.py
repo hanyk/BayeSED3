@@ -24,6 +24,7 @@ RESULTS_VERBS = (
     'summary', 'evidence', 'par_names', 'objects', 'par_values',
     'catalogs', 'model_configs',
 )
+_RESULT_VERB_SET = frozenset(RESULTS_VERBS)
 _QUERY_VERBS = frozenset({'summary', 'evidence', 'par_names', 'objects'})
 PLOT_VERBS = ('bestfit', 'posterior')
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
@@ -53,6 +54,9 @@ _PLOT_POSTERIOR_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--max': 'max', '--cfg': 'cfg',
 }
 _JSON_BOOL = {'--json': 'json'}
+_INSPECT_VALUED_FLAGS = frozenset({
+    '--cat', '--obj', '--cfg', '--par', '--lab', '--max', '--flux', '--log',
+})
 _DERIVED_DEFAULT_MAX = 10
 
 
@@ -115,6 +119,83 @@ def results_usage(prog='bayesed3'):
 
 def plot_usage(prog='bayesed3'):
     return _usage_block(plot_usage_lines(prog))
+
+
+def _one_usage(line):
+    return _usage_block((line,))
+
+
+def _plot_command_usage(prog, verb):
+    lines = plot_usage_lines(prog)
+    if verb == 'bestfit':
+        return _one_usage(lines[0])
+    return _usage_block(lines[1:])
+
+
+def _results_command_usage(prog, verb):
+    for line in results_usage_lines(prog):
+        if f" {verb} " in line:
+            return _one_usage(line)
+    raise KeyError(verb)
+
+
+def _positional_verbs(tokens, verbs):
+    """Command words in ``tokens``, skipping valued-flag arguments."""
+    found = []
+    expect_value = False
+    for tok in tokens:
+        if expect_value:
+            expect_value = False
+            continue
+        if tok in _INSPECT_VALUED_FLAGS:
+            expect_value = True
+            continue
+        if tok.startswith('-'):
+            continue
+        if tok in verbs:
+            found.append(tok)
+    return found
+
+
+def _parse_usage(kind, tokens, prog):
+    """Usage for a parse error. One verb in the command slot narrows it."""
+    slot = tokens[1] if len(tokens) > 1 else None
+    if kind == 'plot':
+        verbs = _positional_verbs(tokens, _PLOT_VERB_SET)
+        if len(set(verbs)) == 1 and slot == verbs[0]:
+            return _plot_command_usage(prog, verbs[0])
+        return plot_usage(prog)
+    verbs = _positional_verbs(tokens, _RESULT_VERB_SET)
+    if len(verbs) == 1 and slot == verbs[0]:
+        return _results_command_usage(prog, verbs[0])
+    return results_usage(prog)
+
+
+def _emit_error(message, usage):
+    sys.stderr.write(f"Error: {message}\n")
+    sys.stderr.write(usage)
+    return 1
+
+
+def _results_parse(tokens):
+    verbs = _positional_verbs(tokens[1:], _RESULT_VERB_SET)
+    name = verbs[0] if verbs else None
+    if name == 'par_values':
+        parse_par_values(tokens)
+    elif name == 'catalogs':
+        parse_catalogs(tokens)
+    elif name == 'model_configs':
+        parse_model_configs(tokens)
+    else:
+        parse_results_query(tokens)
+
+
+def _results_conflict_message(rest):
+    try:
+        _results_parse(['.'] + list(rest))
+    except ValueError as exc:
+        return str(exc)
+    return 'missing command'
 
 
 def priors_usage(prog='bayesed3'):
@@ -697,9 +778,7 @@ def _run_par_values(rest, prog):
     try:
         outdir, cat, obj, par, cfg, as_json = parse_par_values(rest)
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(results_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
         results = _load_results_flags(outdir, cat, cfg)
         matched = match_names(results.get_parameter_names(), par)
@@ -737,9 +816,7 @@ def _run_catalogs(rest, prog):
     try:
         outdir, as_json = parse_catalogs(rest)
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(results_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
         _require_outdir(outdir)
         _print_name_list(list_catalog_names(outdir), as_json)
@@ -753,9 +830,7 @@ def _run_model_configs(rest, prog):
     try:
         outdir, cat, as_json = parse_model_configs(rest)
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(results_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
         catalog = _catalog_for_discovery(outdir, cat)
         _print_name_list(list_model_configs(outdir, catalog), as_json)
@@ -769,9 +844,7 @@ def _run_results_query(rest, prog):
     try:
         outdir, cmd, cat, obj, cfg, as_json = parse_results_query(rest)
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(results_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
         results = _load_results_flags(outdir, cat, cfg)
         # summary / par_names ignore --obj (whole-Results orientation).
@@ -865,9 +938,7 @@ def _run_plot_bestfit(rest, prog):
     try:
         outdir, cat, obj, cfg, do_save, appearance = parse_plot_bestfit(rest)
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(plot_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('plot', rest, prog))
     try:
         results = _load_results_flags(outdir, cat, cfg)
         object_ids = _resolve_plot_objects(results.list_objects(), obj)
@@ -887,9 +958,7 @@ def _run_plot_posterior(rest, prog):
             parse_plot_posterior(rest)
         )
     except ValueError as e:
-        sys.stderr.write(f"Error: {e}\n")
-        sys.stderr.write(plot_usage(prog))
-        return 1
+        return _emit_error(str(e), _parse_usage('plot', rest, prog))
     try:
         results = _load_results_flags(outdir, cat, cfg)
         object_ids = _resolve_plot_objects(results.list_objects(), obj)
@@ -938,6 +1007,17 @@ def _run_results_plot(kind, rest, prog):
     if kind == 'results' and (not rest or rest[0].startswith('-')):
         sys.stderr.write(results_usage(prog))
         return 1
+    if kind == 'results' and rest and rest[0] in _RESULT_VERB_SET:
+        verbs = _positional_verbs(rest, _RESULT_VERB_SET)
+        if len(verbs) >= 2:
+            return _emit_error(
+                _results_conflict_message(rest),
+                results_usage(prog),
+            )
+        return _emit_error(
+            'missing outdir',
+            _results_command_usage(prog, rest[0]),
+        )
     if kind == 'results' and _results_has_par_values(rest):
         return _run_par_values(rest, prog)
     if kind == 'results' and _results_has_catalogs(rest):
@@ -953,6 +1033,26 @@ def _run_results_plot(kind, rest, prog):
     if kind == 'plot' and (not rest or rest[0].startswith('-')):
         sys.stderr.write(plot_usage(prog))
         return 1
+    if kind == 'plot':
+        verbs = _positional_verbs(rest, _PLOT_VERB_SET)
+        command_is_verb = bool(rest) and (
+            rest[0] in _PLOT_VERB_SET
+            or (len(rest) > 1 and rest[1] in _PLOT_VERB_SET)
+        )
+        if (
+            command_is_verb
+            and 'bestfit' in verbs
+            and 'posterior' in verbs
+        ):
+            return _emit_error(
+                'posterior cannot be combined with other commands',
+                plot_usage(prog),
+            )
+        if rest and rest[0] in _PLOT_VERB_SET:
+            return _emit_error(
+                'missing outdir',
+                _plot_command_usage(prog, rest[0]),
+            )
     if kind == 'plot' and _plot_has_posterior(rest):
         return _run_plot_posterior(rest, prog)
     if kind == 'plot' and _plot_has_bestfit(rest):

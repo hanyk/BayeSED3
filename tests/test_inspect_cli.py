@@ -73,6 +73,87 @@ def test_plot_leading_flag_prints_usage_only():
     assert written.startswith('Usage:')
 
 
+def test_plot_posterior_without_outdir_names_the_missing_directory():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'posterior'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written.startswith('Error: missing outdir\nUsage:')
+    assert 'posterior free' in written
+    assert 'posterior derived' in written
+    assert 'posterior --par' in written
+    assert 'bestfit' not in written
+
+
+def test_plot_bestfit_without_outdir_names_the_missing_directory():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'bestfit', '--save'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written.startswith('Error: missing outdir\nUsage:')
+    assert 'bestfit' in written
+    assert 'posterior' not in written
+
+
+def test_plot_posterior_free_without_outdir_does_not_ask_for_a_mode():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'posterior', 'free'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing outdir' in written
+    assert 'specify free' not in written
+    assert 'bestfit' not in written
+
+
+def test_plot_verbs_without_outdir_cannot_be_combined():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'posterior', 'bestfit'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: posterior cannot be combined with other commands' in written
+    assert 'Error: missing outdir' not in written
+    assert 'bestfit [--cat' in written
+    assert 'posterior free' in written
+
+
+def test_plot_bestfit_flag_error_omits_posterior_usage():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'bestfit', '--flux', 'jansky'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --flux requires fnu, nufnu, or flambda' in written
+    assert 'posterior' not in written
+
+
+def test_plot_junk_before_verbs_is_missing_command():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'junk', 'bestfit', 'posterior'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: missing command' in written
+    assert 'cannot be combined' not in written
+    assert 'bestfit [--cat' in written
+    assert 'posterior free' in written
+
+
+def test_plot_posterior_without_mode_omits_bestfit_usage():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['plot', 'out', 'posterior', '--save'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: specify free, derived, or --par' in written
+    assert 'bestfit' not in written
+    assert 'posterior free' in written
+
+
 def test_top_level_help_is_overview_not_binary():
     with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
          patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err:
@@ -769,7 +850,9 @@ def test_plot_posterior_then_bestfit_cannot_mix():
     assert code == 1
     ctor.assert_not_called()
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert "Error: unexpected argument 'bestfit'" in written
+    assert 'Error: posterior cannot be combined with other commands' in written
+    assert 'bestfit [--cat' in written
+    assert 'posterior free' in written
 
 
 def test_plot_multiple_objects_without_obj_errors():
@@ -1007,7 +1090,35 @@ def test_par_values_requires_par_flag():
         code = run_inspect(['results', 'out', 'par_values'])
     assert code == 1
     written = ''.join(c.args[0] for c in err.write.call_args_list)
-    assert '--par' in written
+    assert 'Error: --par is required' in written
+    assert 'par_values --par' in written
+    assert 'summary' not in written
+
+
+def test_results_summary_without_outdir_names_the_missing_directory():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'summary', '--json'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written.startswith('Error: missing outdir\nUsage:')
+    assert 'summary' in written
+    assert 'evidence' not in written
+    assert 'par_values' not in written
+
+
+def test_results_two_verbs_without_outdir_keep_the_combine_error():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'summary', 'evidence'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert "Error: 'evidence' cannot be combined with 'summary'" in written
+    assert 'Error: missing outdir' not in written
+    assert 'catalogs' in written
+    assert 'par_values' in written
 
 
 def test_par_values_prints_parameter_table():
@@ -1760,6 +1871,13 @@ if __name__ == '__main__':
     test_plot_without_verbs_lists_commands()
     test_plot_without_outdir_prints_usage_only()
     test_plot_leading_flag_prints_usage_only()
+    test_plot_posterior_without_outdir_names_the_missing_directory()
+    test_plot_bestfit_without_outdir_names_the_missing_directory()
+    test_plot_posterior_free_without_outdir_does_not_ask_for_a_mode()
+    test_plot_verbs_without_outdir_cannot_be_combined()
+    test_plot_bestfit_flag_error_omits_posterior_usage()
+    test_plot_junk_before_verbs_is_missing_command()
+    test_plot_posterior_without_mode_omits_bestfit_usage()
     test_top_level_help_is_overview_not_binary()
     test_results_outdir_only_prints_usage()
     test_results_outdir_json_without_command_prints_usage()
@@ -1825,6 +1943,8 @@ if __name__ == '__main__':
     test_priors_init_is_rejected()
     test_priors_list_dir_load_error_exits_one()
     test_par_values_requires_par_flag()
+    test_results_summary_without_outdir_names_the_missing_directory()
+    test_results_two_verbs_without_outdir_keep_the_combine_error()
     test_par_values_prints_parameter_table()
     test_par_values_cat_loads_catalog_not_object()
     test_par_values_cfg_passed_to_ctor()
