@@ -7,6 +7,67 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.table import Table
 
+
+def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
+                         label_fontsize):
+    """Draw the residual panel shared by ``plot_bestfit``.
+
+    Parameters
+    ----------
+    ax_resid : matplotlib.axes.Axes
+        The residual axes; shares its x-axis with the main SED panel.
+    phot_points : list of (wavelength, residual) arrays
+        Photometric residual points.
+    spec_points : list of (wavelength, residual, color) tuples
+        Spectroscopic residual points per band.
+    residual_ylim : tuple or None
+        Manual y-axis limits; None means auto-scale with at least [-3, 3].
+    label_fontsize : int
+        Font size for axis labels.
+    """
+    all_residuals = []
+
+    for wl, resid in phot_points:
+        if len(wl) == 0:
+            continue
+        ax_resid.errorbar(
+            wl, resid, yerr=1.0,
+            fmt='o', color='red', markersize=3, alpha=0.7,
+        )
+        all_residuals.append(resid)
+
+    for wl, resid, color in spec_points:
+        if len(wl) == 0:
+            continue
+        ax_resid.errorbar(
+            wl, resid, yerr=1.0,
+            fmt='o', color=color, markersize=2, alpha=0.7,
+        )
+        all_residuals.append(resid)
+
+    # Reference lines at 0 and ±1 sigma
+    ax_resid.axhline(0.0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
+    ax_resid.axhline(1.0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+    ax_resid.axhline(-1.0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+
+    # x-axis label is handled by the shared axis; residual panel only needs y label
+    ax_resid.set_ylabel('(obs - mod) / err', fontsize=label_fontsize)
+    ax_resid.grid(True, alpha=0.3)
+
+    if residual_ylim is not None:
+        ax_resid.set_ylim(residual_ylim)
+    elif all_residuals:
+        all_resid = np.concatenate(all_residuals)
+        rmin, rmax = np.nanmin(all_resid), np.nanmax(all_resid)
+        ymin = min(rmin, -3.0)
+        ymax = max(rmax, 3.0)
+        # Add small padding (5% or 0.25 sigma, whichever is larger)
+        pad = max(0.25, 0.05 * (ymax - ymin))
+        ax_resid.set_ylim(ymin - pad, ymax + pad)
+    else:
+        ax_resid.set_ylim(-3.5, 3.5)
+
+
 def plot_bestfit(fits_file, output_file=None, show=True, *,
                  save=True,
 
@@ -20,7 +81,10 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                  title_fontsize=16, label_fontsize=16, legend_fontsize=14,
 
                  figsize=(12, 8), dpi=300, focus_on_data_range=True,
-                 spec_obs_labels=None, spec_mod_labels=None, **kwargs):
+                 spec_obs_labels=None, spec_mod_labels=None,
+
+                 show_residuals=False, residual_height_ratio=4, residual_ylim=None,
+                 **kwargs):
 
     """
 
@@ -144,6 +208,34 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
         (photometry and spectroscopy), ignoring the full model range. If False, use
 
         the full wavelength range from both models and data (default: True)
+
+    show_residuals : bool, default False
+
+        If True, add a lower panel showing (observation - model) / error for
+
+        photometry and spectroscopy data. Requires at least one ``obs:phot`` or
+
+        ``obs:spec`` extension in the FITS file. The two panels share the
+
+        wavelength axis and sit flush with no gap; the wavelength xlabel moves
+
+        to the residual panel and the main panel hides its x tick labels.
+
+    residual_height_ratio : int, default 4
+
+        Ratio of the main SED panel height to the residual panel height when
+
+        ``show_residuals`` is True. A value of 4 gives a 4:1 split similar to
+
+        BAGPIPES-style plots.
+
+    residual_ylim : tuple of float or None, optional
+
+        Manual (ymin, ymax) limits for the residual panel. If None (default),
+
+        the limits are auto-scaled but always span at least [-3, 3] in sigma
+
+        units so the ±1σ reference lines are visible.
 
     **kwargs
 
@@ -277,11 +369,47 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         
 
+        # Decide whether a residual panel can be drawn
+
+        has_phot = (
+
+            'obs:phot' in hdul
+
+            and '--no_photometry_fit' not in run_args
+
+        )
+
+        has_spec = (
+
+            'obs:spec' in hdul
+
+            and '--no_spectra_fit' not in run_args
+
+        )
+
+        draw_residuals = show_residuals and (has_phot or has_spec)
+
+
+
         # Create figure
 
-        fig, ax1 = plt.subplots(figsize=figsize)
+        if draw_residuals:
 
-        
+            fig, (ax1, ax_resid) = plt.subplots(
+                2, 1, figsize=figsize, sharex=True,
+                gridspec_kw={
+                    'height_ratios': [residual_height_ratio, 1],
+                    'hspace': 0,
+                },
+            )
+
+        else:
+
+            fig, ax1 = plt.subplots(figsize=figsize)
+
+            ax_resid = None
+
+
 
         # Collect wavelength ranges from models and data separately for auto-scaling x-axis
 
@@ -297,7 +425,13 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         observed_flux_values = []  # Will store (wavelength, flux) pairs for observed data only (phot + spec)
 
-        
+        # Store residual data for later plotting
+
+        residual_phot_points = []   # (wavelength, residual) for photometry
+
+        residual_spec_points = []   # (wavelength, residual, color, label) per spec band
+
+
 
         # Get model components
 
@@ -749,6 +883,33 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
                                     pass
 
+                                # Collect residuals in native flux units so
+                                # (obs-mod)/err is invariant under flux_unit.
+
+                                if ax_resid is not None:
+
+                                    try:
+
+                                        phot_err = obs_phot['flux_obs_err']
+
+                                        valid = phot_err > 0
+
+                                        residual_phot_points.append((
+
+                                            wl_phot[valid],
+
+                                            (obs_phot['flux_obs'][valid]
+
+                                             - obs_phot['flux_model'][valid])
+
+                                            / phot_err[valid],
+
+                                        ))
+
+                                    except (KeyError, IndexError):
+
+                                        pass
+
                         except (KeyError, IndexError) as e:
 
                             print(f"Warning: Missing required columns for photometry: {e}")
@@ -884,6 +1045,35 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
                                 observed_flux_values.extend(list(zip(wl_spec, spec_obs)))
 
+                                # Collect residuals in native flux units so
+                                # (obs-mod)/err is invariant under flux_unit.
+
+                                if ax_resid is not None:
+
+                                    try:
+
+                                        spec_err = band_data['spectra_obs_err']
+
+                                        valid = spec_err > 0
+
+                                        residual_spec_points.append((
+
+                                            wl_spec[valid],
+
+                                            (band_data['spectra_obs'][valid]
+
+                                             - band_data['spectra_mod'][valid])
+
+                                            / spec_err[valid],
+
+                                            _obs_colors[band % len(_obs_colors)],
+
+                                        ))
+
+                                    except (KeyError, IndexError):
+
+                                        pass
+
                         except (KeyError, IndexError) as e:
 
                             print(f"Warning: Could not plot band {band}: {e}")
@@ -893,6 +1083,20 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
             except Exception as e:
 
                 print(f"Warning: Could not plot spectroscopy data: {e}")
+
+        
+
+        # Draw residual panel if requested
+
+        if ax_resid is not None:
+
+            _draw_residual_panel(
+
+                ax_resid, residual_phot_points, residual_spec_points,
+
+                residual_ylim, label_fontsize,
+
+            )
 
         
 
@@ -1062,7 +1266,18 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         wl_label = r'$\lambda_{\rm rest}/\rm \mu m$' if use_rest_frame else r'$\lambda_{\rm obs}/\rm \mu m$'
 
-        ax1.set_xlabel(wl_label, fontsize=label_fontsize)
+        # With a residual panel, the wavelength xlabel belongs on the bottom
+        # panel only and the main panel hides its x tick labels (label_outer).
+
+        if ax_resid is not None:
+
+            ax_resid.set_xlabel(wl_label, fontsize=label_fontsize)
+
+            ax1.label_outer()
+
+        else:
+
+            ax1.set_xlabel(wl_label, fontsize=label_fontsize)
 
         
 
@@ -1553,7 +1768,14 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                                    alpha=0.8, edgecolor='none'),
                            zorder=2)
 
-        plt.tight_layout()
+        fig.tight_layout()
+
+        if ax_resid is not None:
+
+            # tight_layout re-introduces inter-panel spacing; force the
+            # residual panel flush against the main panel.
+
+            fig.subplots_adjust(hspace=0)
 
         
 

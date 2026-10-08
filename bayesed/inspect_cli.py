@@ -43,6 +43,7 @@ _PLOT_BESTFIT_BOOL = {
     '--no-total': 'no_total',
     '--no-components': 'no_components',
     '--full-range': 'full_range',
+    '--show-residuals': 'show_residuals',
 }
 _PLOT_BESTFIT_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg',
@@ -80,7 +81,7 @@ def plot_usage_lines(prog='bayesed3'):
         f"{prog} plot <outdir> bestfit [--cat PATTERN] [--obj PATTERN] "
         f"[--cfg PATTERN] [--observed-frame] [--flux fnu|nufnu|flambda] "
         f"[--log x|y|both] [--linear] [--no-lines] [--no-total] "
-        f"[--no-components] [--full-range] [--save]",
+        f"[--no-components] [--full-range] [--show-residuals] [--save]",
         f"{prog} plot <outdir> posterior free [--cat PATTERN] [--obj PATTERN] "
         f"[--cfg PATTERN] [--save]",
         f"{prog} plot <outdir> posterior derived [--max N] [--cat PATTERN] "
@@ -463,6 +464,8 @@ def _bestfit_appearance(flags):
         appearance['show_components'] = False
     if flags['full_range']:
         appearance['focus_on_data_range'] = False
+    if flags['show_residuals']:
+        appearance['show_residuals'] = True
     return appearance
 
 

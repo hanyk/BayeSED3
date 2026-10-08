@@ -128,6 +128,7 @@ results = inference.run(params)  # step 4 → Results
 
 results.print_summary()  # step 5
 results.plot_bestfit()
+results.plot_bestfit(show_residuals=True)  # include (obs-mod)/err residual panel
 results.plot_posterior_free()
 evidence = results.get_evidence()  # log_evidence, log_evidence_error
 # step 6 optional → model-comparison.md

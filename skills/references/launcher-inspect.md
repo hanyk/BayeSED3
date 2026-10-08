@@ -64,7 +64,7 @@ Do not default to unfiltered `objects --json` or `evidence --json` when `n_objec
 ## plot
 
 ```bash
-bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--observed-frame] [--flux fnu|nufnu|flambda] [--log x|y|both] [--linear] [--no-lines] [--no-total] [--no-components] [--full-range] [--save]
+bayesed3 plot <outdir> bestfit [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--observed-frame] [--flux fnu|nufnu|flambda] [--log x|y|both] [--linear] [--no-lines] [--no-total] [--no-components] [--full-range] [--show-residuals] [--save]
 bayesed3 plot <outdir> posterior free|derived [--max N] ... [--save]
 bayesed3 plot <outdir> posterior --par PATTERN [--lab TEXT] ... [--save]
 ```

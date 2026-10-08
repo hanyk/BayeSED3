@@ -518,7 +518,11 @@ class ResultsPresentation:
                     emission_line_fontsize: int = 12, title_fontsize: int = 16,
                     label_fontsize: int = 16, legend_fontsize: int = 14,
                     figsize: tuple = (12, 8), dpi: int = 300,
-                    focus_on_data_range: bool = True, **kwargs) -> Any:
+                    focus_on_data_range: bool = True,
+                    show_residuals: bool = False,
+                    residual_height_ratio: int = 4,
+                    residual_ylim: Optional[tuple] = None,
+                    **kwargs) -> Any:
         """
         Plot best-fit SED using the bayesed.plotting module.
 
@@ -576,6 +580,14 @@ class ResultsPresentation:
             If True, set x-axis limits to focus on the wavelength range where data exists
             (photometry and spectroscopy), ignoring the full model range. If False, use
             the full wavelength range from both models and data
+        show_residuals : bool, default False
+            Add a lower panel showing (observation - model) / error residuals for
+            photometry and spectroscopy data.
+        residual_height_ratio : int, default 4
+            Main panel to residual panel height ratio when ``show_residuals`` is True.
+        residual_ylim : tuple or None, optional
+            Manual (ymin, ymax) for the residual panel. None auto-scales with at
+            least [-3, 3] in sigma units.
         **kwargs
             Additional plotting arguments passed to matplotlib plotting functions
 
@@ -588,6 +600,9 @@ class ResultsPresentation:
         --------
         >>> # Basic usage
         >>> results.plot_bestfit()
+        >>> 
+        >>> # With residual panel
+        >>> results.plot_bestfit(show_residuals=True)
         >>> 
         >>> # Customize plot
         >>> results.plot_bestfit(
@@ -653,6 +668,9 @@ class ResultsPresentation:
             figsize=figsize,
             dpi=dpi,
             focus_on_data_range=focus_on_data_range,
+            show_residuals=show_residuals,
+            residual_height_ratio=residual_height_ratio,
+            residual_ylim=residual_ylim,
             **kwargs
         )
 

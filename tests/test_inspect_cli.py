@@ -790,13 +790,21 @@ def test_plot_bestfit_switch_flags_pass_false():
         assert kwargs.get(key) is False
 
 
+def test_plot_bestfit_show_residuals_passes_true():
+    code, kwargs = _plot_bestfit_kwargs(
+        ['plot', 'out', 'bestfit', '--show-residuals'],
+    )
+    assert code == 0
+    assert kwargs.get('show_residuals') is True
+
+
 def test_plot_bestfit_omits_appearance_kwargs():
     code, kwargs = _plot_bestfit_kwargs(['plot', 'out', 'bestfit'])
     assert code == 0
     for key in (
         'use_rest_frame', 'flux_unit', 'use_log_scale',
         'show_emission_lines', 'show_total', 'show_components',
-        'focus_on_data_range',
+        'focus_on_data_range', 'show_residuals',
     ):
         assert key not in kwargs
 
