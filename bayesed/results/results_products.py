@@ -11,7 +11,51 @@ from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 import logging
 
+from ..emission_lines import near_emission_lines
+
 logger = logging.getLogger(__name__)
+
+
+def _band_segments(wl_rest: np.ndarray,
+                   band_edges: List[float]) -> List[tuple]:
+    """Cut ``wl_rest`` into contiguous segments [min,b1],[b1,b2],...,[b2,max]."""
+    boundaries = [float(np.min(wl_rest))] + sorted(
+        float(edge) for edge in band_edges) + [float(np.max(wl_rest))]
+    return [
+        (boundaries[i], boundaries[i + 1])
+        for i in range(len(boundaries) - 1)
+    ]
+
+
+def _dataset_record(kind: str, label: str, wl_rest: np.ndarray,
+                    resid: np.ndarray, obs_values: np.ndarray,
+                    top_n: int, sigma_threshold: float,
+                    flags: tuple = ()) -> Dict[str, Any]:
+    """Build one dataset record per ADR-0020 (shared by phot and spec)."""
+    n = len(resid)
+    chi2 = float(np.sum(resid ** 2))
+    order = np.argsort(-np.abs(resid))[:top_n]
+    return {
+        'kind': kind,
+        'label': label,
+        'wl_range_rest': [float(np.min(wl_rest)), float(np.max(wl_rest))],
+        'n': int(n),
+        'chi2': chi2,
+        'chi2_red': chi2 / n if n else 0.0,
+        'resid_median': float(np.median(resid)),
+        'resid_rms': float(np.sqrt(np.mean(resid ** 2))),
+        'sigma_threshold': float(sigma_threshold),
+        'frac_outside': float(np.mean(np.abs(resid) > sigma_threshold)),
+        'flags': list(flags),
+        'outliers': [
+            {
+                'wl_rest': float(wl_rest[i]),
+                'flux_obs': float(obs_values[i]),
+                'n_sigma': float(resid[i]),
+            }
+            for i in order
+        ],
+    }
 
 
 class ResultsProducts:
@@ -21,6 +65,23 @@ class ResultsProducts:
     def _to_str(x) -> str:
         """Convert bytes to string, handling HDF5 byte columns."""
         return x.decode('utf-8') if isinstance(x, bytes) else str(x)
+
+    def _resolve_object_id(self, object_id: Optional[str], context: str) -> str:
+        """Resolve the object to operate on: explicit argument, then the
+        instance default, then the first available object (with a warning)."""
+        if object_id is not None:
+            return object_id
+        if self.object_id is not None:
+            return self.object_id
+        objects = self.list_objects()
+        if not objects:
+            raise ValueError(f"No objects available for {context}")
+        object_id = objects[0]
+        logger.warning(
+            "No object_id provided for %s. Using first available object: %s. "
+            "More objects can be obtained with results.list_objects().",
+            context, object_id)
+        return object_id
 
     @staticmethod
     def _match_strings(candidates: List[str], pattern: str, match_mode: str,
@@ -943,7 +1004,7 @@ class ResultsProducts:
             raise RuntimeError("HDF5 table not loaded")
 
         # Extract object IDs from the table
-        object_ids = [str(obj_id) for obj_id in self._hdf5_table['ID']]
+        object_ids = [self._to_str(obj_id) for obj_id in self._hdf5_table['ID']]
 
         # Apply scope filtering for object-level access
         if self.object_id is not None:
@@ -1133,17 +1194,7 @@ class ResultsProducts:
             GetDist samples object or astropy Table if GetDist not available
         """
         # Determine object to load
-        if object_id is None:
-            if self.object_id is not None:
-                object_id = self.object_id
-            else:
-                # For sample-level access, use first available object with warning
-                objects = self.list_objects()
-                if objects:
-                    object_id = objects[0]
-                    logger.warning(f"No object_id provided for get_posterior_samples. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
-                else:
-                    raise ValueError("No objects available for posterior samples")
+        object_id = self._resolve_object_id(object_id, 'posterior samples')
 
         # Find sample files for this object matching the current configuration
         sample_files = self._find_config_files(object_id, "*_sample_par.txt")
@@ -1210,17 +1261,7 @@ class ResultsProducts:
             Best-fit spectrum data loaded from FITS files
         """
         # Determine object to load
-        if object_id is None:
-            if self.object_id is not None:
-                object_id = self.object_id
-            else:
-                # For sample-level access, use first available object with warning
-                objects = self.list_objects()
-                if objects:
-                    object_id = objects[0]
-                    logger.warning(f"No object_id provided for get_bestfit_spectrum. Using first available object: {object_id}. More objects can be obtained with results.list_objects().")
-                else:
-                    raise ValueError("No objects available for best-fit spectrum")
+        object_id = self._resolve_object_id(object_id, 'best-fit spectrum')
 
         # Find FITS files for this object matching the current configuration
         fits_files = self._find_config_files(object_id, "*_bestfit.fits")
@@ -1256,6 +1297,150 @@ class ResultsProducts:
 
         except ImportError:
             raise ImportError("astropy is required for FITS file loading. Install with: pip install astropy")
+    def get_fit_quality(self, object_id: Optional[str] = None,
+                        band_edges: Optional[List[float]] = None,
+                        top_n: int = 20,
+                        sigma_threshold: float = 3.0) -> Dict[str, Any]:
+        """Compute per-object fit-quality facts from the bestfit FITS (ADR-0020).
+
+        Residuals are ``(obs - model) / err`` on native FITS columns, so they
+        are in sigma units and invariant under flux-unit conversion.
+        """
+        object_id = self._resolve_object_id(object_id, 'fit quality')
+
+        fits_files = self._find_config_files(object_id, "*_bestfit.fits")
+        fits_file = self._select_unique_file(
+            fits_files, "bestfit FITS", object_id, log_selection=False)
+
+        from astropy.io import fits as astropy_fits
+
+        record: Dict[str, Any] = {'object_id': str(object_id)}
+        datasets: List[Dict[str, Any]] = []
+
+        with astropy_fits.open(fits_file) as hdul:
+            header = hdul[0].header
+            xmin2_nd = header.get('XMIN^2/ND')
+
+            self._collect_phot_datasets(hdul, datasets, top_n,
+                                        sigma_threshold)
+            self._collect_spec_datasets(hdul, datasets, top_n,
+                                        sigma_threshold, band_edges)
+
+        n_total = sum(ds['n'] for ds in datasets)
+
+        if xmin2_nd is not None:
+            # The backend header card is already reduced (XMIN^2 / N_D);
+            # recover the total with the dataset point count so ``chi2``
+            # means the total chi2 in both branches. Header-only records
+            # (no data HDUs) keep the card value for both fields.
+            chi2_red = float(xmin2_nd)
+            record['chi2'] = chi2_red * n_total if n_total else chi2_red
+            record['chi2_red'] = chi2_red
+            record['chi2_source'] = 'header'
+        else:
+            chi2_total = sum(ds['chi2'] for ds in datasets)
+            record['chi2'] = float(chi2_total)
+            record['chi2_red'] = (
+                float(chi2_total) / n_total if n_total else 0.0)
+            record['chi2_source'] = 'computed'
+
+        record['datasets'] = datasets
+        return record
+
+    def _collect_phot_datasets(self, hdul, datasets, top_n,
+                               sigma_threshold):
+        """Append one record per photometric band from ``obs:phot``."""
+        if 'obs:phot' not in hdul:
+            return
+        phot = hdul['obs:phot'].data
+        if phot is None or len(phot) == 0:
+            return
+
+        phot = phot[phot['iselected'] == 1]
+        if len(phot) == 0:
+            return
+
+        if 'band' in phot.dtype.names:
+            band_names = [self._to_str(b) for b in phot['band']]
+        else:
+            band_names = ['phot'] * len(phot)
+
+        err = phot['flux_obs_err']
+        for band_name in dict.fromkeys(band_names):
+            mask = np.array(
+                [name == band_name for name in band_names]) & (err > 0)
+            if not np.any(mask):
+                continue
+            wl_rest = np.asarray(phot['wavelength_rest_center'][mask])
+            obs_values = np.asarray(phot['flux_obs'][mask])
+            resid = (
+                np.asarray(phot['flux_obs'][mask])
+                - np.asarray(phot['flux_model'][mask])
+            ) / err[mask]
+            datasets.append(_dataset_record(
+                'phot', band_name, wl_rest, resid, obs_values,
+                top_n, sigma_threshold))
+
+    def _collect_spec_datasets(self, hdul, datasets, top_n,
+                               sigma_threshold, band_edges):
+        """Append spectroscopy dataset records from ``obs:spec``.
+
+        Default grouping is by the FITS ``iband`` column; ``band_edges``
+        (rest-frame μm boundary points) replaces it with contiguous
+        wavelength segments.
+        """
+        if 'obs:spec' not in hdul:
+            return
+        spec = hdul['obs:spec'].data
+        if spec is None or len(spec) == 0:
+            return
+
+        err = spec['spectra_obs_err']
+        wl_rest = np.asarray(spec['wavelength_rest'])
+        valid = err > 0
+
+        if not np.any(valid):
+            # Every spec point has a nonpositive error: no residuals can be
+            # formed, so emit no spec datasets rather than crashing on an
+            # empty band-segment range.
+            return
+
+        if band_edges:
+            segments = _band_segments(wl_rest[valid], band_edges)
+            last = len(segments) - 1
+            groups = [
+                ([i for i in np.flatnonzero(valid)
+                  if lo <= wl_rest[i] and (wl_rest[i] <= hi if k == last
+                                           else wl_rest[i] < hi)],
+                 f'spec_[{lo:g},{hi:g}]')
+                for k, (lo, hi) in enumerate(segments)
+            ]
+        else:
+            ibands = [int(b) for b in spec['iband']]
+            groups = [
+                ([i for i in np.flatnonzero(valid) if ibands[i] == band],
+                 f'spec_{band}')
+                for band in dict.fromkeys(ibands)
+            ]
+
+        for indices, label in groups:
+            if not indices:
+                continue
+            indices = np.asarray(indices)
+            obs_values = np.asarray(spec['spectra_obs'][indices])
+            resid = (
+                np.asarray(spec['spectra_obs'][indices])
+                - np.asarray(spec['spectra_mod'][indices])
+            ) / err[indices]
+            flags = ()
+            if np.any(
+                    (np.abs(resid) > sigma_threshold)
+                    & near_emission_lines(wl_rest[indices])):
+                flags = ('line_residual_outliers',)
+            datasets.append(_dataset_record(
+                'spec', label, wl_rest[indices], resid, obs_values,
+                top_n, sigma_threshold, flags))
+
     def list_model_components(self, object_id: Optional[str] = None) -> List[str]:
         """
         List available model components in the best-fit FITS file.
@@ -1279,15 +1464,7 @@ class ResultsProducts:
         >>> # Use with plot_bestfit to show/hide specific components
         >>> results.plot_bestfit(show_components={'model:tor': False})
         """
-        if object_id is None:
-            if self.object_id is not None:
-                object_id = self.object_id
-            else:
-                objects = self.list_objects()
-                if objects:
-                    object_id = objects[0]
-                else:
-                    raise ValueError("No objects available")
+        object_id = self._resolve_object_id(object_id, 'model components')
 
         fits_files = self._find_config_files(object_id, "*_bestfit.fits")
         if not fits_files:

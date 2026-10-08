@@ -22,7 +22,7 @@ from .results.utils import list_catalog_names, list_model_configs
 INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
 RESULTS_VERBS = (
     'summary', 'evidence', 'par_names', 'objects', 'par_values',
-    'catalogs', 'model_configs',
+    'catalogs', 'model_configs', 'fit_quality',
 )
 _RESULT_VERB_SET = frozenset(RESULTS_VERBS)
 _QUERY_VERBS = frozenset({'summary', 'evidence', 'par_names', 'objects'})
@@ -31,6 +31,10 @@ _PLOT_VERB_SET = frozenset(PLOT_VERBS)
 _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
 _PAR_VALUES_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--par': 'par', '--cfg': 'cfg',
+}
+_FIT_QUALITY_FLAGS = {
+    '--cat': 'cat', '--cfg': 'cfg', '--obj': 'obj',
+    '--band': 'band', '--top': 'top', '--sigma': 'sigma',
 }
 _RESULTS_QUERY_FLAGS = {'--cat': 'cat', '--obj': 'obj', '--cfg': 'cfg'}
 _MODEL_CONFIGS_FLAGS = {'--cat': 'cat'}
@@ -57,6 +61,7 @@ _PLOT_POSTERIOR_FLAGS = {
 _JSON_BOOL = {'--json': 'json'}
 _INSPECT_VALUED_FLAGS = frozenset({
     '--cat', '--obj', '--cfg', '--par', '--lab', '--max', '--flux', '--log',
+    '--band', '--top', '--sigma',
 })
 _DERIVED_DEFAULT_MAX = 10
 
@@ -73,6 +78,9 @@ def results_usage_lines(prog='bayesed3'):
         f"{prog} results <outdir> model_configs [--cat PATTERN] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
         f"[--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]",
+        f"{prog} results <outdir> fit_quality [--cat PATTERN] "
+        f"[--cfg PATTERN] [--obj PATTERN] [--band EDGES] [--top N] "
+        f"[--sigma T] [--json]",
     )
 
 
@@ -420,6 +428,62 @@ def parse_model_configs(tokens):
         rest, 1, _MODEL_CONFIGS_FLAGS, bool_flags=_JSON_BOOL,
     )
     return outdir, flags['cat'], flags['json']
+
+
+def _parse_band_edges(value):
+    """Parse ``--band EDGES`` into strictly increasing floats (μm, rest)."""
+    try:
+        edges = [float(part) for part in value.split(',')]
+    except ValueError:
+        raise ValueError(
+            '--band requires comma-separated numbers (rest-frame μm)'
+        ) from None
+    if not edges or any(
+            later <= earlier
+            for earlier, later in zip(edges, edges[1:])):
+        raise ValueError('--band requires strictly increasing edges')
+    return edges
+
+
+def parse_fit_quality(tokens):
+    """
+    Parse ``<outdir> fit_quality [--cat C] [--cfg CFG] [--obj O]
+    [--band EDGES] [--top N] [--sigma T] [--json]``.
+
+    ``fit_quality`` is the only command. No leftover positionals.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] != 'fit_quality':
+        raise ValueError('missing command')
+    flags = _parse_flag_pairs(
+        rest, 1, _FIT_QUALITY_FLAGS, bool_flags=_JSON_BOOL,
+    )
+    band_edges = None
+    if flags['band'] is not None:
+        band_edges = _parse_band_edges(flags['band'])
+    top_n = 20
+    if flags['top'] is not None:
+        try:
+            top_n = int(flags['top'])
+        except ValueError:
+            raise ValueError('--top requires a positive integer') from None
+        if top_n < 1:
+            raise ValueError('--top requires a positive integer')
+    sigma_threshold = 3.0
+    if flags['sigma'] is not None:
+        try:
+            sigma_threshold = float(flags['sigma'])
+        except ValueError:
+            raise ValueError('--sigma requires a positive number') from None
+        if not sigma_threshold > 0:
+            raise ValueError('--sigma requires a positive number')
+    return (
+        outdir, flags['cat'], flags['cfg'], flags['obj'],
+        band_edges, top_n, sigma_threshold, flags['json'],
+    )
 
 
 def parse_catalogs(tokens):
@@ -843,6 +907,53 @@ def _run_model_configs(rest, prog):
     return 0
 
 
+def _print_fit_quality(records):
+    """Human form of ``results … fit_quality``: one table per object."""
+    for rec in records:
+        header = f"object {rec['object_id']}"
+        if 'chi2_red' in rec:
+            header += (
+                f"  chi2_red={rec['chi2_red']:.3f} ({rec['chi2_source']})"
+            )
+        print(header)
+        print(f"  {'kind':<5} {'label':<16} {'n':>6} {'chi2_red':>9} "
+              f"{'resid_rms':>9} {'frac_outside':>12}  flags")
+        for ds in rec['datasets']:
+            flags = ','.join(ds['flags']) if ds['flags'] else '-'
+            print(f"  {ds['kind']:<5} {ds['label']:<16} {ds['n']:>6} "
+                  f"{ds['chi2_red']:>9.3f} {ds['resid_rms']:>9.3f} "
+                  f"{ds['frac_outside']:>12.3f}  {flags}")
+
+
+def _run_fit_quality(rest, prog):
+    try:
+        (outdir, cat, cfg, obj, band_edges, top_n, sigma_threshold,
+         as_json) = parse_fit_quality(rest)
+    except ValueError as e:
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
+    try:
+        results = _load_results_flags(outdir, cat, cfg)
+        all_objects = results.list_objects()
+        object_ids = (
+            _resolve_results_obj_filter(all_objects, obj)
+            if obj is not None else all_objects
+        )
+        records = [
+            results.get_fit_quality(
+                oid, band_edges=band_edges, top_n=top_n,
+                sigma_threshold=sigma_threshold)
+            for oid in object_ids
+        ]
+        if as_json:
+            _print_json(records)
+        else:
+            _print_fit_quality(records)
+    except (ValueError, FileNotFoundError) as e:
+        _emit_load_error(e)
+        return 1
+    return 0
+
+
 def _run_results_query(rest, prog):
     try:
         outdir, cmd, cat, obj, cfg, as_json = parse_results_query(rest)
@@ -1023,6 +1134,8 @@ def _run_results_plot(kind, rest, prog):
         )
     if kind == 'results' and _results_has_par_values(rest):
         return _run_par_values(rest, prog)
+    if kind == 'results' and _first_results_verb(rest) == 'fit_quality':
+        return _run_fit_quality(rest, prog)
     if kind == 'results' and _results_has_catalogs(rest):
         return _run_catalogs(rest, prog)
     if kind == 'results' and _results_has_model_configs(rest):

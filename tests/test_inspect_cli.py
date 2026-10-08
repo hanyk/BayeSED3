@@ -411,6 +411,146 @@ def test_results_model_configs_json():
     assert '"cfg0"' in written
 
 
+def test_results_fit_quality_json_is_array_per_object():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    fake.get_fit_quality.return_value = {
+        'object_id': 'obj-1', 'datasets': [],
+    }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'fit_quality', '--json'])
+    assert code == 0
+    assert fake.get_fit_quality.call_count == 2
+    assert fake.get_fit_quality.call_args.kwargs == {
+        'band_edges': None, 'top_n': 20, 'sigma_threshold': 3.0,
+    }
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    payload = json.loads(written)
+    assert isinstance(payload, list)
+    assert len(payload) == 2
+
+
+def test_results_fit_quality_obj_filter_limits_objects():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1', 'obj-2']
+    fake.get_fit_quality.return_value = {
+        'object_id': 'obj-1', 'datasets': [],
+    }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'fit_quality', '--obj', 'obj-1', '--json',
+        ])
+    assert code == 0
+    assert fake.get_fit_quality.call_count == 1
+    assert fake.get_fit_quality.call_args.args == ('obj-1',)
+    payload = json.loads(''.join(c.args[0] for c in out.write.call_args_list))
+    assert [rec['object_id'] for rec in payload] == ['obj-1']
+
+
+def test_results_fit_quality_human_prints_table():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1']
+    fake.get_fit_quality.return_value = {
+        'object_id': 'obj-1',
+        'chi2': 2.5, 'chi2_red': 2.5, 'chi2_source': 'header',
+        'datasets': [{
+            'kind': 'phot', 'label': 'u',
+            'wl_range_rest': [0.35, 0.45],
+            'n': 3, 'chi2': 1.25, 'chi2_red': 0.416,
+            'resid_median': 0.0, 'resid_rms': 0.645,
+            'sigma_threshold': 3.0, 'frac_outside': 0.0,
+            'flags': [], 'outliers': [],
+        }],
+    }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'fit_quality'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'obj-1' in written
+    assert 'u' in written
+
+
+def test_results_fit_quality_band_top_sigma_passed_through():
+    fake = MagicMock()
+    fake.list_objects.return_value = ['obj-1']
+    fake.get_fit_quality.return_value = {
+        'object_id': 'obj-1', 'datasets': [],
+    }
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock):
+        code = run_inspect([
+            'results', 'out', 'fit_quality',
+            '--band', '0.35,0.55,0.9', '--top', '5', '--sigma', '2.5',
+            '--json',
+        ])
+    assert code == 0
+    assert fake.get_fit_quality.call_args.kwargs == {
+        'band_edges': [0.35, 0.55, 0.9],
+        'top_n': 5,
+        'sigma_threshold': 2.5,
+    }
+
+
+def test_results_fit_quality_band_requires_increasing_edges():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'fit_quality', '--band', '0.9,0.35',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'Error: --band requires strictly increasing edges' in written
+
+
+def test_results_fit_quality_band_requires_numbers():
+    with patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect([
+            'results', 'out', 'fit_quality', '--band', 'a,b',
+        ])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert '--band requires comma-separated numbers' in written
+
+
+def test_results_fit_quality_top_requires_positive_integer():
+    for value in ('0', '-1', 'x'):
+        with patch('sys.stderr', new_callable=MagicMock) as err:
+            code = run_inspect([
+                'results', 'out', 'fit_quality', '--top', value,
+            ])
+        assert code == 1
+        written = ''.join(c.args[0] for c in err.write.call_args_list)
+        assert 'Error: --top requires a positive integer' in written
+
+
+def test_results_fit_quality_sigma_requires_positive_number():
+    for value in ('0', '-1', 'abc'):
+        with patch('sys.stderr', new_callable=MagicMock) as err:
+            code = run_inspect([
+                'results', 'out', 'fit_quality', '--sigma', value,
+            ])
+        assert code == 1
+        written = ''.join(c.args[0] for c in err.write.call_args_list)
+        assert 'Error: --sigma requires a positive number' in written
+
+
+def test_results_fit_quality_without_outdir_names_the_missing_directory():
+    with patch('bayesed.inspect_cli.BayeSEDResults') as ctor, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'fit_quality', '--json'])
+    assert code == 1
+    ctor.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert written.startswith('Error: missing outdir\nUsage:')
+    assert 'fit_quality [--cat PATTERN]' in written
+
+
 def test_missing_cfg_is_one_line_with_cfg_flag():
     with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
          patch(

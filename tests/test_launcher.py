@@ -57,7 +57,8 @@ def test_usage_is_short_overview_without_inspect_flags():
     )
     assert (
         'bayesed3 results <outdir> '
-        '[summary|evidence|par_names|objects|par_values|catalogs|model_configs]\n'
+        '[summary|evidence|par_names|objects|par_values|catalogs|'
+        'model_configs|fit_quality]\n'
     ) in text
     assert 'bayesed3 plot <outdir> [bestfit|posterior]\n' in text
     assert 'bayesed3 priors list [dir]\n' in text

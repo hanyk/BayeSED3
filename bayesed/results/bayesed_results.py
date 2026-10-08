@@ -83,6 +83,9 @@ class BayeSEDResults:
     def get_bestfit_spectrum(self, *args, **kwargs):
         return self._products.get_bestfit_spectrum(*args, **kwargs)
 
+    def get_fit_quality(self, *args, **kwargs):
+        return self._products.get_fit_quality(*args, **kwargs)
+
     def get_configuration_summary(self, *args, **kwargs):
         return self._products.get_configuration_summary(*args, **kwargs)
 
