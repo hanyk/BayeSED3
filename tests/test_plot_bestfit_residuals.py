@@ -89,12 +89,10 @@ def test_show_residuals_true_adds_residual_axes(tmp_path):
     assert 'obs - mod' in ax_resid.get_ylabel()
     assert '/ err' in ax_resid.get_ylabel()
 
-    # Zero line and ±1 sigma reference lines should be present
+    # Reference lines are gone: the 1-sigma interval grid replaces them
     hlines = [line for line in ax_resid.lines if len(line.get_xdata()) == 2]
-    y_values = {line.get_ydata()[0] for line in hlines}
-    assert 0.0 in y_values
-    assert 1.0 in y_values
-    assert -1.0 in y_values
+    assert hlines == []
+    assert 0.0 in ax_resid.get_yticks()
 
 
 def test_residual_ylim_defaults_to_at_least_three_sigma(tmp_path):
@@ -162,6 +160,52 @@ def _residual_panel_y_values(fig):
     if not chunks:
         return np.array([], dtype=float)
     return np.concatenate(chunks)
+
+
+def test_residual_panel_uses_sigma_interval_grid(tmp_path):
+    """No extra horizontal reference lines: the grid itself marks 1-sigma
+    intervals (y ticks at integer sigma, including zero)."""
+    fits_path = Path(tmp_path) / 'bestfit.fits'
+    _write_bestfit(fits_path)
+    fig = plot_bestfit(fits_path, show=False, save=False, show_residuals=True)
+    ax_resid = fig.axes[-1]
+    # axhline reference lines span the full x range (0, 1); none expected
+    horizontals = [line for line in ax_resid.get_lines()
+                   if tuple(np.atleast_1d(line.get_xdata(orig=False))) == (0.0, 1.0)]
+    assert horizontals == []
+    # grid ticks sit at integer multiples of 1 sigma
+    ticks = ax_resid.get_yticks()
+    assert 0.0 in ticks
+    assert np.allclose(np.diff(ticks), 1.0)
+
+
+def test_residual_grid_survives_wide_range(tmp_path):
+    """No fallback to the default locator at wide ranges: the 1-sigma grid
+    applies regardless of span (option A in the 10-sigma discussion)."""
+    fits_path = Path(tmp_path) / 'bestfit.fits'
+    _write_bestfit(fits_path)
+    fig = plot_bestfit(fits_path, show=False, save=False, show_residuals=True,
+                       residual_ylim=(-11, 11))
+    ax_resid = fig.axes[-1]
+    ticks = ax_resid.get_yticks()
+    assert len(ticks) >= 20, 'precondition: full 1-sigma grid over wide span'
+    assert np.allclose(np.diff(ticks), 1.0)
+    labeled = [t for t in ax_resid.get_yticklabels() if t.get_text()]
+    assert len(labeled) <= 6
+
+
+def test_residual_labels_do_not_overlap(tmp_path):
+    """Tick labels stay sparse (only every Nth sigma is labeled) even when
+    the grid runs at 1-sigma spacing over a wide range."""
+    fits_path = Path(tmp_path) / 'bestfit.fits'
+    _write_bestfit(fits_path)
+    fig = plot_bestfit(fits_path, show=False, save=False, show_residuals=True,
+                       residual_ylim=(-6, 6))
+    ax_resid = fig.axes[-1]
+    ticks = ax_resid.get_yticks()
+    assert len(ticks) > 8, 'precondition: dense 1-sigma grid'
+    labeled = [t for t in ax_resid.get_yticklabels() if t.get_text()]
+    assert len(labeled) <= 6, f'{len(labeled)} labeled ticks would overlap'
 
 
 def test_residuals_invariant_under_flux_unit(tmp_path):

@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 
+from .emission_lines import EMISSION_LINES, FAMILY_COLORS
+
 
 def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
                          label_fontsize):
@@ -44,14 +46,8 @@ def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
         )
         all_residuals.append(resid)
 
-    # Reference lines at 0 and ±1 sigma
-    ax_resid.axhline(0.0, color='black', linestyle='-', linewidth=0.8, alpha=0.5)
-    ax_resid.axhline(1.0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
-    ax_resid.axhline(-1.0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
-
     # x-axis label is handled by the shared axis; residual panel only needs y label
     ax_resid.set_ylabel('(obs - mod) / err', fontsize=label_fontsize)
-    ax_resid.grid(True, alpha=0.3)
 
     if residual_ylim is not None:
         ax_resid.set_ylim(residual_ylim)
@@ -66,6 +62,21 @@ def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
     else:
         ax_resid.set_ylim(-3.5, 3.5)
 
+    # Grid at 1-sigma intervals replaces explicit horizontal reference
+    # lines: ticks at integer sigma make every gridline a sigma level.
+    # Only every Nth tick is labeled so the panel stays readable; empty
+    # labels render as nothing. No span cap: the thin alpha=0.3 gridlines
+    # stay legible even on wide ranges, and label thinning decouples
+    # readability from grid density.
+    ymin, ymax = ax_resid.get_ylim()
+    ticks = np.arange(np.ceil(ymin), np.floor(ymax) + 0.5, 1.0)
+    label_step = max(1, int(np.ceil((len(ticks) - 1) / 5)))
+    ax_resid.set_yticks(ticks)
+    ax_resid.set_yticklabels([
+        str(int(t)) if int(t) % label_step == 0 else '' for t in ticks
+    ])
+    ax_resid.grid(True, alpha=0.3)
+
 
 def plot_bestfit(fits_file, output_file=None, show=True, *,
                  save=True,
@@ -75,7 +86,7 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                  use_rest_frame=True, flux_unit='fnu', use_log_scale=None,
 
                  model_names=None, show_emission_lines=True, show_components=True,
-                 show_total=True, emission_line_fontsize=12, emission_line_ypos=0.85,
+                 show_total=True, emission_line_fontsize=12, emission_line_ypos=0.98,
 
                  title_fontsize=16, label_fontsize=16, legend_fontsize=14,
 
@@ -162,9 +173,10 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         Font size for emission line labels. Larger values make labels more readable.
 
-    emission_line_ypos : float, default 0.85
+    emission_line_ypos : float, default 0.98
 
-        Vertical position for emission line labels (0-1 range, as fraction of axis height).
+        Vertical anchor for emission line labels (0-1 range, as fraction of
+        axis height). Labels hang downward from this anchor, beside the line.
 
     title_fontsize : int, default 16
 
@@ -1617,96 +1629,11 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
             xlim = ax1.get_xlim()
             ylim = ax1.get_ylim()
             
-            # Define emission lines with wavelengths, labels, and colors
+            # Emission lines with wavelengths and labels; color comes from the
+            # fixed family -> color mapping (same family, same color).
             emission_lines = [
-                # Hydrogen Balmer series
-                (0.65646140, r'H$\alpha$', 'red'),
-                (0.48626830, r'H$\beta$', 'green'),
-                (0.43407410, r'H$\gamma$', 'lightgreen'),
-                (0.41017500, r'H$\delta$', 'lime'),
-                (0.36460000, r'H$\infty$', 'darkred'),
-
-                # Hydrogen Paschen series (near-IR)
-                (1.28200000, 'Paβ 1.282', 'tomato'),
-                (1.87500000, 'Paα 1.875', 'firebrick'),
-                
-                # Oxygen lines
-                (0.49602949, '[O III]4959', 'blue'),
-                (0.50082397, '[O III]5007', 'cyan'),
-                (0.43632612, '[O III]4363', 'deepskyblue'),
-                (0.37270917, '[O II]3726', 'orange'),
-                (0.37298754, '[O II]3729', 'darkorange'),
-                (0.63004000, '[O I]6300', 'coral'),
-                (0.63640000, '[O I]6364', 'lightcoral'),
-                (0.73200000, '[O II]7320', 'lightsalmon'),
-                (0.73300000, '[O II]7330', 'darksalmon'),
-                
-                # Nitrogen lines
-                (0.65498590, '[N II]6548', 'magenta'),
-                (0.65852685, '[N II]6583', 'purple'),
-                (0.51983000, '[N I]5199', 'violet'),
-                
-                # Sulfur lines
-                (0.67316300, '[S II]6716', 'pink'),
-                (0.67312100, '[S II]6731', 'hotpink'),
-                (0.40686000, '[S II]4069', 'darksalmon'),
-                (0.40763500, '[S II]4076', 'lightsalmon'),
-                (0.90687000, '[S III]9069', 'lightpink'),
-                (0.95323000, '[S III]9532', 'plum'),
-
-                # Argon lines (HII regions)
-                (0.71360000, '[Ar III]7136', 'mediumorchid'),
-                (0.77510000, '[Ar III]7751', 'blueviolet'),
-                
-                # Carbon lines
-                (0.15491000, 'C IV 1549', 'darkblue'),
-                (0.19062000, 'C III] 1909', 'navy'),
-                
-                # Magnesium lines
-                (0.27980000, 'Mg II 2798', 'darkgreen'),
-                (0.28035300, 'Mg II 2803', 'forestgreen'),
-                
-                # Neon lines
-                (0.38691000, '[Ne III]3869', 'teal'),
-                (0.39685000, '[Ne III]3967', 'darkcyan'),
-                (0.34260000, '[Ne V]3426', 'mediumspringgreen'),
-                (0.24240000, '[Ne IV]2424', 'orchid'),
-                
-                # Silicon lines
-                (0.19347000, 'Si III] 1892', 'brown'),
-                (0.14003000, 'Si IV 1394', 'maroon'),
-                (0.14082000, 'Si IV 1403', 'darkred'),
-                
-                # Helium lines
-                (0.58756000, 'He I 5876', 'gold'),
-                (0.44713000, 'He II 4471', 'yellow'),
-                (0.38890000, 'He I 3889', 'olive'),
-                (0.66780000, 'He I 6678', 'goldenrod'),
-                (0.70650000, 'He I 7065', 'darkkhaki'),
-                (0.46860000, 'He II 4686', 'yellowgreen'),
-                (0.47130000, 'He I 4713', 'darkolivegreen'),
-                (0.49220000, 'He I 4922', 'olivedrab'),
-                (0.16400000, 'He II 1640', 'khaki'),
-                
-                # Iron lines (common in AGN)
-                (0.42587000, '[Fe II]4259', 'chocolate'),
-                (0.51270000, '[Fe II]5127', 'sienna'),
-                (0.16300000, '[Fe II]1630', 'saddlebrown'),
-
-                # AGN coronal lines
-                (0.57210000, '[Fe VII]5721', 'crimson'),
-                (0.60870000, '[Fe VII]6087', 'indianred'),
-                (0.63750000, '[Fe X]6375', 'salmon'),
-                
-                # Lyman series
-                (0.12157000, r'Ly$\alpha$ 1216', 'indigo'),
-                (0.10260000, r'Ly$\beta$ 1026', 'darkviolet'),
-                
-                # Calcium lines
-                (0.39340000, 'Ca II K 3934', 'gray'),
-                (0.39690000, 'Ca II H 3969', 'darkgray'),
-                (0.85446000, 'Ca II 8542', 'lightgray'),
-                (0.85662000, 'Ca II 8662', 'silver'),
+                (wl, label, FAMILY_COLORS[family])
+                for wl, label, family in EMISSION_LINES
             ]
             
             # Remove duplicates based on wavelength (keep first occurrence)
@@ -1725,17 +1652,26 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                 # Sort by wavelength for better label placement
                 visible_lines.sort(key=lambda x: x[0])
                 
-                # Calculate label position (near top of plot, but not overlapping with data)
-                if use_log_scale and ylim[0] > 0:
-                    # For log scale, use geometric mean for label position
-                    label_y = ylim[1] * emission_line_ypos  # emission_line_ypos % of the way up in log space
-                else:
-                    # For linear scale, use arithmetic position
-                    label_y = ylim[0] + emission_line_ypos * (ylim[1] - ylim[0])
+                # Labels hang downward from an anchor beside each line, so a
+                # long label never extends past the top of the axes. The y
+                # position is in axes-fraction coordinates (via the xaxis
+                # transform), which removes the log/linear special case.
+                def _label_ha(line_wl):
+                    # Flip the label to the left of the line when it sits in
+                    # the rightmost 10% of the displayed range, so the text
+                    # stays inside the axes on either scale. Gate on the
+                    # axis' actual scale (log_x), not the truthiness of
+                    # use_log_scale — 'y' keeps the x-axis linear.
+                    if log_x and xlim[0] > 0:
+                        frac = ((np.log10(line_wl) - np.log10(xlim[0]))
+                                / (np.log10(xlim[1]) - np.log10(xlim[0])))
+                    else:
+                        frac = (line_wl - xlim[0]) / (xlim[1] - xlim[0])
+                    return 'right' if frac > 0.9 else 'left'
                 
                 # Filter out lines that are too close together to avoid label overlap
                 # Calculate minimum separation based on x-axis range and log/linear scale
-                if use_log_scale and xlim[0] > 0:
+                if log_x and xlim[0] > 0:
                     # For log scale, use relative separation
                     min_separation = (xlim[1] / xlim[0]) ** 0.02  # ~2% of log range
                     filtered_lines = []
@@ -1756,14 +1692,19 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                     ax1.axvline(x=line_wl, color=color, linestyle='--', 
                               linewidth=0.8, alpha=0.7, zorder=1)
                     
-                    # Add label at the top of the line
-                    ax1.text(line_wl, label_y, line_label, 
-                           rotation=90, verticalalignment='bottom', 
-                           horizontalalignment='center',
-                           fontsize=emission_line_fontsize, color=color, alpha=0.9,
-                           bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                    # Add label hanging beside the line, anchored near the top.
+                    # Default rotation mode applies va/ha to the rotated bbox,
+                    # so va='top' makes the text grow DOWNWARD from the anchor
+                    # (rotation_mode='anchor' would grow it upward past the top).
+                    ax1.text(line_wl, emission_line_ypos, line_label,
+                             rotation=90,
+                             verticalalignment='top',
+                             horizontalalignment=_label_ha(line_wl),
+                             transform=ax1.get_xaxis_transform(),
+                             fontsize=emission_line_fontsize, color=color, alpha=0.9,
+                             bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
                                    alpha=0.8, edgecolor='none'),
-                           zorder=2)
+                             zorder=2)
 
         fig.tight_layout()
 
