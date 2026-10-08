@@ -160,9 +160,12 @@ def test_fit_quality_phot_dataset_record(tmp_path):
     assert ds['frac_outside'] == pytest.approx(0.0)
     assert ds['flags'] == []
     assert ds['outliers'] == [
-        {'wl_rest': 0.35, 'flux_obs': 10.0, 'n_sigma': -1.0},
-        {'wl_rest': 0.40, 'flux_obs': 10.0, 'n_sigma': 0.5},
-        {'wl_rest': 0.45, 'flux_obs': 10.0, 'n_sigma': 0.0},
+        {'wl_rest': 0.35, 'flux_obs': 10.0, 'flux_mod': 11.0,
+         'n_sigma': -1.0},
+        {'wl_rest': 0.40, 'flux_obs': 10.0, 'flux_mod': 9.0,
+         'n_sigma': 0.5},
+        {'wl_rest': 0.45, 'flux_obs': 10.0, 'flux_mod': 10.0,
+         'n_sigma': 0.0},
     ]
 
 
@@ -189,6 +192,7 @@ def test_fit_quality_spec_splits_by_iband_by_default(tmp_path):
         pytest.approx(-1.0), pytest.approx(0.0),
     ]
     assert [o['flux_obs'] for o in ds0['outliers']] == [10.0, 10.0]
+    assert [o['flux_mod'] for o in ds0['outliers']] == [12.0, 10.0]
     assert record['datasets'][1]['wl_range_rest'] == pytest.approx([0.90, 0.95])
     assert record['datasets'][1]['chi2'] == pytest.approx(0.0)
 
@@ -264,7 +268,8 @@ def test_fit_quality_sigma_gates_frac_outside_but_not_outliers(tmp_path):
     assert ds['frac_outside'] == pytest.approx(1.0 / 3)
     # top_n=1 keeps only the largest |n_sigma|; outliers ignore --sigma
     assert ds['outliers'] == [
-        {'wl_rest': 0.35, 'flux_obs': 10.0, 'n_sigma': -1.0},
+        {'wl_rest': 0.35, 'flux_obs': 10.0, 'flux_mod': 11.0,
+         'n_sigma': -1.0},
     ]
 
 

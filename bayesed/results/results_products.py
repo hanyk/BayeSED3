@@ -29,6 +29,7 @@ def _band_segments(wl_rest: np.ndarray,
 
 def _dataset_record(kind: str, label: str, wl_rest: np.ndarray,
                     resid: np.ndarray, obs_values: np.ndarray,
+                    mod_values: np.ndarray,
                     top_n: int, sigma_threshold: float,
                     flags: tuple = ()) -> Dict[str, Any]:
     """Build one dataset record per ADR-0020 (shared by phot and spec)."""
@@ -51,6 +52,7 @@ def _dataset_record(kind: str, label: str, wl_rest: np.ndarray,
             {
                 'wl_rest': float(wl_rest[i]),
                 'flux_obs': float(obs_values[i]),
+                'flux_mod': float(mod_values[i]),
                 'n_sigma': float(resid[i]),
             }
             for i in order
@@ -1379,6 +1381,7 @@ class ResultsProducts:
             ) / err[mask]
             datasets.append(_dataset_record(
                 'phot', band_name, wl_rest, resid, obs_values,
+                np.asarray(phot['flux_model'][mask]),
                 top_n, sigma_threshold))
 
     def _collect_spec_datasets(self, hdul, datasets, top_n,
@@ -1439,6 +1442,7 @@ class ResultsProducts:
                 flags = ('line_residual_outliers',)
             datasets.append(_dataset_record(
                 'spec', label, wl_rest[indices], resid, obs_values,
+                np.asarray(spec['spectra_mod'][indices]),
                 top_n, sigma_threshold, flags))
 
     def list_model_components(self, object_id: Optional[str] = None) -> List[str]:
