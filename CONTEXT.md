@@ -68,6 +68,10 @@ _Avoid_: These flags on posterior plots; `--hide` of one component; `--linear` w
 The legend string for one `model:` extension on a best-fit SED, excluding `model:total`. The list follows those extensions in file order. `list_model_components()` returns the extension names that order and that `show_components` keys use.
 _Avoid_: Posterior `--lab`; SED model; Model configuration; the FITS extension name itself
 
+**Fit quality**:
+Per-object goodness-of-fit facts computed from bestfit FITS residuals (`BayeSEDResults.get_fit_quality()`; Launcher `results <outdir> fit_quality --json`). Residuals are `(obs−mod)/err` on native FITS columns (sigma units, invariant under flux-unit conversion); a dataset record aggregates n / χ² / χ²_red / median / RMS / `frac_outside` at `sigma_threshold` (default 3, `--sigma`), plus a ranked `outliers` top-N (`--top`, default 20) with obs+rest wavelengths. χ² uses the header `XMIN²/ND` when present (source "header"), else computed. Datasets: spectroscopy splits by `iband` by default, or by `--band` rest-frame μm boundary list into contiguous segments (replacing iband grouping); photometry stays per `band` name. Distinct from Evidence: Evidence ranks Model configurations, Fit quality judges one object's fit.
+_Avoid_: `plot bestfit --json` (images stay images); paired-interval band syntax; applying `--band` to photometry; prose improvement advice in the payload; full per-point arrays; conflating `frac_outside` thresholding with the always-present ranked `outliers` list; per-object χ² versus MultiNest header χ² confusion
+
 **Package version**:
 The installed `bayesed3` distribution identity from package metadata (calendar versioning via setuptools-scm). Shown as the `python` line of `bayesed3 version`.
 _Avoid_: Python version (the interpreter); binary version; “BayeSED3 version” when only one of the two identities is meant
