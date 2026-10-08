@@ -5,7 +5,6 @@ Plotting utilities for BayeSED3.
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy.table import Table
 
 
 def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
@@ -299,9 +298,7 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
     import numpy as np
 
-    import matplotlib.pyplot as plt
 
-    from astropy.io import fits
 
     
 

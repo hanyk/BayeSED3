@@ -14,5 +14,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e . pytest pandas
-      - run: python -m pytest tests/test_inspect_cli.py tests/test_plot_bestfit_model_names.py -q
+      - run: pip install -e . pytest pandas ruff
+      - run: python -m pytest tests/test_inspect_cli.py tests/test_plot_bestfit_model_names.py tests/test_plot_bestfit_residuals.py -q
+      # Lint gate: pure-plotting / Inspect files that are ruff-clean today.
+      # Extend the list as other files are cleaned; do not widen to the
+      # whole repo while legacy files still fail (F401/F841/E722 baseline).
+      - run: ruff check bayesed/plotting.py bayesed/inspect_cli.py bayesed/results/bayesed_results.py tests/test_plot_bestfit_residuals.py tests/test_plot_bestfit_model_names.py tests/test_inspect_cli.py --select F,E722

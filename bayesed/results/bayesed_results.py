@@ -5,7 +5,7 @@ Delegates to ResultsProducts and ResultsPresentation (ADR-0003).
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Any
+from typing import Optional, Union
 
 from .results_products import ResultsProducts
 from .results_presentation import ResultsPresentation
