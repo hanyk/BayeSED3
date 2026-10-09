@@ -76,6 +76,8 @@ python tests/run_all_examples.py
 
 Use `BayeSEDInterface(Ntest=2)` to limit processing to the first N objects — useful for quick iteration during development.
 
+Run `scripts/check.sh` before claiming plotting/emission-line work is done: ruff `F` rules on changed files plus the fast test subset (~5 s; judgement-call standards in `docs/code-standards.md`).
+
 ## Key Patterns
 
 - **Skill canonical path**: Build with `SEDModel`, always `SEDInference.priors_init`, optional `set_prior`, then `inference.run` → Results. Details and decision tree in `skills/SKILL.md` (ADR: `docs/adr/0001-skill-happy-path-sedmodel-inference.md`).
