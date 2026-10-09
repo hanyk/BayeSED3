@@ -149,14 +149,16 @@ def test_show_residuals_with_no_data_is_silent(tmp_path):
 
 
 def _residual_panel_y_values(fig):
-    """Collect residual data y-values from ErrorbarContainers (skip hlines)."""
+    """Collect residual data y-values from the panel's data lines.
+
+    Residuals are drawn as plain Line2D (markers for photometry, lines
+    for spectroscopy) — no errorbar containers since the per-point error
+    bars were dropped (residuals are already normalized by error).
+    """
     ax_resid = fig.axes[1]
     chunks = []
-    for container in ax_resid.containers:
-        data_line = getattr(container, 'lines', (None,))[0]
-        if data_line is None:
-            continue
-        chunks.append(np.asarray(data_line.get_ydata(), dtype=float))
+    for line in ax_resid.get_lines():
+        chunks.append(np.asarray(line.get_ydata(), dtype=float))
     if not chunks:
         return np.array([], dtype=float)
     return np.concatenate(chunks)

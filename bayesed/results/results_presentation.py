@@ -115,7 +115,7 @@ class ResultsPresentation:
 
         # Ensure we have exactly one of each file type
         sample_file = self._select_unique_file(sample_files, "sample_par.txt", object_id, log_selection=False)
-        paramnames_file = self._select_unique_file(paramnames_files, "paramnames", object_id, log_selection=False)
+        _paramnames_file = self._select_unique_file(paramnames_files, "paramnames", object_id, log_selection=False)
 
         # Log the selected files once here (main entry point for GetDist operations)
         try:
@@ -522,6 +522,8 @@ class ResultsPresentation:
                     show_residuals: bool = False,
                     residual_height_ratio: int = 4,
                     residual_ylim: Optional[tuple] = None,
+                    min_line_snr: float = 2.5,
+                    line_window_kms: float = 3000.0,
                     **kwargs) -> Any:
         """
         Plot best-fit SED using the bayesed.plotting module.
@@ -581,13 +583,19 @@ class ResultsPresentation:
             (photometry and spectroscopy), ignoring the full model range. If False, use
             the full wavelength range from both models and data
         show_residuals : bool, default False
-            Add a lower panel showing (observation - model) / error residuals for
-            photometry and spectroscopy data.
+            Add a lower panel with (obs - mod) / err residuals. See
+            ``bayesed.plotting.plot_bestfit`` for rendering details.
         residual_height_ratio : int, default 4
             Main panel to residual panel height ratio when ``show_residuals`` is True.
         residual_ylim : tuple or None, optional
             Manual (ymin, ymax) for the residual panel. None auto-scales with at
             least [-3, 3] in sigma units.
+        min_line_snr : float, default 2.5
+            With spectroscopy, only emission lines detected in the observed
+            spectrum at this matched-filter significance are drawn. Set to
+            0 to disable detection and mark every table line.
+        line_window_kms : float, default 3000.0
+            Half-width of the velocity window used for line detection.
         **kwargs
             Additional plotting arguments passed to matplotlib plotting functions
 
@@ -671,6 +679,8 @@ class ResultsPresentation:
             show_residuals=show_residuals,
             residual_height_ratio=residual_height_ratio,
             residual_ylim=residual_ylim,
+            min_line_snr=min_line_snr,
+            line_window_kms=line_window_kms,
             **kwargs
         )
 
@@ -1649,7 +1659,7 @@ class ResultsPresentation:
         
         return fig
     def compute_parameter_correlations(self, params: Optional[List[str]] = None,
-                                     object_ids: Optional[Union[str, List[str]]] = None) -> 'numpy.ndarray':
+                                      object_ids: Optional[Union[str, List[str]]] = None) -> 'np.ndarray':
         """
         Compute parameter correlation matrix.
 

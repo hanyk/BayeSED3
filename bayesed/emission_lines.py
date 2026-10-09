@@ -10,17 +10,21 @@ so lines of the same family always share a color.
 """
 
 import numpy as np
+from astropy import units as u
+from astropy.nddata import StdDevUncertainty
 from matplotlib import colormaps
 from matplotlib.colors import to_hex
+from specutils import Spectrum, conf
+from specutils.fitting import find_lines_threshold
 
 # (wavelength_rest [μm], label, family)
 EMISSION_LINES = [
     # Hydrogen Balmer series
-    (0.65646140, r'H$\alpha$', 'balmer'),
-    (0.48626830, r'H$\beta$', 'balmer'),
-    (0.43407410, r'H$\gamma$', 'balmer'),
-    (0.41017500, r'H$\delta$', 'balmer'),
-    (0.36460000, r'H$\infty$', 'balmer'),
+    (0.65646140, r'H$\alpha$ 6565', 'balmer'),
+    (0.48626830, r'H$\beta$ 4863', 'balmer'),
+    (0.43407410, r'H$\gamma$ 4340', 'balmer'),
+    (0.41017500, r'H$\delta$ 4102', 'balmer'),
+    (0.36460000, r'H$\infty$ 3646', 'balmer'),
 
     # Hydrogen Paschen series (near-IR)
     (1.00500000, 'Paδ 1.005', 'paschen'),
@@ -168,3 +172,85 @@ def near_emission_lines(wl_rest):
         <= LINE_MATCH_WINDOW,
         axis=1,
     )
+
+
+C_KMS = 299792.458
+
+
+def detect_lines(wl, flux, err, snr_threshold=3.0, window_kms=3000.0):
+    """Return the ``EMISSION_LINES`` subset detected in a spectrum.
+
+    Continuum-subtracts ``flux`` with a rolling 25th percentile, then
+    delegates to ``specutils.fitting.find_lines_threshold`` (with the
+    per-pixel ``err`` as uncertainty, ``noise_factor=snr_threshold``). A
+    candidate line counts as detected when a found emission-line center
+    falls within its ±``window_kms`` velocity window (3000 covers QSO
+    broad lines). Spectrum and line table must share a frame.
+    """
+    wl = np.asarray(wl, dtype=float)
+    flux = np.asarray(flux, dtype=float)
+    err = np.asarray(err, dtype=float)
+    if wl.size < 10:
+        return []
+
+    order = np.argsort(wl)
+    wl, flux, err = wl[order], flux[order], err[order]
+    valid = np.isfinite(wl) & np.isfinite(flux) & np.isfinite(err) & (err > 0)
+    wl, flux, err = wl[valid], flux[valid], err[valid]
+    if wl.size < 10:
+        return []
+
+    # Rolling-quantile continuum subtraction, alfa/PyEMILI style (Wesson
+    # 2016, MNRAS 456, 3774; Tu et al. 2025, PyEMILI): in an emission-line-
+    # dominated spectrum the median is pulled up by line flux, suppressing
+    # faint lines, so the 25th percentile is used to track the true
+    # inter-line continuum. The window should swallow the broadest lines
+    # (2 * window_kms) while staying local; ~25x the line window in pixels
+    # is a good middle ground. Pure numpy via windows.
+    half_px = max(2, int(np.ceil(window_kms / _pixel_velocity_kms(wl))))
+    cont_win = min(25 * (2 * half_px + 1), (wl.size // 4) * 2 + 1)
+    if cont_win % 2 == 0:
+        cont_win += 1
+    cont_win = max(cont_win, 11)
+    cont = _rolling_percentile(flux, cont_win)
+
+    spec = Spectrum(
+        spectral_axis=wl * u.um,
+        flux=(flux - cont) * u.dimensionless_unscaled,
+        uncertainty=StdDevUncertainty(err),
+    )
+    # We always pass an explicit uncertainty, so the specutils warning
+    # about which continuum-fitting function was used is irrelevant here;
+    # scope the suppression to this call instead of process-wide config.
+    with conf.set_temp('do_continuum_function_check', False):
+        found = find_lines_threshold(spec, noise_factor=snr_threshold)
+    if len(found) == 0:
+        return []
+    center_um = found['line_center'].to_value(u.um)
+    center_um = center_um[np.asarray(found['line_type']) == 'emission']
+    if center_um.size == 0:
+        return []
+
+    detected = []
+    for line_wl, label, family in EMISSION_LINES:
+        dwl = line_wl * window_kms / C_KMS
+        if np.any(np.abs(center_um - line_wl) <= dwl):
+            detected.append((line_wl, label, family))
+    return detected
+
+
+def _pixel_velocity_kms(wl):
+    """Median per-pixel velocity step of a sorted (possibly non-uniform) grid."""
+    dlog = np.diff(np.log(wl))
+    dlog = dlog[np.isfinite(dlog) & (dlog > 0)]
+    if dlog.size == 0:
+        return C_KMS / 2000.0  # fallback: assume R ~ 2000
+    return float(np.median(dlog) * C_KMS)
+
+
+def _rolling_percentile(a, win, q=25):
+    """Rolling q-th percentile of 1-D array ``a`` (odd ``win``, edge-padded)."""
+    pad = win // 2
+    padded = np.pad(a, pad, mode='edge')
+    windows = np.lib.stride_tricks.sliding_window_view(padded, win)
+    return np.percentile(windows, q, axis=-1)

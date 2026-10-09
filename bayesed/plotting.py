@@ -2,11 +2,13 @@
 Plotting utilities for BayeSED3.
 """
 
+import re
+
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io import fits
 
-from .emission_lines import EMISSION_LINES, FAMILY_COLORS
+from .emission_lines import C_KMS, EMISSION_LINES, FAMILY_COLORS, detect_lines
 
 
 def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
@@ -25,24 +27,33 @@ def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
         Manual y-axis limits; None means auto-scale with at least [-3, 3].
     label_fontsize : int
         Font size for axis labels.
+
+    Notes
+    -----
+    Residuals are already normalized as (obs - mod) / err, so a per-point
+    error bar would be a constant ±1 everywhere and carries no information;
+    the integer-sigma gridlines below serve that role instead. Photometric
+    residuals are sparse, so they are drawn as markers; spectroscopic
+    residuals are dense (thousands of points), so each band is drawn as a
+    thin line.
     """
     all_residuals = []
 
     for wl, resid in phot_points:
         if len(wl) == 0:
             continue
-        ax_resid.errorbar(
-            wl, resid, yerr=1.0,
-            fmt='o', color='red', markersize=3, alpha=0.7,
+        ax_resid.plot(
+            wl, resid,
+            'o', color='red', markersize=3, alpha=0.7,
         )
         all_residuals.append(resid)
 
     for wl, resid, color in spec_points:
         if len(wl) == 0:
             continue
-        ax_resid.errorbar(
-            wl, resid, yerr=1.0,
-            fmt='o', color=color, markersize=2, alpha=0.7,
+        ax_resid.plot(
+            wl, resid,
+            '-', color=color, linewidth=0.8, alpha=0.7,
         )
         all_residuals.append(resid)
 
@@ -78,6 +89,175 @@ def _draw_residual_panel(ax_resid, phot_points, spec_points, residual_ylim,
     ax_resid.grid(True, alpha=0.3)
 
 
+def _detect_band_lines(band_data, wl_spec, spec_obs,
+                       min_line_snr, line_window_kms):
+    """Run emission-line detection on one raw spectral band.
+
+    Returns a set of ``(wavelength, label)`` pairs for detected lines.
+    Raises KeyError when the band lacks an error column.
+    """
+    _det = detect_lines(
+        wl_spec, spec_obs, band_data['spectra_obs_err'],
+        snr_threshold=min_line_snr, window_kms=line_window_kms,
+    )
+    return {(lw, lab) for lw, lab, _fam in _det}
+
+
+def _draw_emission_line_labels(ax1, visible_lines, xlim, log_x,
+                               emission_line_fontsize, emission_line_ypos,
+                               group_window_kms):
+    """Draw guide lines and stacked/merged labels for emission lines.
+
+    ``visible_lines`` is the sorted ``[(wl, label, color), ...]`` list of
+    detected, in-range lines in rest-frame microns. A vertical dashed
+    guide is drawn for every line; labels hang downward from the top of
+    the panel. Lines whose velocity separation from the previous line is
+    below ``group_window_kms`` belong to the same blended feature: their
+    labels stack vertically in the same column and same-family members
+    merge into one label ("[O III]4959,5007"). A group longer than four
+    labels continues in the next column (never wrapping back).
+    """
+
+    def _label_ha(line_wl):
+        # Flip the label to the left of the line when it sits in the
+        # rightmost 10% of the displayed range, so the text stays inside
+        # the axes on either scale.
+        if log_x and xlim[0] > 0:
+            frac = ((np.log10(line_wl) - np.log10(xlim[0]))
+                    / (np.log10(xlim[1]) - np.log10(xlim[0])))
+        else:
+            frac = (line_wl - xlim[0]) / (xlim[1] - xlim[0])
+        return 'right' if frac > 0.9 else 'left'
+
+    def _split_label(label):
+        """Split '[O III]4959' -> ('[O III]', '4959'); no number -> (label, None)."""
+        m = re.match(r'^(\D+)(\d+)$', label)
+        return (m.group(1), m.group(2)) if m else (label, None)
+
+    # Geometry: a rotated-90° label is ~1.2 x fontsize wide in points, so
+    # the horizontal slot it needs scales with the axes width in points —
+    # larger figures / smaller fonts get proportionally tighter slots.
+    axis_w_pt = ax1.get_window_extent().width * 72.0 / ax1.figure.dpi
+    slot_frac = min(0.05, 1.2 * emission_line_fontsize / max(axis_w_pt, 1.0))
+    if log_x and xlim[0] > 0:
+        min_separation = (xlim[1] / xlim[0]) ** slot_frac
+
+        def _fits(wl, last):
+            return last is None or wl / last > min_separation
+
+        def _anchor_x(wl, col):
+            # Shift the anchor right by col label-widths (multiplicative).
+            return wl * min_separation ** col
+    else:
+        # For linear scale, use absolute separation
+        min_separation = (xlim[1] - xlim[0]) * slot_frac
+
+        def _fits(wl, last):
+            return last is None or wl - last > min_separation
+
+        def _anchor_x(wl, col):
+            return wl + col * min_separation
+
+    # A rotated 90° label occupies about one line-height (~2% of the axes
+    # width) of horizontal space. Column choice is pure collision
+    # avoidance: each label goes into the LOWEST column whose last anchor
+    # is horizontally clear, so labels hug their guide lines unless that
+    # column is genuinely occupied nearby. Vertical stacking (yoff) is
+    # group-scoped: lines closer than min_separation to the previous line
+    # form one blended feature whose labels hang below one another in the
+    # same column; same-family members merge into one label
+    # ("[O III]4959,5007"). A group longer than max_stack labels continues
+    # in the next column. Same-column labels less than min_separation
+    # apart are always same-group stacked, so they never overlap.
+    n_label_cols = 3
+    max_stack = 4
+    col_last_anchor = [None] * n_label_cols  # anchor x of last label per column
+    group_col = 0
+    stack_pts = 0.0
+    count = 0
+    prev_wl = None
+    merged = None  # state of the label being merged, if any
+    filtered_lines = []  # [wl, label, color, col, yoff_pts]
+    for wl, label, color in visible_lines:
+        # Rendered length: mathtext like 'H$\beta$' shows as ~1 glyph, so
+        # count it as one character instead of its raw source length.
+        render_len = len(re.sub(r'\$[^$]*\$', 'X', label))
+        label_h = (render_len * 0.55 + 2.0) * emission_line_fontsize
+        # Blended-feature grouping is a PHYSICS criterion, not a geometric
+        # one: lines closer than group_window_kms in velocity space have
+        # overlapping line profiles and cannot be cleanly separated.
+        same_group = (prev_wl is not None
+                      and (wl - prev_wl) / prev_wl * C_KMS < group_window_kms)
+        name, num = _split_label(label)
+        if (same_group and merged is not None
+                and merged['color'] == color
+                and merged['name'] == name and num):
+            # Same family, same blended group: fold the new wavelength
+            # into the existing label.
+            merged['text'] += ',' + num
+            filtered_lines[merged['idx']][1] = merged['text']
+            stack_pts += (1 + len(num)) * 0.55 * emission_line_fontsize
+            prev_wl = wl
+            continue
+        if same_group and merged is not None:
+            merged = None  # different family: start a new label
+        if same_group:
+            if count >= max_stack:
+                # Group overflow: continue it in the next column (never
+                # wraps back — the occupied columns stay occupied).
+                group_col = min(group_col + 1, n_label_cols - 1)
+                stack_pts = 0.0
+                count = 0
+            col = group_col
+        else:
+            # New blended feature: lowest column whose last anchor is
+            # horizontally clear of this label's anchor.
+            col = 0
+            while (col < n_label_cols - 1
+                   and col_last_anchor[col] is not None
+                   and not _fits(_anchor_x(wl, col), col_last_anchor[col])):
+                col += 1
+            group_col = col
+            stack_pts = 0.0
+            count = 0
+        col_last_anchor[col] = _anchor_x(wl, col)
+        if num:
+            merged = {'idx': len(filtered_lines), 'name': name,
+                      'color': color, 'text': label}
+        else:
+            merged = None
+        filtered_lines.append([wl, label, color, col, stack_pts])
+        stack_pts += label_h
+        count += 1
+        prev_wl = wl
+
+    # Vertical guide line for every visible emission line
+    for line_wl, _, color in visible_lines:
+        ax1.axvline(x=line_wl, color=color, linestyle='--',
+                    linewidth=0.8, alpha=0.7, zorder=1)
+
+    # Add labels hanging beside the line, anchored near the top. Default
+    # rotation mode applies va/ha to the rotated bbox, so va='top' makes
+    # the text grow DOWNWARD from the anchor (rotation_mode='anchor' would
+    # grow it upward past the top). Stacked labels are shifted down by
+    # yoff points via an offset transform, which is frame-independent and
+    # exact.
+    for line_wl, line_label, color, col, yoff in filtered_lines:
+        ax1.annotate(
+            line_label,
+            xy=(_anchor_x(line_wl, col), emission_line_ypos),
+            xycoords=ax1.get_xaxis_transform(),
+            xytext=(0, -yoff),
+            textcoords='offset points',
+            rotation=90,
+            verticalalignment='top',
+            horizontalalignment=_label_ha(line_wl),
+            fontsize=emission_line_fontsize, color=color, alpha=0.9,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                      alpha=0.8, edgecolor='none'),
+            zorder=2)
+
+
 def plot_bestfit(fits_file, output_file=None, show=True, *,
                  save=True,
 
@@ -94,6 +274,7 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                  spec_obs_labels=None, spec_mod_labels=None,
 
                  show_residuals=False, residual_height_ratio=4, residual_ylim=None,
+                 min_line_snr=2.5, line_window_kms=3000.0,
                  **kwargs):
 
     """
@@ -210,7 +391,9 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         Custom labels for model spectra. Same format as spec_obs_labels.
 
-        None uses default 'spec:mod_{band}'.
+        None uses default 'spec:mod' for the first band only; later bands
+
+        share the same style and get no legend entry.
 
     focus_on_data_range : bool
 
@@ -232,6 +415,14 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
         to the residual panel and the main panel hides its x tick labels.
 
+        Photometric residuals are drawn as red markers and spectroscopic
+
+        residuals as thin lines (one per band). No per-point error bars are
+
+        drawn: residuals are already normalized by error, so the integer-sigma
+
+        gridlines give the scale.
+
     residual_height_ratio : int, default 4
 
         Ratio of the main SED panel height to the residual panel height when
@@ -247,6 +438,22 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
         the limits are auto-scaled but always span at least [-3, 3] in sigma
 
         units so the ±1σ reference lines are visible.
+
+    min_line_snr : float, default 2.5
+
+        When spectroscopy is present, only emission lines detected in the
+
+        observed spectrum with matched-filter significance >= this value
+
+        are drawn (see ``bayesed.emission_lines.detect_lines``). Set to 0
+
+        or None to disable detection and mark every table line.
+
+    line_window_kms : float, default 3000.0
+
+        Half-width of the velocity window used for line detection; wide
+
+        enough to cover QSO broad-line components at the default.
 
     **kwargs
 
@@ -425,6 +632,11 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
         model_wavelength_ranges = []
 
         data_wavelength_ranges = []
+
+        # Emission lines detected in the observed spectra (set of
+        # (wl, label, family) from EMISSION_LINES). None until a spectrum
+        # is actually analyzed; photometry-only plots keep every line.
+        detected_lines = None
 
         # Collect flux ranges for y-axis scaling when focus_on_data_range is enabled
 
@@ -942,9 +1154,32 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                 if obs_spec is not None and len(obs_spec) > 0:
 
                     bands = np.unique(obs_spec['iband'])
-                    # Distinct color pairs per band so adjacent bands don't blend
+                    # Distinct colors per band so adjacent bands don't blend.
+                    # Model spectra are drawn in solid gray (see below), so
+                    # only the observed colors are needed here.
                     _obs_colors = ['#E74C3C', '#E67E22', '#8E44AD', '#2ECC71', '#F39C12']
-                    _mod_colors = ['#3498DB', '#1ABC9C', '#9B59B6', '#16A085', '#F1C40F']
+                    # All model spectra share one style; only the first band
+                    # gets a legend entry (dedup'd unless custom labels given).
+                    _mod_labeled = False
+                    # Model spectra are drawn after ALL observed spectra so
+                    # the smooth gray curves sit on top of the noisy data.
+                    _mod_specs = []
+                    # Emission-line detection runs in the rest frame; the
+                    # observed-frame path needs a valid redshift to map line
+                    # wavelengths. Without one, detection is disabled (all
+                    # lines shown) rather than silently mismatching.
+                    _detect_enabled = bool(min_line_snr)
+                    if not use_rest_frame and _detect_enabled:
+                        try:
+                            _z_det = float(z_best)
+                        except (ValueError, TypeError):
+                            _z_det = 0.0
+                            _detect_enabled = False
+                            print("Warning: could not parse redshift for "
+                                  "emission-line detection; showing all "
+                                  "candidate lines instead.")
+                    else:
+                        _z_det = 0.0
 
                     for band in bands:
 
@@ -967,6 +1202,27 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                             spec_obs = band_data['spectra_obs']
 
                             spec_mod = band_data['spectra_mod']
+
+                            # Emission-line detection on the RAW observed
+                            # spectrum and RAW per-pixel errors, so the
+                            # threshold means the same thing in every
+                            # flux_unit mode (the conversions below scale
+                            # flux but not err, which would bias the
+                            # significance). Runs once per band; lines are
+                            # matched in the rest frame regardless of the
+                            # display frame.
+                            if _detect_enabled:
+                                try:
+                                    _det = _detect_band_lines(
+                                        band_data, wl_spec, spec_obs,
+                                        min_line_snr, line_window_kms)
+                                    if detected_lines is None:
+                                        detected_lines = set()
+                                    detected_lines.update(_det)
+                                except KeyError as e:
+                                    print(f"Warning: emission-line detection "
+                                          f"failed for band {band}: {e}")
+
 
                             
 
@@ -1020,7 +1276,7 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
 
                             # Resolve spec labels — support dict per band, string, or None
                             _obs_label = f'spec:obs_{band}'
-                            _mod_label = f'spec:mod_{band}'
+                            _mod_label = 'spec:mod'
                             if spec_obs_labels is not None:
                                 if isinstance(spec_obs_labels, dict):
                                     _obs_label = spec_obs_labels.get(band, _obs_label)
@@ -1031,12 +1287,23 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                                     _mod_label = spec_mod_labels.get(band, _mod_label)
                                 else:
                                     _mod_label = str(spec_mod_labels)
+                            # All model spectra share the same gray style, so
+                            # the default legend keeps a single 'spec:mod'
+                            # entry; custom labels are always honored per band.
+                            if _mod_labeled and _mod_label == 'spec:mod':
+                                _mod_label = None
+                            else:
+                                _mod_labeled = True
 
                             ax1.plot(wl_spec, spec_obs, label=_obs_label,
                                      color=_obs_colors[band % len(_obs_colors)], alpha=0.9)
 
-                            ax1.plot(wl_spec, spec_mod, label=_mod_label,
-                                     color=_mod_colors[band % len(_mod_colors)], alpha=0.9)
+                            # Model spectra: solid gray lines. They must not
+                            # share the dashed style of the component/total
+                            # model curves, and gray reads clearly against
+                            # the colored observed spectra. Deferred until
+                            # after all bands are drawn (see below).
+                            _mod_specs.append((wl_spec, spec_mod, _mod_label))
 
                             # Collect wavelength range from spectroscopy data
 
@@ -1088,6 +1355,13 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                             print(f"Warning: Could not plot band {band}: {e}")
 
                             continue
+
+                    # Draw model spectra after all observed spectra so they
+                    # sit on top of the noisy data.
+                    for wl_mod, spec_mod, _mod_label in _mod_specs:
+                        ax1.plot(wl_mod, spec_mod, label=_mod_label,
+                                 color='darkgray', linestyle='-',
+                                 linewidth=1.2, alpha=0.9)
 
             except Exception as e:
 
@@ -1645,66 +1919,25 @@ def plot_bestfit(fits_file, output_file=None, show=True, *,
                     unique_emission_lines.append((wl, label, color))
             
             # Only show lines that are within the current x-axis range
-            visible_lines = [(wl, label, color) for wl, label, color in unique_emission_lines 
+            visible_lines = [(wl, label, color) for wl, label, color in unique_emission_lines
                            if xlim[0] <= wl <= xlim[1]]
+
+            # When spectra were analyzed, keep only lines significantly
+            # detected in the data (see detect_lines); photometry-only
+            # plots (detected_lines is None) keep every line.
+            if detected_lines is not None:
+                visible_lines = [
+                    (wl, label, color) for wl, label, color in visible_lines
+                    if (wl, label) in detected_lines
+                ]
             
             if visible_lines:
-                # Sort by wavelength for better label placement
                 visible_lines.sort(key=lambda x: x[0])
-                
-                # Labels hang downward from an anchor beside each line, so a
-                # long label never extends past the top of the axes. The y
-                # position is in axes-fraction coordinates (via the xaxis
-                # transform), which removes the log/linear special case.
-                def _label_ha(line_wl):
-                    # Flip the label to the left of the line when it sits in
-                    # the rightmost 10% of the displayed range, so the text
-                    # stays inside the axes on either scale. Gate on the
-                    # axis' actual scale (log_x), not the truthiness of
-                    # use_log_scale — 'y' keeps the x-axis linear.
-                    if log_x and xlim[0] > 0:
-                        frac = ((np.log10(line_wl) - np.log10(xlim[0]))
-                                / (np.log10(xlim[1]) - np.log10(xlim[0])))
-                    else:
-                        frac = (line_wl - xlim[0]) / (xlim[1] - xlim[0])
-                    return 'right' if frac > 0.9 else 'left'
-                
-                # Filter out lines that are too close together to avoid label overlap
-                # Calculate minimum separation based on x-axis range and log/linear scale
-                if log_x and xlim[0] > 0:
-                    # For log scale, use relative separation
-                    min_separation = (xlim[1] / xlim[0]) ** 0.02  # ~2% of log range
-                    filtered_lines = []
-                    for wl, label, color in visible_lines:
-                        if not filtered_lines or wl / filtered_lines[-1][0] > min_separation:
-                            filtered_lines.append((wl, label, color))
-                else:
-                    # For linear scale, use absolute separation
-                    min_separation = (xlim[1] - xlim[0]) * 0.02  # 2% of range
-                    filtered_lines = []
-                    for wl, label, color in visible_lines:
-                        if not filtered_lines or wl - filtered_lines[-1][0] > min_separation:
-                            filtered_lines.append((wl, label, color))
-                
-                # Draw vertical lines and add labels
-                for line_wl, line_label, color in filtered_lines:
-                    # Draw vertical line
-                    ax1.axvline(x=line_wl, color=color, linestyle='--', 
-                              linewidth=0.8, alpha=0.7, zorder=1)
-                    
-                    # Add label hanging beside the line, anchored near the top.
-                    # Default rotation mode applies va/ha to the rotated bbox,
-                    # so va='top' makes the text grow DOWNWARD from the anchor
-                    # (rotation_mode='anchor' would grow it upward past the top).
-                    ax1.text(line_wl, emission_line_ypos, line_label,
-                             rotation=90,
-                             verticalalignment='top',
-                             horizontalalignment=_label_ha(line_wl),
-                             transform=ax1.get_xaxis_transform(),
-                             fontsize=emission_line_fontsize, color=color, alpha=0.9,
-                             bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                                   alpha=0.8, edgecolor='none'),
-                             zorder=2)
+                _draw_emission_line_labels(
+                    ax1, visible_lines, xlim, log_x,
+                    emission_line_fontsize, emission_line_ypos,
+                    group_window_kms=line_window_kms)
+
 
         fig.tight_layout()
 

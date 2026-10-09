@@ -48,10 +48,10 @@ def test_labels_hang_beside_lines(tmp_path):
         assert text.get_rotation() == 90
         assert text.get_verticalalignment() == 'top'
         assert text.get_horizontalalignment() in ('left', 'right')
-        # y stored in axes-fraction coordinates (0-1), not data units
-        _, y = text.get_position()
+        # anchor y stored via Annotation.xy in axes-fraction coords (0-1)
+        _, y = text.xy
         assert 0.0 < y <= 1.0
-        assert text.get_transform() == xaxis_transform
+        assert text.xycoords == xaxis_transform
 
 
 def _display_frac(ax1, x):
@@ -72,7 +72,7 @@ def test_labels_anchor_near_top_by_default(tmp_path):
     _, texts = _emission_line_texts(fig)
     assert texts
     for text in texts:
-        _, y = text.get_position()
+        _, y = text.xy
         assert y >= 0.9, f'label anchor {y} is below the top of the axes'
 
 
@@ -106,14 +106,14 @@ def test_label_flips_side_near_right_edge(tmp_path):
     fig = plot_bestfit(fits_path, show=False, save=False, show_emission_lines=True)
     ax1, texts = _emission_line_texts(fig)
     assert texts
-    rightmost = max(texts, key=lambda t: t.get_position()[0])
-    assert _display_frac(ax1, rightmost.get_position()[0]) > 0.9, \
+    rightmost = max(texts, key=lambda t: t.xy[0])
+    assert _display_frac(ax1, rightmost.xy[0]) > 0.9, \
         'precondition: rightmost label is in the edge zone'
     assert rightmost.get_horizontalalignment() == 'right'
     others = [t for t in texts if t is not rightmost]
     assert others, 'expected labelled lines outside the edge zone too'
     for text in others:
-        expected = 'right' if _display_frac(ax1, text.get_position()[0]) > 0.9 else 'left'
+        expected = 'right' if _display_frac(ax1, text.xy[0]) > 0.9 else 'left'
         assert text.get_horizontalalignment() == expected
 
 
@@ -129,5 +129,5 @@ def test_label_side_follows_axis_scale_not_flag(tmp_path):
     fe2 = next(t for t in texts if t.get_text() == '[Fe II]1.644')
     # On the linear axis [Fe II] sits below the 90% edge; only log math
     # applied to a linear axis would push it past 0.9.
-    assert _display_frac(ax1, fe2.get_position()[0]) < 0.9
+    assert _display_frac(ax1, fe2.xy[0]) < 0.9
     assert fe2.get_horizontalalignment() == 'left'
