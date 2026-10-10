@@ -23,8 +23,12 @@ INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
 RESULTS_VERBS = (
     'summary', 'evidence', 'par_names', 'objects', 'par_values',
     'catalogs', 'model_configs', 'fit_quality',
+    'run_arguments', 'run_version',
 )
 _RESULT_VERB_SET = frozenset(RESULTS_VERBS)
+_RUN_INFO_KEY = {'run_arguments': 'run_arguments', 'run_version': 'version'}
+_RUN_INFO_VERBS = frozenset(_RUN_INFO_KEY)
+_RUN_INFO_FLAGS = {'--cat': 'cat', '--cfg': 'cfg'}
 _QUERY_VERBS = frozenset({'summary', 'evidence', 'par_names', 'objects'})
 PLOT_VERBS = ('bestfit', 'posterior')
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
@@ -81,6 +85,8 @@ def results_usage_lines(prog='bayesed3'):
         f"{prog} results <outdir> fit_quality [--cat PATTERN] "
         f"[--cfg PATTERN] [--obj PATTERN] [--band EDGES] [--top N] "
         f"[--sigma T] [--json]",
+        f"{prog} results <outdir> run_arguments [--cat PATTERN] [--cfg PATTERN]",
+        f"{prog} results <outdir> run_version [--cat PATTERN] [--cfg PATTERN]",
     )
 
 
@@ -410,6 +416,23 @@ def parse_results_query(tokens):
         rest, i, _RESULTS_QUERY_FLAGS, bool_flags=_JSON_BOOL,
     )
     return outdir, cmd, flags['cat'], flags['obj'], flags['cfg'], flags['json']
+
+
+def parse_run_info(tokens):
+    """
+    Parse ``<outdir> run_arguments|run_version [--cat C] [--cfg CFG]``.
+
+    One provenance verb; no leftover positionals. These read whole-file
+    attributes, so there is no ``--obj``.
+    """
+    if not tokens:
+        raise ValueError('missing outdir')
+    outdir = tokens[0]
+    rest = tokens[1:]
+    if not rest or rest[0] not in _RUN_INFO_VERBS:
+        raise ValueError('missing command')
+    flags = _parse_flag_pairs(rest, 1, _RUN_INFO_FLAGS)
+    return outdir, rest[0], flags['cat'], flags['cfg']
 
 
 def parse_model_configs(tokens):
@@ -954,6 +977,21 @@ def _run_fit_quality(rest, prog):
     return 0
 
 
+def _run_run_info(rest, prog):
+    try:
+        outdir, verb, cat, cfg = parse_run_info(rest)
+    except ValueError as e:
+        return _emit_error(str(e), _parse_usage('results', rest, prog))
+    try:
+        results = _load_results_flags(outdir, cat, cfg)
+        provenance = results.run_provenance()
+    except (ValueError, FileNotFoundError, KeyError) as e:
+        _emit_load_error(e)
+        return 1
+    print(provenance[_RUN_INFO_KEY[verb]])
+    return 0
+
+
 def _run_results_query(rest, prog):
     try:
         outdir, cmd, cat, obj, cfg, as_json = parse_results_query(rest)
@@ -1140,6 +1178,8 @@ def _run_results_plot(kind, rest, prog):
         return _run_catalogs(rest, prog)
     if kind == 'results' and _results_has_model_configs(rest):
         return _run_model_configs(rest, prog)
+    if kind == 'results' and _first_results_verb(rest) in _RUN_INFO_VERBS:
+        return _run_run_info(rest, prog)
     if kind == 'results' and _first_results_verb(rest) is None:
         sys.stderr.write('Error: missing command\n')
         sys.stderr.write(results_usage(prog))
@@ -1224,6 +1264,26 @@ def run_inspect(argv, prog='bayesed3'):
         sys.stderr.write(inspect_usage(prog))
         return 1
     token, rest = argv[0], argv[1:]
+    if '--help' in rest:
+        # Sub-command usage request: narrow to the named verb when exactly
+        # one verb OF THIS KIND is present (e.g. `plot <outdir> bestfit
+        # --help`); a verb from the other kind or a mix falls back to the
+        # kind's full usage. Conventionally exits 0.
+        kind_verbs = _RESULT_VERB_SET if token == 'results' else _PLOT_VERB_SET
+        verbs = [v for v in _positional_verbs(rest, kind_verbs)]
+        if token == 'priors':
+            usage = priors_usage_line(prog)
+        elif len(set(verbs)) == 1:
+            verb = verbs[0]
+            usage = (_results_command_usage(prog, verb)
+                     if token == 'results' else _plot_command_usage(prog, verb))
+        else:
+            usage = (results_usage(prog) if token == 'results'
+                     else plot_usage(prog))
+        if not usage.startswith('Usage:'):
+            usage = f'Usage: {usage}\n'
+        sys.stdout.write(usage)
+        return 0
     if token == 'priors':
         return _run_priors(rest, prog)
     return _run_results_plot(token, rest, prog)

@@ -140,6 +140,9 @@ class BayeSEDResults:
     def plot_bestfit(self, *args, **kwargs):
         return self._presentation.plot_bestfit(*args, **kwargs)
 
+    def run_provenance(self) -> dict:
+        return self._products.run_provenance()
+
     def plot_parameter_scatter(self, *args, **kwargs):
         return self._presentation.plot_parameter_scatter(*args, **kwargs)
 

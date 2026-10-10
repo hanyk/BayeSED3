@@ -30,7 +30,7 @@ bayesed3 results <outdir> model_configs [--cat PATTERN] [--json]
 
 ## results (one verb per invocation)
 
-All support optional `--json`. Load is Results-catalog-scoped (`--cat` / `--cfg`); do **not** pass `object_id` into the Results constructor—filter with `--obj` after load where the verb allows it.
+All verbs except the provenance pair support optional `--json`. Load is Results-catalog-scoped (`--cat` / `--cfg`); do **not** pass `object_id` into the Results constructor—filter with `--obj` after load where the verb allows it.
 
 | Verb | `--json` shape | Notes |
 |------|----------------|-------|
@@ -40,6 +40,8 @@ All support optional `--json`. Load is Results-catalog-scoped (`--cat` / `--cfg`
 | `objects` | array of ids | Optional `--obj` filter |
 | `par_values` | array of row objects | Requires `--par`; optional `--obj` |
 | `catalogs` / `model_configs` | array of names | Discovery; no HDF5 load |
+| `run_arguments` / `run_version` | none (plain text only) | Whole-file provenance: the `run_arguments` / `version` attributes the binary writes on the `parameters` dataset. No `--obj`, no `--json` |
+| `fit_quality` | array of row objects | Per-object phot/spec fit quality; optional `--obj`. Semantics (χ²_red, `frac_outside`, `line_residual_outliers` flags, `--band`/`--top`/`--sigma` defaults): `CONTEXT.md` "Fit quality" entry |
 
 ```bash
 bayesed3 results <outdir> summary [--cat PATTERN] [--cfg PATTERN] [--json]
@@ -47,6 +49,9 @@ bayesed3 results <outdir> evidence [--cat PATTERN] [--cfg PATTERN] [--obj PATTER
 bayesed3 results <outdir> par_names [--cat PATTERN] [--cfg PATTERN] [--json]
 bayesed3 results <outdir> objects [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]
 bayesed3 results <outdir> par_values --par PATTERN [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]
+bayesed3 results <outdir> run_arguments [--cat PATTERN] [--cfg PATTERN]
+bayesed3 results <outdir> run_version [--cat PATTERN] [--cfg PATTERN]
+bayesed3 results <outdir> fit_quality [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--band EDGES] [--top N] [--sigma T] [--json]
 ```
 
 ### `--json` and large object counts (N)

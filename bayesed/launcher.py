@@ -45,7 +45,8 @@ def usage_text(prog='bayesed3'):
         f"  {prog} version | --version\n"
         "\n"
         "Inspect:\n"
-        f"  {prog} [--log-level {_LOG_LEVEL_CHOICES}] results|plot|priors\n"
+        f"  {prog} [--log-level {_LOG_LEVEL_CHOICES}] [--help] "
+        f"results|plot|priors\n"
         f"  {prog} results <outdir> [{results_cmds}]\n"
         f"  {prog} plot <outdir> [{plot_cmds}]\n"
         f"  {prog} priors list [dir]\n"
@@ -235,8 +236,13 @@ def run_launcher(argv=None, prog='bayesed3'):
             )
             return 1
 
-    if not argv or argv[0] in ('--help', '-h'):
+    if not argv:
+        # Bare invocation: a hint on stderr (not an explicit help request).
         sys.stderr.write(usage_text(prog))
+        return 0
+    if argv[0] in ('--help', '-h'):
+        # Explicit help request: GNU convention, stdout.
+        sys.stdout.write(usage_text(prog))
         return 0
 
     if argv[0] in ('version', '--version'):

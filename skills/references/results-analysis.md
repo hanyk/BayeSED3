@@ -108,6 +108,18 @@ correlations = results.compute_parameter_correlations([
 print(correlations)  # correlation coefficient matrix
 ```
 
+## Run Provenance
+
+`results.run_provenance()` returns the run-identity attributes the bayesed binary writes on the HDF5 `parameters` dataset — useful for reproducing a run or checking which binary/version produced a results file.
+
+```python
+prov = results.run_provenance()
+print(prov['run_arguments'])  # full launcher argv of the run
+print(prov['version'])        # binary version string (commit, branch, date)
+```
+
+Raises `KeyError` for results files written without these attributes.
+
 ## Bayesian Evidence
 
 ```python

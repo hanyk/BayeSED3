@@ -48,7 +48,7 @@ def test_usage_is_short_overview_without_inspect_flags():
     inspect_idx = text.index('Inspect:\n')
     log_level_line = (
         '  bayesed3 [--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL] '
-        'results|plot|priors\n'
+        '[--help] results|plot|priors\n'
     )
     assert log_level_line in text
     assert text.index(log_level_line) > inspect_idx
@@ -58,7 +58,7 @@ def test_usage_is_short_overview_without_inspect_flags():
     assert (
         'bayesed3 results <outdir> '
         '[summary|evidence|par_names|objects|par_values|catalogs|'
-        'model_configs|fit_quality]\n'
+        'model_configs|fit_quality|run_arguments|run_version]\n'
     ) in text
     assert 'bayesed3 plot <outdir> [bestfit|posterior]\n' in text
     assert 'bayesed3 priors list [dir]\n' in text
@@ -271,18 +271,20 @@ def test_run_launcher_empty_argv_prints_overview_exit_zero():
 
 
 def test_run_launcher_help_prints_overview_not_binary():
+    # GNU convention: explicit --help writes to stdout (usage-on-error
+    # keeps stderr).
     with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
-         patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err:
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
         code = run_launcher(['--help'])
     assert code == 0
     mock_popen.assert_not_called()
-    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
     assert 'bayesed3 run' in written
 
 
 def test_run_launcher_dash_h_prints_overview():
     with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
-         patch('bayesed.launcher.sys.stderr', new_callable=MagicMock):
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock):
         code = run_launcher(['-h'])
     assert code == 0
     mock_popen.assert_not_called()

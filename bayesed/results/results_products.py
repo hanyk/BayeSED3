@@ -4,14 +4,16 @@ Results products: HDF5 discovery/load, tables, evidence, sample/bestfit data.
 Held by BayeSEDResults (ADR-0003). Presentation lives in results_presentation.py.
 """
 
-import os
 import h5py
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Any
+from typing import List, Dict, Optional, Union, Any, TYPE_CHECKING
 import logging
 
 from ..emission_lines import near_emission_lines
+
+if TYPE_CHECKING:
+    from astropy.table import Table
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +178,6 @@ class ResultsProducts:
         - W0533_ALMA_0csp_... → W0533_ALMA
         - seedcat2_STARFORMING_0csp_... → seedcat2_STARFORMING (STARFORMING doesn't start with alphanumeric)
         """
-        import re
         
         parts = filename.split('_')
         
@@ -418,6 +419,35 @@ class ResultsProducts:
 
                 raise ValueError(f"Multiple model configurations found for catalog '{self.catalog_name}'. "
                                f"Please specify model_config parameter. Available configs: {available_configs}")
+
+    def run_provenance(self) -> dict:
+        """Return the run-identity attributes of the HDF5 file.
+
+        The bayesed binary attaches ``run_arguments`` and ``version`` to
+        the ``parameters`` dataset of every results file. Returns
+        ``{'run_arguments': str, 'version': str}``; raises KeyError for
+        files written without them.
+        """
+        if self._hdf5_file is None:
+            raise FileNotFoundError(
+                f'no HDF5 file found in {self.output_dir}')
+        with h5py.File(self._hdf5_file, 'r') as h:
+            if 'parameters' not in h:
+                raise KeyError(
+                    f"{Path(self._hdf5_file).name}: no 'parameters' dataset")
+            attrs = h['parameters'].attrs
+            out = {}
+            for key in ('run_arguments', 'version'):
+                value = attrs.get(key)
+                if value is None:
+                    raise KeyError(
+                        f"{Path(self._hdf5_file).name}: 'parameters' "
+                        f"dataset has no '{key}' attribute"
+                    )
+                out[key] = (value.decode() if isinstance(value, bytes)
+                            else str(value))
+        return out
+
     def _load_hdf5_table(self) -> None:
         """Load HDF5 data using astropy Table + h5py approach."""
         try:
@@ -632,7 +662,7 @@ class ResultsProducts:
             error_msg = f"No parameters found matching '{pattern}' with mode '{param_match_mode}'"
             if not case_sensitive:
                 error_msg += " (case-insensitive)"
-            error_msg += f".\nUse get_parameter_names() to see all available parameters."
+            error_msg += ".\nUse get_parameter_names() to see all available parameters."
             raise ValueError(error_msg)
 
         return matching_params
@@ -798,7 +828,7 @@ class ResultsProducts:
         logger.debug(f"Derived parameters: {derived_params}")
 
         return derived_params
-    def _transpose_parameter_table(self, table: 'astropy.table.Table') -> 'astropy.table.Table':
+    def _transpose_parameter_table(self, table: 'Table') -> 'Table':
         """
         Transpose a parameter table so objects become columns and parameters become rows.
 
@@ -812,7 +842,6 @@ class ResultsProducts:
         astropy.table.Table
             Transposed table with parameter names as rows and object values as columns
         """
-        import pandas as pd
         from astropy.table import Table
 
         if len(table) == 0:
@@ -844,7 +873,7 @@ class ResultsProducts:
                            param_match_mode: str = 'contains',
                            object_match_mode: str = 'contains',
                            case_sensitive: bool = True,
-                           transpose: bool = False) -> 'astropy.table.Table':
+                           transpose: bool = False) -> 'Table':
         """
         Get parameter values by filtering the loaded HDF5 table with flexible matching.
 
@@ -914,7 +943,7 @@ class ResultsProducts:
             error_msg = f"No columns found matching '{parameter_name}' with mode '{param_match_mode}'"
             if not case_sensitive:
                 error_msg += " (case-insensitive)"
-            error_msg += f" in HDF5 table.\nUse get_parameter_names() to see all available parameters."
+            error_msg += " in HDF5 table.\nUse get_parameter_names() to see all available parameters."
             
             raise ValueError(error_msg)
 
@@ -1016,7 +1045,7 @@ class ResultsProducts:
                 return []
 
         return object_ids
-    def load_hdf5_results(self, filter_snr: bool = True, min_snr: float = 0.0) -> 'astropy.table.Table':
+    def load_hdf5_results(self, filter_snr: bool = True, min_snr: float = 0.0) -> 'Table':
         """
         Load HDF5 results table with optional SNR filtering.
 
@@ -1054,7 +1083,7 @@ class ResultsProducts:
 
         return filtered_table
     def get_evidence(self, object_ids: Optional[List[str]] = None,
-                    return_format: str = 'auto') -> Union[Dict[str, float], 'astropy.table.Table', float]:
+                    return_format: str = 'auto') -> Union[Dict[str, float], 'Table', float]:
         """
         Get Bayesian evidence values in a user-friendly format.
 

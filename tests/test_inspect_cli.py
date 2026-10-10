@@ -156,11 +156,11 @@ def test_plot_posterior_without_mode_omits_bestfit_usage():
 
 def test_top_level_help_is_overview_not_binary():
     with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
-         patch('bayesed.launcher.sys.stderr', new_callable=MagicMock) as err:
+         patch('bayesed.launcher.sys.stdout', new_callable=MagicMock) as out:
         code = run_launcher(['--help'])
     assert code == 0
     mock_popen.assert_not_called()
-    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
     assert 'bayesed3 run' in written
 
 
@@ -1203,11 +1203,15 @@ def test_priors_list_dir_uses_existing_loader_and_printer():
 
 
 def test_results_help_does_not_forward_to_binary():
+    # --help is a usage request now: exit 0, usage on stdout, and the
+    # binary is never invoked.
     with patch('bayesed.launcher.subprocess.Popen') as mock_popen, \
-         patch('sys.stderr', new_callable=MagicMock):
+         patch('sys.stdout', new_callable=MagicMock) as out:
         code = run_launcher(['results', '--help'])
-    assert code == 1
+    assert code == 0
     mock_popen.assert_not_called()
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'Usage: bayesed3' in written
 
 
 def test_priors_init_is_rejected():
@@ -2014,8 +2018,150 @@ def test_results_obj_multi_filter_objects():
     assert written.splitlines() == ['spec-a', 'spec-b']
 
 
+def test_results_run_info_prints_only_requested_attribute():
+    """Each provenance verb shows its own attribute and nothing else."""
+    fake = MagicMock()
+    fake.run_provenance.return_value = {
+        'run_arguments': 'bayesed_mn_1 -i galaxy.txt',
+        'version': 'BayeSED3 (test)',
+    }
+    for verb, shown, hidden in (
+        ('run_arguments', 'bayesed_mn_1 -i galaxy.txt', 'BayeSED3 (test)'),
+        ('run_version', 'BayeSED3 (test)', 'bayesed_mn_1 -i galaxy.txt'),
+    ):
+        fake.run_provenance.reset_mock()
+        with patch('bayesed.inspect_cli.list_catalog_names',
+                   return_value=['gal']), \
+             patch('bayesed.inspect_cli.BayeSEDResults',
+                   return_value=fake), \
+             patch('sys.stdout', new_callable=MagicMock) as out:
+            code = run_inspect(['results', 'out', verb])
+        assert code == 0
+        written = ''.join(c.args[0] for c in out.write.call_args_list)
+        assert shown in written
+        assert hidden not in written
+
+
+def test_results_run_info_rejects_unknown_flag():
+    with patch('bayesed.inspect_cli.list_catalog_names') as list_cat, \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'run_arguments', '--json'])
+    assert code == 1
+    list_cat.assert_not_called()
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'unknown option --json' in written
+    assert 'run_arguments [--cat PATTERN] [--cfg PATTERN]' in written
+
+
+def test_results_run_info_reports_missing_attribute():
+    fake = MagicMock()
+    fake.run_provenance.side_effect = KeyError(
+        "gal.hdf5: 'parameters' dataset has no 'run_arguments' attribute")
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'run_arguments'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert "no 'run_arguments' attribute" in written
+
+
+def test_results_run_info_reports_missing_hdf5():
+    """No HDF5 in the outdir: clean load error, exit 1."""
+    fake = MagicMock()
+    fake.run_provenance.side_effect = FileNotFoundError(
+        'no HDF5 file found in out')
+    with patch('bayesed.inspect_cli.list_catalog_names',
+               return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'run_arguments'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert 'no HDF5 file found' in written
+
+
+def test_results_run_info_reports_missing_parameters_dataset():
+    """An HDF5 without a 'parameters' dataset: clean load error, exit 1."""
+    fake = MagicMock()
+    fake.run_provenance.side_effect = KeyError(
+        "gal_test.hdf5: no 'parameters' dataset")
+    with patch('bayesed.inspect_cli.list_catalog_names',
+               return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stderr', new_callable=MagicMock) as err:
+        code = run_inspect(['results', 'out', 'run_version'])
+    assert code == 1
+    written = ''.join(c.args[0] for c in err.write.call_args_list)
+    assert "no 'parameters' dataset" in written
+
+
+def test_verb_level_help_prints_narrow_usage():
+    """`plot <outdir> bestfit --help` shows the bestfit usage, exit 0."""
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['plot', 'out', 'bestfit', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'Usage: bayesed3 plot <outdir> bestfit' in written
+    assert '--show-residuals' in written
+    assert 'posterior' not in written.splitlines()[0]
+
+
+def test_results_verb_level_help_prints_results_usage():
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'run_version', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'run_version [--cat PATTERN] [--cfg PATTERN]' in written
+
+
+def test_kind_level_help_prints_full_usage():
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'summary [--cat PATTERN]' in written
+    assert 'fit_quality' in written
+
+
+def test_priors_help_prints_priors_line():
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['priors', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'priors list' in written
+
+
+
+
+def test_help_with_other_kind_verb_falls_back_to_full_usage():
+    """A verb from the other kind does not narrow (and does not crash):
+    `results out bestfit --help` shows the full results usage."""
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['results', 'out', 'bestfit', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'run_arguments' in written  # full results usage, not a crash
+
+    with patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect(['plot', 'out', 'summary', '--help'])
+    assert code == 0
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert 'posterior free' in written  # full plot usage, not posterior-narrow
+
+
 if __name__ == '__main__':
     test_results_without_verbs_lists_commands_and_skips_binary()
+    test_results_run_info_prints_only_requested_attribute()
+    test_verb_level_help_prints_narrow_usage()
+    test_help_with_other_kind_verb_falls_back_to_full_usage()
+    test_results_verb_level_help_prints_results_usage()
+    test_kind_level_help_prints_full_usage()
+    test_priors_help_prints_priors_line()
+    test_results_run_info_rejects_unknown_flag()
+    test_results_run_info_reports_missing_attribute()
+    test_results_run_info_reports_missing_hdf5()
+    test_results_run_info_reports_missing_parameters_dataset()
     test_plot_without_verbs_lists_commands()
     test_plot_without_outdir_prints_usage_only()
     test_plot_leading_flag_prints_usage_only()
