@@ -36,6 +36,11 @@ _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
 _PAR_VALUES_FLAGS = {
     '--cat': 'cat', '--obj': 'obj', '--par': 'par', '--cfg': 'cfg',
 }
+_PAR_VALUES_BOOL = {
+    '--json': 'json',
+    '--wide': 'wide',
+    '--transpose': 'transpose',
+}
 _FIT_QUALITY_FLAGS = {
     '--cat': 'cat', '--cfg': 'cfg', '--obj': 'obj',
     '--band': 'band', '--top': 'top', '--sigma': 'sigma',
@@ -81,7 +86,8 @@ def results_usage_lines(prog='bayesed3'):
         f"{prog} results <outdir> catalogs [--json]",
         f"{prog} results <outdir> model_configs [--cat PATTERN] [--json]",
         f"{prog} results <outdir> par_values --par PATTERN "
-        f"[--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]",
+        f"[--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] "
+        f"[--wide] [--transpose] [--json]",
         f"{prog} results <outdir> fit_quality [--cat PATTERN] "
         f"[--cfg PATTERN] [--obj PATTERN] [--band EDGES] [--top N] "
         f"[--sigma T] [--json]",
@@ -372,7 +378,8 @@ def _exact_names_regex(names):
 
 def parse_par_values(tokens):
     """
-    Parse ``<outdir> par_values [--cat C] [--cfg CFG] [--obj O] --par P [--json]``.
+    Parse ``<outdir> par_values [--cat C] [--cfg CFG] [--obj O] --par P
+    [--wide] [--transpose] [--json]``.
 
     ``par_values`` is the only command. No leftover positionals.
     """
@@ -383,13 +390,13 @@ def parse_par_values(tokens):
     if not rest or rest[0] != 'par_values':
         raise ValueError('missing command')
     flags = _parse_flag_pairs(
-        rest, 1, _PAR_VALUES_FLAGS, bool_flags=_JSON_BOOL,
+        rest, 1, _PAR_VALUES_FLAGS, bool_flags=_PAR_VALUES_BOOL,
     )
     if flags['par'] is None:
         raise ValueError('--par is required')
     return (
         outdir, flags['cat'], flags['obj'], flags['par'], flags['cfg'],
-        flags['json'],
+        flags['json'], flags['wide'], flags['transpose'],
     )
 
 
@@ -811,6 +818,14 @@ def _par_values_json_payload(table):
     return _table_json_records(table)
 
 
+def _print_par_values_table(table, *, wide):
+    """Human ``par_values`` table; ``--wide`` disables Astropy row/column elision."""
+    if wide:
+        table.pprint(max_width=-1, max_lines=-1)
+        return
+    print(table)
+
+
 def _evidence_json_payload(table):
     """Serialize Evidence table rows for ``results … evidence --json``.
 
@@ -866,7 +881,9 @@ def _print_evidence(results, as_json=False, object_ids=None):
 
 def _run_par_values(rest, prog):
     try:
-        outdir, cat, obj, par, cfg, as_json = parse_par_values(rest)
+        outdir, cat, obj, par, cfg, as_json, wide, transpose = parse_par_values(
+            rest,
+        )
     except ValueError as e:
         return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
@@ -883,11 +900,14 @@ def _run_par_values(rest, prog):
             )
             kwargs['object_ids'] = matched_objs
             kwargs['object_match_mode'] = 'exact'
+        # --json keeps row=object records; ignore --wide / --transpose.
+        if not as_json and transpose:
+            kwargs['transpose'] = True
         table = results.get_parameter_values(_exact_names_regex(matched), **kwargs)
         if as_json:
             _print_json(_par_values_json_payload(table))
         else:
-            print(table)
+            _print_par_values_table(table, wide=wide)
     except (ValueError, FileNotFoundError) as e:
         _emit_load_error(e)
         return 1

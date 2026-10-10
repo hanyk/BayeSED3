@@ -204,6 +204,7 @@ def test_results_outdir_only_prints_usage():
     assert 'config]' not in written
     assert '--par NAME' not in written
     assert 'par_values --par PATTERN' in written
+    assert '[--wide] [--transpose]' in written
 
 
 def test_results_outdir_json_without_command_prints_usage():
@@ -1291,6 +1292,93 @@ def test_par_values_prints_parameter_table():
     assert 'obj-1 9.5' in written
 
 
+def test_par_values_wide_uses_pprint():
+    fake = MagicMock()
+    table = Table({'ID': ['obj-1'], 'age_median': [9.5]})
+    fake.get_parameter_names.return_value = ['age_median']
+    fake.get_parameter_values.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch.object(Table, 'pprint') as pprint_mock, \
+         patch('sys.stdout', new_callable=MagicMock):
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'age', '--wide',
+        ])
+    assert code == 0
+    pprint_mock.assert_called_once_with(max_width=-1, max_lines=-1)
+    fake.get_parameter_values.assert_called_once_with(
+        '^(?:age_median)$', param_match_mode='regex',
+    )
+
+
+def test_par_values_transpose_passed_to_get_parameter_values():
+    fake = MagicMock()
+    fake.get_parameter_names.return_value = ['age_median']
+    fake.get_parameter_values.return_value = 'table'
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake):
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'age', '--transpose',
+        ])
+    assert code == 0
+    fake.get_parameter_values.assert_called_once_with(
+        '^(?:age_median)$',
+        param_match_mode='regex',
+        transpose=True,
+    )
+
+
+def test_par_values_json_ignores_wide_and_transpose():
+    fake = MagicMock()
+    table = pd.DataFrame({'z': [1.0]})
+    fake.get_parameter_names.return_value = ['z']
+    fake.get_parameter_values.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch('sys.stdout', new_callable=MagicMock) as out:
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'z',
+            '--wide', '--transpose', '--json',
+        ])
+    assert code == 0
+    fake.get_parameter_values.assert_called_once_with(
+        '^(?:z)$', param_match_mode='regex',
+    )
+    assert 'transpose' not in fake.get_parameter_values.call_args.kwargs
+    written = ''.join(c.args[0] for c in out.write.call_args_list)
+    assert written.strip() == '[{"z": 1.0}]'
+
+
+def test_par_values_wide_and_transpose_combine():
+    fake = MagicMock()
+    table = Table({'parameter': ['z_mean'], 'obj-1': [1.0]})
+    fake.get_parameter_names.return_value = ['z']
+    fake.get_parameter_values.return_value = table
+    with patch('bayesed.inspect_cli.list_catalog_names', return_value=['gal']), \
+         patch('bayesed.inspect_cli.BayeSEDResults', return_value=fake), \
+         patch.object(Table, 'pprint') as pprint_mock, \
+         patch('sys.stdout', new_callable=MagicMock):
+        code = run_inspect([
+            'results', 'out', 'par_values', '--par', 'z',
+            '--wide', '--transpose',
+        ])
+    assert code == 0
+    fake.get_parameter_values.assert_called_once_with(
+        '^(?:z)$', param_match_mode='regex', transpose=True,
+    )
+    pprint_mock.assert_called_once_with(max_width=-1, max_lines=-1)
+
+
+def test_parse_par_values_bool_flags():
+    outdir, cat, obj, par, cfg, as_json, wide, transpose = parse_par_values([
+        'out', 'par_values', '--par', 'z', '--wide', '--transpose', '--json',
+    ])
+    assert outdir == 'out'
+    assert par == 'z'
+    assert cat is None and obj is None and cfg is None
+    assert as_json and wide and transpose
+
+
 def test_par_values_cat_loads_catalog_not_object():
     fake = MagicMock()
     fake.get_parameter_names.return_value = ['age_median']
@@ -2240,6 +2328,11 @@ if __name__ == '__main__':
     test_results_summary_without_outdir_names_the_missing_directory()
     test_results_two_verbs_without_outdir_keep_the_combine_error()
     test_par_values_prints_parameter_table()
+    test_par_values_wide_uses_pprint()
+    test_par_values_transpose_passed_to_get_parameter_values()
+    test_par_values_json_ignores_wide_and_transpose()
+    test_par_values_wide_and_transpose_combine()
+    test_parse_par_values_bool_flags()
     test_par_values_cat_loads_catalog_not_object()
     test_par_values_cfg_passed_to_ctor()
     test_par_values_obj_filters_via_get_parameter_values()

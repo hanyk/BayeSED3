@@ -38,7 +38,7 @@ All verbs except the provenance pair support optional `--json`. Load is Results-
 | `par_names` | object `{free, derived}` | Ignores `--obj` |
 | `evidence` | array of row objects | `--json`: HDF5 column names (`ID`, present `INSlogZ` / `logZ` / errs). Human print (no `--json`): Python-style `log_evidence: … ± …` |
 | `objects` | array of ids | Optional `--obj` filter |
-| `par_values` | array of row objects | Requires `--par`; optional `--obj` |
+| `par_values` | array of row objects | Requires `--par`; optional `--obj`. Human-only `--wide` / `--transpose` (ignored with `--json`) |
 | `catalogs` / `model_configs` | array of names | Discovery; no HDF5 load |
 | `run_arguments` / `run_version` | none (plain text only) | Whole-file provenance: the `run_arguments` / `version` attributes the binary writes on the `parameters` dataset. No `--obj`, no `--json` |
 | `fit_quality` | array of row objects | Per-object phot/spec fit quality; optional `--obj`. Semantics (χ²_red, `frac_outside`, `line_residual_outliers` flags, `--band`/`--top`/`--sigma` defaults): `CONTEXT.md` "Fit quality" entry |
@@ -48,11 +48,20 @@ bayesed3 results <outdir> summary [--cat PATTERN] [--cfg PATTERN] [--json]
 bayesed3 results <outdir> evidence [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]
 bayesed3 results <outdir> par_names [--cat PATTERN] [--cfg PATTERN] [--json]
 bayesed3 results <outdir> objects [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]
-bayesed3 results <outdir> par_values --par PATTERN [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--json]
+bayesed3 results <outdir> par_values --par PATTERN [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--wide] [--transpose] [--json]
 bayesed3 results <outdir> run_arguments [--cat PATTERN] [--cfg PATTERN]
 bayesed3 results <outdir> run_version [--cat PATTERN] [--cfg PATTERN]
 bayesed3 results <outdir> fit_quality [--cat PATTERN] [--cfg PATTERN] [--obj PATTERN] [--band EDGES] [--top N] [--sigma T] [--json]
 ```
+
+### `par_values` human table
+
+Default human print uses Astropy terminal-width truncation (middle columns may show as `...`). Narrow with a tighter `--par` / `--obj`, or:
+
+- `--wide` — `pprint(max_width=-1, max_lines=-1)` (no column or row elision); does not change JSON
+- `--transpose` — pass `transpose=True` to `get_parameter_values` (rows = stats/params, columns = objects); independent of `--wide`; no object-count guard
+
+With `--json`, both flags are ignored: payload stays an array of row objects (one object per row).
 
 ### `--json` and large object counts (N)
 
