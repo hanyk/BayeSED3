@@ -4,6 +4,7 @@ BayeSED3 Python Interface
 This package provides a Python interface to BayeSED3, a Bayesian SED fitting tool.
 """
 
+from importlib import import_module
 from importlib.metadata import version
 __version__ = version("bayesed3")
 
@@ -15,9 +16,6 @@ from .core import (
     BayeSEDValidationError,
     BayeSEDExecutionError,
 )
-
-# Import enhanced BayeSEDResults from results module
-from .results import BayeSEDResults
 
 # Import data classes
 from .data import (
@@ -42,11 +40,6 @@ from .priors import (
 )
 from .prior import (
     Prior,
-)
-
-# Import plotting functions
-from .plotting import (
-    plot_bestfit,
 )
 
 # Import utility functions
@@ -106,6 +99,12 @@ from .params import (
     TemplateParams,
     RenameParams,
 )
+
+# BayeSEDResults / plot_bestfit: lazy via __getattr__ (ADR-0022)
+_LAZY_EXPORTS = {
+    'BayeSEDResults': ('.results', 'BayeSEDResults'),
+    'plot_bestfit': ('.plotting', 'plot_bestfit'),
+}
 
 __all__ = [
     # Core classes
@@ -183,3 +182,19 @@ __all__ = [
     'TemplateParams',
     'RenameParams',
 ]
+
+
+def __getattr__(name):
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(
+            f"module {__name__!r} has no attribute {name!r}"
+        ) from exc
+    value = getattr(import_module(module_name, __name__), attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

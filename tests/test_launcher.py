@@ -7,8 +7,8 @@ from importlib.metadata import PackageNotFoundError
 
 from bayesed.core import BayeSEDInterface
 from bayesed.launcher import (
+    parse_inspect_log_level,
     parse_launcher_argv,
-    parse_leading_log_level,
     run_launcher,
     usage_text,
 )
@@ -47,8 +47,8 @@ def test_usage_is_short_overview_without_inspect_flags():
     )
     inspect_idx = text.index('Inspect:\n')
     log_level_line = (
-        '  bayesed3 [--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL] '
-        '[--help] results|plot|priors\n'
+        '  bayesed3 results|plot|priors '
+        '[--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL] [--help]\n'
     )
     assert log_level_line in text
     assert text.index(log_level_line) > inspect_idx
@@ -73,25 +73,54 @@ def test_usage_is_short_overview_without_inspect_flags():
     assert 'derived' not in text
 
 
-def test_parse_leading_log_level():
-    level, rest = parse_leading_log_level(
+def test_parse_inspect_log_level_leading():
+    level, rest = parse_inspect_log_level(
         ['--log-level', 'info', 'results', 'out', 'summary'],
     )
     assert level == 'INFO'
     assert rest == ['results', 'out', 'summary']
-    level, rest = parse_leading_log_level(['results', 'out'])
+    level, rest = parse_inspect_log_level(['results', 'out'])
     assert level is None
     assert rest == ['results', 'out']
 
 
-def test_parse_leading_log_level_rejects_invalid():
+def test_parse_inspect_log_level_after_token():
+    level, rest = parse_inspect_log_level(
+        ['results', '--log-level', 'debug', 'out', 'summary'],
+    )
+    assert level == 'DEBUG'
+    assert rest == ['results', 'out', 'summary']
+    level, rest = parse_inspect_log_level(
+        ['plot', '--log-level', 'WARNING', 'out', 'bestfit'],
+    )
+    assert level == 'WARNING'
+    assert rest == ['plot', 'out', 'bestfit']
+    level, rest = parse_inspect_log_level(
+        ['priors', '--log-level', 'ERROR', 'list'],
+    )
+    assert level == 'ERROR'
+    assert rest == ['priors', 'list']
+
+
+def test_parse_inspect_log_level_rejects_invalid():
     try:
-        parse_leading_log_level(['--log-level', 'noisy', 'results'])
+        parse_inspect_log_level(['--log-level', 'noisy', 'results'])
     except ValueError as e:
         assert 'invalid --log-level' in str(e).lower()
         assert 'DEBUG|INFO|WARNING|ERROR|CRITICAL' in str(e)
     else:
         raise AssertionError('expected ValueError')
+
+
+def test_inspect_log_level_after_token_reaches_inspect():
+    with patch('bayesed.inspect_cli.run_inspect', return_value=0) as mock_inspect:
+        code = run_launcher(
+            ['results', '--log-level', 'INFO', 'out', 'summary'],
+        )
+    assert code == 0
+    mock_inspect.assert_called_once_with(
+        ['results', 'out', 'summary'], prog='bayesed3',
+    )
 
 
 def test_log_level_before_run_is_rejected():
@@ -117,7 +146,7 @@ def test_log_level_before_version_is_rejected():
 def test_inspect_default_sets_results_logger_warning():
     import logging
     logging.getLogger('bayesed.results').setLevel(logging.INFO)
-    with patch('bayesed.launcher.run_inspect', return_value=0) as mock_inspect:
+    with patch('bayesed.inspect_cli.run_inspect', return_value=0) as mock_inspect:
         code = run_launcher(['results', 'out', 'summary'])
     assert code == 0
     mock_inspect.assert_called_once_with(['results', 'out', 'summary'], prog='bayesed3')
@@ -135,7 +164,7 @@ def test_inspect_log_level_info_emits_results_info(capsys):
         for handler in saved_handlers:
             root.removeHandler(handler)
         root.setLevel(logging.WARNING)
-        with patch('bayesed.launcher.run_inspect', return_value=0):
+        with patch('bayesed.inspect_cli.run_inspect', return_value=0):
             code = run_launcher([
                 '--log-level', 'INFO', 'results', 'out', 'summary',
             ])
@@ -374,10 +403,12 @@ if __name__ == '__main__':
     test_parse_launcher_default_mpi()
     test_parse_launcher_rejects_bad_mpi()
     test_usage_is_short_overview_without_inspect_flags()
-    test_parse_leading_log_level()
-    test_parse_leading_log_level_rejects_invalid()
+    test_parse_inspect_log_level_leading()
+    test_parse_inspect_log_level_after_token()
+    test_parse_inspect_log_level_rejects_invalid()
     test_log_level_before_run_is_rejected()
     test_log_level_before_version_is_rejected()
+    test_inspect_log_level_after_token_reaches_inspect()
     test_inspect_default_sets_results_logger_warning()
     # test_inspect_log_level_info_emits_results_info needs pytest capsys
     test_run_launcher_version_prints_python_and_binary()

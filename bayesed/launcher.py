@@ -6,6 +6,9 @@ Invoked as ``bayesed3`` / ``python -m bayesed``. First token selects the path:
 ``results`` / ``plot`` / ``priors`` present existing products; ``run`` forwards
 remaining argv to the binary via ``runtime`` (``--mpi`` / ``--np`` only after
 ``run``). Empty argv and top-level ``--help`` / ``-h`` print Launcher overview.
+
+``inspect_cli`` is deferred until Inspect paths run (ADR-0022); ``runtime``
+stays top-level because package ``__init__`` already loads it via Priors.
 """
 
 import logging
@@ -14,12 +17,6 @@ import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 
-from .inspect_cli import (
-    INSPECT_TOKENS,
-    PLOT_VERBS,
-    RESULTS_VERBS,
-    run_inspect,
-)
 from .runtime import (
     absolutize_cli_path_args,
     build_mpi_command,
@@ -29,6 +26,14 @@ from .runtime import (
     resolve_num_processes,
     resolve_system_info,
 )
+
+INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
+RESULTS_VERBS = (
+    'summary', 'evidence', 'par_names', 'objects', 'par_values',
+    'catalogs', 'model_configs', 'fit_quality',
+    'run_arguments', 'run_version',
+)
+PLOT_VERBS = ('bestfit', 'posterior')
 
 _LOG_LEVEL_NAMES = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
 _LOG_LEVEL_CHOICES = '|'.join(_LOG_LEVEL_NAMES)
@@ -45,8 +50,8 @@ def usage_text(prog='bayesed3'):
         f"  {prog} version | --version\n"
         "\n"
         "Inspect:\n"
-        f"  {prog} [--log-level {_LOG_LEVEL_CHOICES}] [--help] "
-        f"results|plot|priors\n"
+        f"  {prog} results|plot|priors "
+        f"[--log-level {_LOG_LEVEL_CHOICES}] [--help]\n"
         f"  {prog} results <outdir> [{results_cmds}]\n"
         f"  {prog} plot <outdir> [{plot_cmds}]\n"
         f"  {prog} priors list [dir]\n"
@@ -56,27 +61,46 @@ def usage_text(prog='bayesed3'):
     )
 
 
-def parse_leading_log_level(argv):
-    """
-    Peel a leading ``--log-level LEVEL`` from ``argv``.
-
-    Returns ``(level_name_or_None, rest)``. ``LEVEL`` is case-insensitive and
-    must be one of DEBUG|INFO|WARNING|ERROR|CRITICAL.
-    """
-    if not argv or argv[0] != '--log-level':
-        return None, list(argv)
-    if len(argv) < 2:
-        raise ValueError(
-            f'--log-level requires a value ({_LOG_LEVEL_CHOICES})'
-        )
-    raw = argv[1]
+def _normalize_log_level(raw):
     level = raw.upper()
     if level not in _LOG_LEVEL_NAMES:
         raise ValueError(
             f"invalid --log-level '{raw}'. "
             f"Expected {_LOG_LEVEL_CHOICES}"
         )
-    return level, list(argv[2:])
+    return level
+
+
+def parse_inspect_log_level(argv):
+    """
+    Peel ``--log-level LEVEL`` from ``argv``.
+
+    Accepted positions (Inspect only):
+    - leading: ``--log-level LEVEL results|plot|priors …``
+    - after the Inspect token: ``results|plot|priors --log-level LEVEL …``
+
+    Returns ``(level_name_or_None, rest)``. ``LEVEL`` is case-insensitive and
+    must be one of DEBUG|INFO|WARNING|ERROR|CRITICAL.
+    """
+    argv = list(argv)
+    if argv and argv[0] == '--log-level':
+        if len(argv) < 2:
+            raise ValueError(
+                f'--log-level requires a value ({_LOG_LEVEL_CHOICES})'
+            )
+        return _normalize_log_level(argv[1]), list(argv[2:])
+    if (
+        len(argv) >= 2
+        and argv[0] in INSPECT_TOKENS
+        and argv[1] == '--log-level'
+    ):
+        if len(argv) < 3:
+            raise ValueError(
+                f'--log-level requires a value ({_LOG_LEVEL_CHOICES})'
+            )
+        level = _normalize_log_level(argv[2])
+        return level, [argv[0], *argv[3:]]
+    return None, argv
 
 
 def _apply_results_log_level(level_name):
@@ -224,7 +248,7 @@ def run_launcher(argv=None, prog='bayesed3'):
         argv = sys.argv[1:]
 
     try:
-        log_level, argv = parse_leading_log_level(argv)
+        log_level, argv = parse_inspect_log_level(argv)
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
         return 1
@@ -250,6 +274,8 @@ def run_launcher(argv=None, prog='bayesed3'):
         return 0
 
     if argv[0] in INSPECT_TOKENS:
+        from .inspect_cli import run_inspect
+
         _apply_results_log_level(log_level or 'WARNING')
         return run_inspect(argv, prog=prog)
 

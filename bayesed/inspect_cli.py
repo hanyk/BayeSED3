@@ -14,23 +14,17 @@ import sys
 from pathlib import Path, PurePath
 
 from .inference import SEDInference
+from .launcher import INSPECT_TOKENS, PLOT_VERBS, RESULTS_VERBS
 from .prior_editor import PriorEditor
 from .prior_manager import PriorManager
 from .results import BayeSEDResults
 from .results.utils import list_catalog_names, list_model_configs
 
-INSPECT_TOKENS = frozenset({'results', 'plot', 'priors'})
-RESULTS_VERBS = (
-    'summary', 'evidence', 'par_names', 'objects', 'par_values',
-    'catalogs', 'model_configs', 'fit_quality',
-    'run_arguments', 'run_version',
-)
 _RESULT_VERB_SET = frozenset(RESULTS_VERBS)
 _RUN_INFO_KEY = {'run_arguments': 'run_arguments', 'run_version': 'version'}
 _RUN_INFO_VERBS = frozenset(_RUN_INFO_KEY)
 _RUN_INFO_FLAGS = {'--cat': 'cat', '--cfg': 'cfg'}
 _QUERY_VERBS = frozenset({'summary', 'evidence', 'par_names', 'objects'})
-PLOT_VERBS = ('bestfit', 'posterior')
 _PLOT_VERB_SET = frozenset(PLOT_VERBS)
 _IPRIOR_NAME = re.compile(r'.*\.iprior(\.\d+)?$')
 _PAR_VALUES_FLAGS = {

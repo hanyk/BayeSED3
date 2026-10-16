@@ -16,7 +16,7 @@ Prefer the Python Results API in `results-analysis.md` when you already hold a `
 
 Empty argv and top-level `--help` / `-h` print a short overview (Version / Inspect / Run sketches)—enough to discover the next verb. Full Inspect flag lists appear on incomplete subcommand usage, not on the overview.
 
-Optional Launcher-global `--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL` applies to Inspect only (default `WARNING`). Do not put `--log-level` before `run` / `version`.
+Optional Launcher-global `--log-level DEBUG|INFO|WARNING|ERROR|CRITICAL` applies to Inspect only (default `WARNING`). Place it leading or immediately after `results` / `plot` / `priors`. Do not put `--log-level` before `run` / `version`.
 
 ## Discover
 
