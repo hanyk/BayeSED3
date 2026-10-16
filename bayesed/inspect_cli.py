@@ -17,8 +17,6 @@ from .inference import SEDInference
 from .launcher import INSPECT_TOKENS, PLOT_VERBS, RESULTS_VERBS
 from .prior_editor import PriorEditor
 from .prior_manager import PriorManager
-from .results import BayeSEDResults
-from .results.utils import list_catalog_names, list_model_configs
 
 _RESULT_VERB_SET = frozenset(RESULTS_VERBS)
 _RUN_INFO_KEY = {'run_arguments': 'run_arguments', 'run_version': 'version'}
@@ -306,6 +304,8 @@ def _resolve_cat_and_cfg(outdir, cat, cfg):
 
     ``cfg`` requires a Results catalog context (explicit or sole catalog).
     """
+    from .results.utils import list_catalog_names, list_model_configs
+
     _require_outdir(outdir)
     catalogs = list_catalog_names(outdir)
     catalog_name = None
@@ -662,6 +662,8 @@ def parse_plot_posterior(tokens):
 
 
 def _catalog_for_discovery(outdir, cat):
+    from .results.utils import list_catalog_names
+
     _require_outdir(outdir)
     catalogs = list_catalog_names(outdir)
     if cat is not None:
@@ -679,6 +681,8 @@ def _catalog_for_discovery(outdir, cat):
 
 def _load_results_flags(outdir, cat, cfg=None):
     """Construct Results with exact catalog / Model configuration names only."""
+    from .results import BayeSEDResults
+
     catalog_name, model_config = _resolve_cat_and_cfg(outdir, cat, cfg)
     kwargs = {}
     if catalog_name is not None:
@@ -922,6 +926,8 @@ def _run_catalogs(rest, prog):
     except ValueError as e:
         return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
+        from .results.utils import list_catalog_names
+
         _require_outdir(outdir)
         _print_name_list(list_catalog_names(outdir), as_json)
     except ValueError as e:
@@ -936,6 +942,8 @@ def _run_model_configs(rest, prog):
     except ValueError as e:
         return _emit_error(str(e), _parse_usage('results', rest, prog))
     try:
+        from .results.utils import list_model_configs
+
         catalog = _catalog_for_discovery(outdir, cat)
         _print_name_list(list_model_configs(outdir, catalog), as_json)
     except ValueError as e:

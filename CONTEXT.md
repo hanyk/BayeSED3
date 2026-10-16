@@ -49,8 +49,8 @@ The `bayesed3` / `python -m bayesed` console entry of the installed Python packa
 _Avoid_: Treating `run` as a no-Python or Python-free path; treating every invocation as a binary run; treating `results` / `plot` / `priors` as fitting or as a second SED-model API; treating bare binary argv (without `run`) as the fit path; routing the binary path through `BayeSEDInterface.run(list)`; treating the Launcher as only a `--help` helper; conflating package name `bayesed3` with the Python happy path; calling the `run` first token "binary" in user-facing grammar; treating Package version and Binary banner as one “version”; putting full Inspect usage or `--cat`/`--par` details on the overview; treating `--log-level` as controlling the compiled binary; treating Inspect `plot --save` as Run argv `--save_*`
 
 **Launcher cold start**:
-Time from process start until the Launcher has parsed argv and is ready to print overview or dispatch—**not** including Inspect Results I/O or binary fit work. Overview / `--help` must not import Results or specutils (ADR-0022).
-_Avoid_: Wall-clock gates as the sole acceptance criterion; treating first Inspect load cost as cold-start failure
+Time from process start until the Launcher has parsed argv and is ready to print overview or dispatch—**not** including Inspect Results I/O or binary fit work. Overview / top-level `--help`, and Inspect usage-only paths (`plot|results|priors` `--help`, incomplete argv, error+usage), must not import Results or specutils (ADR-0022).
+_Avoid_: Wall-clock gates as the sole acceptance criterion; treating first Inspect *product* load cost as cold-start failure; treating Inspect usage/`--help` as inevitably paying Results import
 
 **Run argv**:
 The argument list after `bayesed3 run` that the Launcher forwards to the compiled binary, except Launcher-owned `--mpi` / `--np`. One encoding of a Model configuration. Live flag shapes come from `bayesed3 run --help`. `--z` / `--sys_err_*` may appear here.
